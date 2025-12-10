@@ -10,15 +10,19 @@ members = [".", "migration"]
 
 [dependencies]
 dioxus = { version = "0.7.1", features = ["fullstack", "router"] }
+dioxus-logger = "0.7.1"
+dotenvy = { version = "0.15.7", optional = true }
+migration = { path = "migration", optional = true }
 sea-orm = { version = "2.0.0-rc.11", features = [
   "runtime-tokio-rustls",
   "sqlx-postgres",
   "with-chrono"
 ], optional = true }
+thiserror = { version = "2.0.17", optional = true }
 
 [features]
 default = ["web"]
 desktop = ["dioxus/desktop"]
 mobile = ["dioxus/mobile"]
-server = ["dioxus/server", "sea-orm"]
+server = ["dioxus/server", "dotenvy", "migration", "sea-orm", "thiserror"]
 web = ["dioxus/web"]

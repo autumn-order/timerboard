@@ -1,3 +1,6 @@
+#[cfg(feature = "server")]
+mod server;
+
 use dioxus::prelude::*;
 
 #[derive(Debug, Clone, Routable, PartialEq)]
@@ -16,7 +19,26 @@ const HEADER_SVG: Asset = asset!("/assets/header.svg");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
 
 fn main() {
+    #[cfg(not(feature = "server"))]
     dioxus::launch(App);
+
+    #[cfg(feature = "server")]
+    dioxus::serve(|| async move {
+        use dioxus_logger::tracing;
+
+        use crate::server::{config::Config, startup};
+
+        dotenvy::dotenv().ok();
+        let config = Config::from_env()?;
+
+        let _db = startup::connect_to_database(&config).await?;
+
+        tracing::info!("Starting server");
+
+        let router = dioxus::server::router(App);
+
+        Ok(router)
+    })
 }
 
 #[component]

@@ -2024,7 +2024,11 @@ name = "eve_discord_timerboard"
 version = "0.1.0"
 dependencies = [
  "dioxus",
+ "dioxus-logger",
+ "dotenvy",
+ "migration",
  "sea-orm",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
