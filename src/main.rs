@@ -26,16 +26,19 @@ fn main() {
     dioxus::serve(|| async move {
         use dioxus_logger::tracing;
 
-        use crate::server::{config::Config, startup};
+        use crate::server::{config::Config, startup, state::AppState};
 
         dotenvy::dotenv().ok();
         let config = Config::from_env()?;
 
-        let _db = startup::connect_to_database(&config).await?;
+        let db = startup::connect_to_database(&config).await?;
+        let oauth_client = startup::setup_oauth_client(&config);
 
         tracing::info!("Starting server");
 
-        let router = dioxus::server::router(App);
+        let mut router = dioxus::server::router(App);
+        let server_routes = server::router::router().with_state(AppState { db, oauth_client });
+        router = router.merge(server_routes);
 
         Ok(router)
     })

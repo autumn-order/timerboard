@@ -1,4 +1,24 @@
+use oauth2::basic::{BasicClient, BasicErrorResponseType, BasicTokenType};
+use oauth2::{
+    AuthUrl, Client, ClientId, ClientSecret, EmptyExtraTokenFields, EndpointNotSet, EndpointSet,
+    RedirectUrl, RevocationErrorResponseType, StandardErrorResponse, StandardRevocableToken,
+    StandardTokenIntrospectionResponse, StandardTokenResponse, TokenUrl,
+};
+
 use crate::server::{config::Config, error::AppError};
+
+pub(crate) type OAuth2Client = Client<
+    StandardErrorResponse<BasicErrorResponseType>,
+    StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
+    StandardTokenIntrospectionResponse<EmptyExtraTokenFields, BasicTokenType>,
+    StandardRevocableToken,
+    StandardErrorResponse<RevocationErrorResponseType>,
+    EndpointSet,
+    EndpointNotSet,
+    EndpointNotSet,
+    EndpointNotSet,
+    EndpointSet,
+>;
 
 /// Connects to the Sqlite database and runs pending migrations.
 ///
@@ -25,4 +45,19 @@ pub async fn connect_to_database(config: &Config) -> Result<sea_orm::DatabaseCon
     Migrator::up(&db, None).await?;
 
     Ok(db)
+}
+
+/// Setup OAuth2 client for Discord login
+pub fn setup_oauth_client(config: &Config) -> OAuth2Client {
+    let client_id = ClientId::new(config.discord_client_id.to_string());
+    let client_secret = ClientSecret::new(config.discord_client_secret.to_string());
+    let auth_url = AuthUrl::new(config.discord_auth_url.to_string()).unwrap();
+    let token_url = TokenUrl::new(config.discord_token_url.to_string()).unwrap();
+    let redirect_url = RedirectUrl::new(config.discord_redirect_url.to_string()).unwrap();
+
+    BasicClient::new(client_id)
+        .set_client_secret(client_secret)
+        .set_auth_uri(auth_url)
+        .set_token_uri(token_url)
+        .set_redirect_uri(redirect_url)
 }
