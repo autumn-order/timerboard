@@ -1,7 +1,7 @@
-use axum::Router;
+use axum::{routing::get, Router};
 
-use crate::server::state::AppState;
+use crate::server::{controller::auth::login, state::AppState};
 
 pub fn router() -> Router<AppState> {
-    Router::new()
+    Router::new().route("/api/auth/login", get(login))
 }

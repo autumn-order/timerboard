@@ -2030,7 +2030,9 @@ dependencies = [
  "migration",
  "oauth2",
  "sea-orm",
+ "serde",
  "thiserror 2.0.17",
+ "url",
 ]
 
 [[package]]

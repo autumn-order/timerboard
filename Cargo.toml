@@ -21,6 +21,8 @@ sea-orm = { version = "2.0.0-rc.11", features = [
   "with-chrono"
 ], optional = true }
 thiserror = { version = "2.0.17", optional = true }
+url =  { version = "2.5.7", optional = true }
+serde = { version = "1.0.228", features = ["derive"] }
 
 [features]
 default = ["web"]
@@ -33,6 +35,7 @@ server = [
   "migration",
   "oauth2",
   "sea-orm",
-  "thiserror"
+  "thiserror",
+  "url"
 ]
 web = ["dioxus/web"]

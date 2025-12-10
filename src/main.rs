@@ -1,3 +1,5 @@
+mod model;
+
 #[cfg(feature = "server")]
 mod server;
 

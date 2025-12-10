@@ -1,24 +1,8 @@
-use oauth2::basic::{BasicClient, BasicErrorResponseType, BasicTokenType};
-use oauth2::{
-    AuthUrl, Client, ClientId, ClientSecret, EmptyExtraTokenFields, EndpointNotSet, EndpointSet,
-    RedirectUrl, RevocationErrorResponseType, StandardErrorResponse, StandardRevocableToken,
-    StandardTokenIntrospectionResponse, StandardTokenResponse, TokenUrl,
-};
+use oauth2::basic::BasicClient;
+use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 
+use crate::server::state::OAuth2Client;
 use crate::server::{config::Config, error::AppError};
-
-pub(crate) type OAuth2Client = Client<
-    StandardErrorResponse<BasicErrorResponseType>,
-    StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
-    StandardTokenIntrospectionResponse<EmptyExtraTokenFields, BasicTokenType>,
-    StandardRevocableToken,
-    StandardErrorResponse<RevocationErrorResponseType>,
-    EndpointSet,
-    EndpointNotSet,
-    EndpointNotSet,
-    EndpointNotSet,
-    EndpointSet,
->;
 
 /// Connects to the Sqlite database and runs pending migrations.
 ///
