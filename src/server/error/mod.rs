@@ -1,3 +1,6 @@
+pub mod auth;
+pub mod config;
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -6,12 +9,17 @@ use axum::{
 use dioxus_logger::tracing;
 use thiserror::Error;
 
-use crate::model::api::ErrorDto;
+use crate::{
+    model::api::ErrorDto,
+    server::error::{auth::AuthError, config::ConfigError},
+};
 
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error(transparent)]
     ConfigErr(#[from] ConfigError),
+    #[error(transparent)]
+    AuthErr(#[from] AuthError),
     #[error(transparent)]
     DbErr(#[from] sea_orm::DbErr),
     #[error(transparent)]
@@ -20,19 +28,10 @@ pub enum AppError {
     SessionErr(#[from] tower_sessions::session::Error),
 }
 
-#[derive(Error, Debug)]
-pub enum ConfigError {
-    /// Required environment variable is not set.
-    ///
-    /// The application requires this environment variable to be defined. Check the
-    /// documentation or `.env.example` file for required configuration variables.
-    #[error("Missing required environment variable: {0}")]
-    MissingEnvVar(String),
-}
-
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         match self {
+            Self::AuthErr(err) => err.into_response(),
             err => InternalServerError(err).into_response(),
         }
     }

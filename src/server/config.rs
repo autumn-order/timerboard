@@ -1,4 +1,4 @@
-use crate::server::error::{AppError, ConfigError};
+use crate::server::error::{config::ConfigError, AppError};
 
 const DISCORD_AUTH_URL: &str = "https://discord.com/oauth2/authorize";
 const DISCORD_TOKEN_URL: &str = "https://discord.com/api/oauth2/token";
