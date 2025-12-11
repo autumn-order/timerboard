@@ -1,53 +1,59 @@
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
 
-use crate::client::component::page::LoadingPage;
-use crate::client::component::{page::ErrorPage, Page};
+use crate::client::{
+    component::{
+        page::{ErrorPage, LoadingPage},
+        Page,
+    },
+    model::error::ApiError,
+};
 use crate::model::{api::ErrorDto, discord::DiscordGuildDto};
 
 #[cfg(feature = "web")]
-pub async fn get_all_discord_guilds() -> Result<Vec<DiscordGuildDto>, String> {
+pub async fn get_all_discord_guilds() -> Result<Vec<DiscordGuildDto>, ApiError> {
     use reqwasm::http::Request;
 
     let response = Request::get("/api/admin/discord/guilds")
         .credentials(reqwasm::http::RequestCredentials::Include)
         .send()
         .await
-        .map_err(|e| format!("Failed to send request: {}", e))?;
+        .map_err(|e| ApiError {
+            status: 500,
+            message: format!("Failed to send request: {}", e),
+        })?;
 
-    match response.status() {
+    let status = response.status() as u64;
+
+    match status {
         200 => {
             let guilds = response
                 .json::<Vec<DiscordGuildDto>>()
                 .await
-                .map_err(|e| format!("Failed to parse Discord guild data: {}", e))?;
+                .map_err(|e| ApiError {
+                    status: 500,
+                    message: format!("Failed to parse Discord guild data: {}", e),
+                })?;
             Ok(guilds)
         }
         _ => {
-            if let Ok(error_dto) = response.json::<ErrorDto>().await {
-                Err(format!(
-                    "Request failed with status {}: {}",
-                    response.status(),
-                    error_dto.error
-                ))
+            let message = if let Ok(error_dto) = response.json::<ErrorDto>().await {
+                error_dto.error
             } else {
-                let error_text = response
+                response
                     .text()
                     .await
-                    .unwrap_or_else(|_| "Unknown error".to_string());
-                Err(format!(
-                    "Request failed with status {}: {}",
-                    response.status(),
-                    error_text
-                ))
-            }
+                    .unwrap_or_else(|_| "Unknown error".to_string())
+            };
+
+            Err(ApiError { status, message })
         }
     }
 }
 
 #[component]
 pub fn Admin() -> Element {
-    let mut guilds = use_signal(|| None::<Result<Vec<DiscordGuildDto>, String>>);
+    let mut guilds = use_signal(|| None::<Result<Vec<DiscordGuildDto>, ApiError>>);
     let mut fetched = use_signal(|| false);
 
     // Fetch guilds on first load
@@ -61,7 +67,7 @@ pub fn Admin() -> Element {
                 fetched.set(true);
             }
             Some(Err(err)) => {
-                tracing::error!(err);
+                tracing::error!("Failed to fetch guilds: {}", err);
                 guilds.set(Some(Err(err.clone())));
                 fetched.set(true);
             }
@@ -111,7 +117,7 @@ pub fn Admin() -> Element {
                 }
             }
         } else if let Some(Err(error)) = guilds() {
-            ErrorPage { status: 500, message: error }
+            ErrorPage { status: error.status, message: error.message }
         } else {
             LoadingPage { }
         }
