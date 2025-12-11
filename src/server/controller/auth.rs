@@ -15,7 +15,6 @@ static SESSION_ADMIN_CODE_VALIDATED: &str = "auth:set_admin";
 static SESSION_USER_ID: &str = "auth:user";
 
 use crate::server::{
-    data::user::UserRepository,
     error::{auth::AuthError, AppError},
     service::{auth::DiscordAuthService, user::UserService},
     state::AppState,
@@ -49,7 +48,7 @@ pub async fn login(
     session: Session,
     params: Query<LoginParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let auth_service = DiscordAuthService::new(state.http_client, state.oauth_client);
+    let auth_service = DiscordAuthService::new(&state.db, &state.http_client, &state.oauth_client);
     let admin_code = &params.0.admin_code;
 
     // Validate admin code if provided
@@ -79,8 +78,7 @@ pub async fn callback(
     session: Session,
     params: Query<CallbackParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let auth_service = DiscordAuthService::new(state.http_client, state.oauth_client);
-    let user_repo = UserRepository::new(&state.db);
+    let auth_service = DiscordAuthService::new(&state.db, &state.http_client, &state.oauth_client);
 
     validate_csrf(&session, &params.0.state).await?;
 
@@ -90,8 +88,7 @@ pub async fn callback(
         .await?
         .unwrap_or(false);
 
-    let user = auth_service.callback(params.0.code).await?;
-    let new_user = user_repo.upsert(user.clone(), is_admin).await?;
+    let new_user = auth_service.callback(params.0.code, is_admin).await?;
 
     session.insert(SESSION_USER_ID, new_user.id).await?;
 

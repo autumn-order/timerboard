@@ -3,7 +3,7 @@ use url::Url;
 
 use crate::server::service::auth::DiscordAuthService;
 
-impl DiscordAuthService {
+impl<'a> DiscordAuthService<'a> {
     pub fn login_url(&self) -> (Url, CsrfToken) {
         let (authorize_url, csrf_state) = self
             .oauth_client

@@ -5,24 +5,32 @@ use oauth2::{
 use serenity::all::User as DiscordUser;
 
 use crate::server::{
+    data::user::UserRepository,
     error::{auth::AuthError, AppError},
     service::auth::DiscordAuthService,
 };
 
-impl DiscordAuthService {
-    pub async fn callback(&self, authorization_code: String) -> Result<DiscordUser, AppError> {
+impl<'a> DiscordAuthService<'a> {
+    pub async fn callback(
+        &self,
+        authorization_code: String,
+        is_admin: bool,
+    ) -> Result<entity::user::Model, AppError> {
+        let user_repo = UserRepository::new(&self.db);
+
         let auth_code = AuthorizationCode::new(authorization_code);
 
         let token = self
             .oauth_client
             .exchange_code(auth_code)
-            .request_async(&self.http_client)
+            .request_async(self.http_client)
             .await
             .map_err(AuthError::from)?;
 
         let user = self.fetch_discord_user(&token).await?;
+        let new_user = user_repo.upsert(user, is_admin).await?;
 
-        Ok(user)
+        Ok(new_user)
     }
 
     /// Retrieves a Discord user's information using provided access token
