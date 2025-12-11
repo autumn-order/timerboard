@@ -80,9 +80,17 @@ pub fn Admin() -> Element {
         if let Some(Ok(guild_list)) = guilds() {
             Page {
                 class: "flex flex-col items-center w-full h-full",
-                h1 {
-                    class: "text-2xl font-bold mb-6",
-                    "Admin - Discord Servers"
+                div {
+                    class: "flex items-center justify-between gap-4 w-full max-w-6xl mb-6",
+                    h1 {
+                        class: "text-lg sm:text-2xl",
+                        "Manage Servers"
+                    }
+                    a {
+                        href: "/api/admin/bot/add",
+                        class: "btn btn-primary",
+                        "Add New Server"
+                    }
                 }
                 div {
                     class: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-6xl",
