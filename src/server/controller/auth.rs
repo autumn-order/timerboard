@@ -98,6 +98,15 @@ pub async fn callback(
     Ok(Redirect::permanent("/"))
 }
 
+pub async fn logout(session: Session) -> Result<impl IntoResponse, AppError> {
+    // Only clear session if there actually is a user in session
+    if let Some(_user_id) = session.get::<i32>(SESSION_USER_ID).await? {
+        session.clear().await;
+    }
+
+    Ok(Redirect::temporary("/login"))
+}
+
 /// Retrieve information for user with active session
 pub async fn get_user(
     State(state): State<AppState>,

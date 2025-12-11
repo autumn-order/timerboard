@@ -13,7 +13,7 @@ pub fn ProtectedLayout() -> Element {
     // Redirect unauthenticated user to login after fetch completes
     use_effect(use_reactive!(|(user_logged_in, fetch_completed)| {
         if !user_logged_in && fetch_completed {
-            nav.push(Route::Home {});
+            nav.push(Route::Login {});
         }
     }));
 
