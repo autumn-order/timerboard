@@ -27,4 +27,8 @@ impl<'a> DiscordGuildRepository<'a> {
         .exec_with_returning(self.db)
         .await
     }
+
+    pub async fn get_all(&self) -> Result<Vec<entity::discord_guild::Model>, DbErr> {
+        entity::prelude::DiscordGuild::find().all(self.db).await
+    }
 }
