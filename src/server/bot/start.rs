@@ -6,7 +6,10 @@ use serenity::all::{
 use serenity::async_trait;
 
 use crate::server::config::Config;
-use crate::server::data::discord::{DiscordGuildRepository, DiscordGuildRoleRepository};
+use crate::server::data::discord::{
+    DiscordGuildRepository, DiscordGuildRoleRepository, UserDiscordGuildRepository,
+};
+use crate::server::data::user::UserRepository;
 use crate::server::error::AppError;
 use crate::server::service::discord::DiscordGuildRoleService;
 
@@ -83,6 +86,107 @@ impl EventHandler for Handler {
             tracing::info!("Deleted role {} from guild {}", removed_role_id, guild_id);
         }
     }
+
+    /// Called when a member joins a guild
+    async fn guild_member_addition(&self, _ctx: Context, new_member: serenity::all::Member) {
+        let discord_id = new_member.user.id.get();
+        let guild_id = new_member.guild_id.get();
+
+        let user_repo = UserRepository::new(&self.db);
+        let guild_repo = DiscordGuildRepository::new(&self.db);
+        let user_guild_repo = UserDiscordGuildRepository::new(&self.db);
+
+        // Check if this user is logged into our application
+        let Some(user) = (match user_repo.find_by_discord_id(discord_id).await {
+            Ok(user) => user,
+            Err(e) => {
+                tracing::error!("Failed to query user by discord_id: {:?}", e);
+                return;
+            }
+        }) else {
+            // User hasn't logged into the app, no need to track
+            return;
+        };
+
+        // Check if the guild is one our bot is in
+        let Some(guild) = (match guild_repo.find_by_guild_id(guild_id).await {
+            Ok(guild) => guild,
+            Err(e) => {
+                tracing::error!("Failed to query guild by guild_id: {:?}", e);
+                return;
+            }
+        }) else {
+            // Shouldn't happen since we're receiving the event, but handle it
+            tracing::warn!("Received member_add event for unknown guild {}", guild_id);
+            return;
+        };
+
+        // Create the user-guild relationship
+        if let Err(e) = user_guild_repo.create(user.id, guild.id).await {
+            tracing::error!("Failed to create user-guild relationship: {:?}", e);
+        } else {
+            tracing::info!(
+                "User {} joined guild {} - relationship created",
+                user.name,
+                guild.name
+            );
+        }
+    }
+
+    /// Called when a member leaves a guild
+    async fn guild_member_removal(
+        &self,
+        _ctx: Context,
+        guild_id: serenity::all::GuildId,
+        user: serenity::all::User,
+        _member_data_if_available: Option<serenity::all::Member>,
+    ) {
+        let discord_id = user.id.get();
+        let guild_id = guild_id.get();
+
+        let user_repo = UserRepository::new(&self.db);
+        let guild_repo = DiscordGuildRepository::new(&self.db);
+        let user_guild_repo = UserDiscordGuildRepository::new(&self.db);
+
+        // Check if this user is logged into our application
+        let Some(user) = (match user_repo.find_by_discord_id(discord_id).await {
+            Ok(user) => user,
+            Err(e) => {
+                tracing::error!("Failed to query user by discord_id: {:?}", e);
+                return;
+            }
+        }) else {
+            // User hasn't logged into the app, no need to track
+            return;
+        };
+
+        // Check if the guild is one our bot is in
+        let Some(guild) = (match guild_repo.find_by_guild_id(guild_id).await {
+            Ok(guild) => guild,
+            Err(e) => {
+                tracing::error!("Failed to query guild by guild_id: {:?}", e);
+                return;
+            }
+        }) else {
+            // Shouldn't happen since we're receiving the event, but handle it
+            tracing::warn!(
+                "Received guild_member_removal event for unknown guild {}",
+                guild_id
+            );
+            return;
+        };
+
+        // Delete the user-guild relationship
+        if let Err(e) = user_guild_repo.delete(user.id, guild.id).await {
+            tracing::error!("Failed to delete user-guild relationship: {:?}", e);
+        } else {
+            tracing::info!(
+                "User {} left guild {} - relationship removed",
+                user.name,
+                guild.name
+            );
+        }
+    }
 }
 
 /// Starts the Discord bot in a blocking manner
@@ -101,7 +205,9 @@ impl EventHandler for Handler {
 /// - `Err(AppError)` if bot initialization or connection fails
 pub async fn start_bot(config: &Config, db: DatabaseConnection) -> Result<(), AppError> {
     // Configure gateway intents - what events the bot will receive
-    let intents = GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES;
+    // GUILD_MEMBERS is a privileged intent - must be enabled in Discord Developer Portal
+    let intents =
+        GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES | GatewayIntents::GUILD_MEMBERS;
 
     // Create the event handler with database access
     let handler = Handler { db };

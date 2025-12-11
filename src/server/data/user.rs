@@ -41,6 +41,16 @@ impl<'a> UserRepository<'a> {
             .await
     }
 
+    pub async fn find_by_discord_id(
+        &self,
+        discord_id: u64,
+    ) -> Result<Option<entity::user::Model>, DbErr> {
+        entity::prelude::User::find()
+            .filter(entity::user::Column::DiscordId.eq(discord_id as i64))
+            .one(self.db)
+            .await
+    }
+
     /// Checks if any admin users exist in the database.
     ///
     /// # Returns

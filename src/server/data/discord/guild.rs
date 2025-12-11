@@ -1,5 +1,5 @@
 use migration::OnConflict;
-use sea_orm::{ActiveValue, DatabaseConnection, DbErr, EntityTrait};
+use sea_orm::{ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter};
 use serenity::all::Guild;
 
 pub struct DiscordGuildRepository<'a> {
@@ -30,5 +30,15 @@ impl<'a> DiscordGuildRepository<'a> {
 
     pub async fn get_all(&self) -> Result<Vec<entity::discord_guild::Model>, DbErr> {
         entity::prelude::DiscordGuild::find().all(self.db).await
+    }
+
+    pub async fn find_by_guild_id(
+        &self,
+        guild_id: u64,
+    ) -> Result<Option<entity::discord_guild::Model>, DbErr> {
+        entity::prelude::DiscordGuild::find()
+            .filter(entity::discord_guild::Column::GuildId.eq(guild_id as i64))
+            .one(self.db)
+            .await
     }
 }

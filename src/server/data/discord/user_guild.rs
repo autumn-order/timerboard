@@ -58,6 +58,16 @@ impl<'a> UserDiscordGuildRepository<'a> {
         Ok(())
     }
 
+    /// Deletes a specific user-guild relationship
+    pub async fn delete(&self, user_id: i32, guild_id: i32) -> Result<(), DbErr> {
+        entity::prelude::UserDiscordGuild::delete_many()
+            .filter(entity::user_discord_guild::Column::UserId.eq(user_id))
+            .filter(entity::user_discord_guild::Column::GuildId.eq(guild_id))
+            .exec(self.db)
+            .await?;
+        Ok(())
+    }
+
     /// Syncs user's guild memberships by removing old ones and adding new ones
     pub async fn sync_user_guilds(&self, user_id: i32, guild_ids: &[i32]) -> Result<(), DbErr> {
         // Delete all existing relationships for this user
