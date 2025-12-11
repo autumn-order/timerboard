@@ -1,16 +1,47 @@
 use oauth2::{
-    basic::BasicTokenType, AuthorizationCode, EmptyExtraTokenFields, StandardTokenResponse,
-    TokenResponse,
+    basic::BasicTokenType, AuthorizationCode, CsrfToken, EmptyExtraTokenFields, Scope,
+    StandardTokenResponse, TokenResponse,
 };
+use sea_orm::DatabaseConnection;
 use serenity::all::User as DiscordUser;
+use url::Url;
 
 use crate::server::{
     data::user::UserRepository,
     error::{auth::AuthError, AppError},
-    service::auth::DiscordAuthService,
+    state::OAuth2Client,
 };
 
+pub struct DiscordAuthService<'a> {
+    pub db: &'a DatabaseConnection,
+    pub http_client: &'a reqwest::Client,
+    pub oauth_client: &'a OAuth2Client,
+}
+
 impl<'a> DiscordAuthService<'a> {
+    pub fn new(
+        db: &'a DatabaseConnection,
+        http_client: &'a reqwest::Client,
+        oauth_client: &'a OAuth2Client,
+    ) -> Self {
+        Self {
+            db,
+            http_client,
+            oauth_client,
+        }
+    }
+
+    pub fn login_url(&self) -> (Url, CsrfToken) {
+        let (authorize_url, csrf_state) = self
+            .oauth_client
+            .authorize_url(|| CsrfToken::new_random())
+            // Request scope to retrieve user information without email
+            .add_scope(Scope::new("identify".to_string()))
+            .url();
+
+        (authorize_url, csrf_state)
+    }
+
     pub async fn callback(
         &self,
         authorization_code: String,

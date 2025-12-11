@@ -15,7 +15,7 @@ fn main() {
         use dioxus_logger::tracing;
 
         use crate::server::{
-            config::Config, service::auth::admin::AdminCodeService, startup, state::AppState,
+            config::Config, service::admin::AdminCodeService, startup, state::AppState,
         };
 
         dotenvy::dotenv().ok();

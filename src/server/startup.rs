@@ -5,7 +5,7 @@ use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
 use tower_sessions_sqlx_store::SqliteStore;
 
 use crate::server::data::user::UserRepository;
-use crate::server::service::auth::admin::AdminCodeService;
+use crate::server::service::admin::AdminCodeService;
 use crate::server::state::OAuth2Client;
 use crate::server::{config::Config, error::AppError};
 
