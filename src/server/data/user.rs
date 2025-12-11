@@ -19,7 +19,7 @@ impl<'a> UserRepository<'a> {
         is_admin: bool,
     ) -> Result<entity::user::Model, DbErr> {
         entity::prelude::User::insert(entity::user::ActiveModel {
-            discord_id: ActiveValue::Set(user.id.get() as i32),
+            discord_id: ActiveValue::Set(user.id.get() as i64),
             name: ActiveValue::Set(user.name),
             admin: ActiveValue::Set(is_admin),
             ..Default::default()

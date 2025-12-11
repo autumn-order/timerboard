@@ -1,11 +1,14 @@
 use dioxus_logger::tracing;
 use sea_orm::DatabaseConnection;
-use serenity::all::{ActivityData, Client, Context, EventHandler, GatewayIntents, Guild, Ready};
+use serenity::all::{
+    ActivityData, Client, Context, EventHandler, GatewayIntents, Guild, Ready, Role, RoleId,
+};
 use serenity::async_trait;
 
 use crate::server::config::Config;
 use crate::server::data::discord::{DiscordGuildRepository, DiscordGuildRoleRepository};
 use crate::server::error::AppError;
+use crate::server::service::discord::DiscordGuildRoleService;
 
 /// Discord bot event handler
 struct Handler {
@@ -33,16 +36,51 @@ impl EventHandler for Handler {
             return;
         }
 
+        let role_service = DiscordGuildRoleService::new(&self.db);
+
+        if let Err(e) = role_service.update_roles(guild_id, &guild_roles).await {
+            tracing::error!("Failed to update guild roles: {:?}", e);
+        }
+    }
+
+    /// Called when a role is created in a guild
+    async fn guild_role_create(&self, _ctx: Context, new: Role) {
+        let guild_id = new.guild_id.get();
         let role_repo = DiscordGuildRoleRepository::new(&self.db);
 
-        if let Err(e) = role_repo.upsert_many(guild_id, &guild_roles).await {
-            tracing::error!("Failed to upsert guild roles: {:?}", e);
+        if let Err(e) = role_repo.upsert(guild_id, &new).await {
+            tracing::error!("Failed to upsert new role: {:?}", e);
         } else {
-            tracing::info!(
-                "Upserted {} roles for guild {}",
-                guild_roles.len(),
-                guild_id
-            );
+            tracing::info!("Created role {} in guild {}", new.name, guild_id);
+        }
+    }
+
+    /// Called when a role is updated in a guild
+    async fn guild_role_update(&self, _ctx: Context, _old: Option<Role>, new: Role) {
+        let guild_id = new.guild_id.get();
+        let role_repo = DiscordGuildRoleRepository::new(&self.db);
+
+        if let Err(e) = role_repo.upsert(guild_id, &new).await {
+            tracing::error!("Failed to upsert updated role: {:?}", e);
+        } else {
+            tracing::info!("Updated role {} in guild {}", new.name, guild_id);
+        }
+    }
+
+    /// Called when a role is deleted from a guild
+    async fn guild_role_delete(
+        &self,
+        _ctx: Context,
+        guild_id: serenity::all::GuildId,
+        removed_role_id: RoleId,
+        _removed_role_data_if_in_cache: Option<Role>,
+    ) {
+        let role_repo = DiscordGuildRoleRepository::new(&self.db);
+
+        if let Err(e) = role_repo.delete(removed_role_id.get()).await {
+            tracing::error!("Failed to delete role: {:?}", e);
+        } else {
+            tracing::info!("Deleted role {} from guild {}", removed_role_id, guild_id);
         }
     }
 }

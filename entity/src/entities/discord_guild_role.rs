@@ -7,12 +7,12 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub guild_id: i32,
+    pub guild_id: i64,
     #[sea_orm(unique)]
-    pub role_id: i32,
+    pub role_id: i64,
     pub name: String,
     pub color: String,
-    pub position: i32,
+    pub position: i16,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

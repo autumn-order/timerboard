@@ -8,7 +8,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     #[sea_orm(unique)]
-    pub discord_id: i32,
+    pub discord_id: i64,
     pub name: String,
     pub admin: bool,
 }

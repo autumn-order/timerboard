@@ -14,7 +14,7 @@ impl MigrationTrait for Migration {
                     .table(User::Table)
                     .if_not_exists()
                     .col(pk_auto(User::Id))
-                    .col(big_integer_uniq(User::DiscordId))
+                    .col(big_unsigned_uniq(User::DiscordId))
                     .col(string(User::Name))
                     .col(boolean(User::Admin))
                     .to_owned(),
