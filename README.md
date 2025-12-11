@@ -1,5 +1,10 @@
 # Development
 
+Generate entities with:
+```bash
+sea-orm-cli generate entity -o ./entity/src/entities/ --date-time-crate chrono
+```
+
 Your new bare-bones project includes minimal organization with a single `main.rs` file and a few assets.
 
 ```
