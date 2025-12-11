@@ -3,6 +3,7 @@ use crate::server::error::{config::ConfigError, AppError};
 const DISCORD_AUTH_URL: &str = "https://discord.com/oauth2/authorize";
 const DISCORD_TOKEN_URL: &str = "https://discord.com/api/oauth2/token";
 
+#[derive(Clone)]
 pub struct Config {
     pub database_url: String,
     pub app_url: String,
@@ -10,6 +11,7 @@ pub struct Config {
     pub discord_client_id: String,
     pub discord_client_secret: String,
     pub discord_redirect_url: String,
+    pub discord_bot_token: String,
 
     pub discord_auth_url: String,
     pub discord_token_url: String,
@@ -28,6 +30,8 @@ impl Config {
                 .map_err(|_| ConfigError::MissingEnvVar("DISCORD_CLIENT_SECRET".to_string()))?,
             discord_redirect_url: std::env::var("DISCORD_REDIRECT_URL")
                 .map_err(|_| ConfigError::MissingEnvVar("DISCORD_REDIRECT_URL".to_string()))?,
+            discord_bot_token: std::env::var("DISCORD_BOT_TOKEN")
+                .map_err(|_| ConfigError::MissingEnvVar("DISCORD_BOT_TOKEN".to_string()))?,
             discord_auth_url: DISCORD_AUTH_URL.to_string(),
             discord_token_url: DISCORD_TOKEN_URL.to_string(),
         })

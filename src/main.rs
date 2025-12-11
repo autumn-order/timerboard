@@ -15,7 +15,7 @@ fn main() {
         use dioxus_logger::tracing;
 
         use crate::server::{
-            config::Config, service::admin::code::AdminCodeService, startup, state::AppState,
+            bot, config::Config, service::admin::code::AdminCodeService, startup, state::AppState,
         };
 
         dotenvy::dotenv().ok();
@@ -30,6 +30,15 @@ fn main() {
         let admin_code_service = AdminCodeService::new();
 
         tracing::info!("Starting server");
+
+        // Start Discord bot in a separate task
+        let bot_db = db.clone();
+        let bot_config = config.clone();
+        tokio::spawn(async move {
+            if let Err(e) = bot::start::start_bot(&bot_config, bot_db).await {
+                tracing::error!("Discord bot error: {}", e);
+            }
+        });
 
         // Check for admin users and generate login link if none exist
         startup::check_for_admin(&db, &config, &admin_code_service).await?;
