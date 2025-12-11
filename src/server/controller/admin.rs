@@ -5,8 +5,9 @@ use axum::{
 use tower_sessions::Session;
 
 use crate::server::{
-    controller::auth::{SESSION_AUTH_CSRF_TOKEN, SESSION_AUTH_USER_ID},
-    error::{auth::AuthError, AppError},
+    controller::auth::SESSION_AUTH_CSRF_TOKEN,
+    error::AppError,
+    middleware::auth::{AuthGuard, Permission},
     service::admin::bot::DiscordBotService,
     state::AppState,
 };
@@ -15,13 +16,12 @@ pub async fn add_bot(
     State(state): State<AppState>,
     session: Session,
 ) -> Result<impl IntoResponse, AppError> {
-    let bot_service = DiscordBotService::new(&state.db, &state.oauth_client);
+    let auth_guard = AuthGuard::new(&state.db, &session);
+    let bot_service = DiscordBotService::new(&state.oauth_client);
 
-    let Some(user_id) = session.get(SESSION_AUTH_USER_ID).await? else {
-        return Err(AuthError::UserNotInSession.into());
-    };
+    let _ = auth_guard.require(&[Permission::Admin]).await?;
 
-    let (url, csrf_token) = bot_service.bot_url(user_id).await?;
+    let (url, csrf_token) = bot_service.bot_url().await?;
 
     session
         .insert(SESSION_AUTH_CSRF_TOKEN, csrf_token.secret())
