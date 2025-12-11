@@ -4,11 +4,11 @@ use sea_orm::{
 };
 use serenity::all::User as DiscordUser;
 
-pub struct DiscordUserRepository<'a> {
+pub struct UserRepository<'a> {
     db: &'a DatabaseConnection,
 }
 
-impl<'a> DiscordUserRepository<'a> {
+impl<'a> UserRepository<'a> {
     pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
@@ -17,8 +17,8 @@ impl<'a> DiscordUserRepository<'a> {
         &self,
         user: DiscordUser,
         is_admin: bool,
-    ) -> Result<entity::discord_user::Model, DbErr> {
-        entity::prelude::DiscordUser::insert(entity::discord_user::ActiveModel {
+    ) -> Result<entity::user::Model, DbErr> {
+        entity::prelude::User::insert(entity::user::ActiveModel {
             discord_id: ActiveValue::Set(user.id.get() as i32),
             name: ActiveValue::Set(user.name),
             admin: ActiveValue::Set(is_admin),
@@ -26,19 +26,16 @@ impl<'a> DiscordUserRepository<'a> {
         })
         // Update user name in case it may have changed since last login
         .on_conflict(
-            OnConflict::column(entity::discord_user::Column::DiscordId)
-                .update_columns([entity::discord_user::Column::Name])
+            OnConflict::column(entity::user::Column::DiscordId)
+                .update_columns([entity::user::Column::Name])
                 .to_owned(),
         )
         .exec_with_returning(self.db)
         .await
     }
 
-    pub async fn find_by_id(
-        &self,
-        user_id: i32,
-    ) -> Result<Option<entity::discord_user::Model>, DbErr> {
-        entity::prelude::DiscordUser::find_by_id(user_id)
+    pub async fn find_by_id(&self, user_id: i32) -> Result<Option<entity::user::Model>, DbErr> {
+        entity::prelude::User::find_by_id(user_id)
             .one(self.db)
             .await
     }
@@ -50,8 +47,8 @@ impl<'a> DiscordUserRepository<'a> {
     /// - `Ok(false)` if no admin users exist
     /// - `Err(DbErr)` if the database query fails
     pub async fn admin_exists(&self) -> Result<bool, DbErr> {
-        let admin_count = entity::prelude::DiscordUser::find()
-            .filter(entity::discord_user::Column::Admin.eq(true))
+        let admin_count = entity::prelude::User::find()
+            .filter(entity::user::Column::Admin.eq(true))
             .count(self.db)
             .await?;
 

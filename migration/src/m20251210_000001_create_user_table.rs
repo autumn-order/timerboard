@@ -11,12 +11,12 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(DiscordUser::Table)
+                    .table(User::Table)
                     .if_not_exists()
-                    .col(pk_auto(DiscordUser::Id))
-                    .col(big_integer_uniq(DiscordUser::DiscordId))
-                    .col(string(DiscordUser::Name))
-                    .col(boolean(DiscordUser::Admin))
+                    .col(pk_auto(User::Id))
+                    .col(big_integer_uniq(User::DiscordId))
+                    .col(string(User::Name))
+                    .col(boolean(User::Admin))
                     .to_owned(),
             )
             .await
@@ -24,14 +24,14 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(DiscordUser::Table).to_owned())
+            .drop_table(Table::drop().table(User::Table).to_owned())
             .await
     }
 }
 
 #[derive(DeriveIden)]
 
-pub enum DiscordUser {
+pub enum User {
     Table,
     Id,
     DiscordId,

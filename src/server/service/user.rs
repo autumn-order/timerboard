@@ -2,7 +2,7 @@ use sea_orm::DatabaseConnection;
 
 use crate::{
     model::user::UserDto,
-    server::{data::discord::user::DiscordUserRepository, error::AppError},
+    server::{data::user::UserRepository, error::AppError},
 };
 
 pub struct UserService<'a> {
@@ -15,7 +15,7 @@ impl<'a> UserService<'a> {
     }
 
     pub async fn get_user(&self, user_id: i32) -> Result<Option<UserDto>, AppError> {
-        let user_repo = DiscordUserRepository::new(self.db);
+        let user_repo = UserRepository::new(self.db);
 
         let Some(user_model) = user_repo.find_by_id(user_id).await? else {
             return Ok(None);

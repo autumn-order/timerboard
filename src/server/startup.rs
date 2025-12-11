@@ -4,7 +4,7 @@ use sea_orm::DatabaseConnection;
 use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
 use tower_sessions_sqlx_store::SqliteStore;
 
-use crate::server::data::discord::user::DiscordUserRepository;
+use crate::server::data::user::UserRepository;
 use crate::server::service::auth::admin::AdminCodeService;
 use crate::server::state::OAuth2Client;
 use crate::server::{config::Config, error::AppError};
@@ -122,7 +122,7 @@ pub async fn check_for_admin(
 ) -> Result<(), AppError> {
     use dioxus_logger::tracing;
 
-    let user_repo = DiscordUserRepository::new(db);
+    let user_repo = UserRepository::new(db);
     let has_admin = user_repo.admin_exists().await?;
 
     if !has_admin {
