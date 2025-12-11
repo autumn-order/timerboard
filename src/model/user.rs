@@ -4,4 +4,5 @@ use serde::{Deserialize, Serialize};
 pub struct UserDto {
     pub id: i32,
     pub name: String,
+    pub admin: bool,
 }

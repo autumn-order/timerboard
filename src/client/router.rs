@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
-use crate::client::component::{Layout, ProtectedLayout};
-use crate::client::route::{timerboard::Home, Login, NotFound};
+use crate::client::component::{Layout, RequiresAdmin, RequiresLoggedIn};
+use crate::client::route::{Admin, Home, Login, NotFound};
 
 #[derive(Debug, Clone, Routable, PartialEq)]
 #[rustfmt::skip]
@@ -13,7 +13,13 @@ pub enum Route {
     #[route("/:..segments")]
     NotFound { segments: Vec<String> },
 
-    #[layout(ProtectedLayout)]
+    #[layout(RequiresLoggedIn)]
     #[route("/")]
     Home {},
+
+    #[end_layout]
+
+    #[layout(RequiresAdmin)]
+    #[route("/admin")]
+    Admin {},
 }

@@ -24,6 +24,7 @@ impl<'a> UserService<'a> {
         let user = UserDto {
             id: user_model.id,
             name: user_model.name,
+            admin: user_model.admin,
         };
 
         Ok(Some(user))

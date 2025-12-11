@@ -28,6 +28,7 @@ impl<'a> UserRepository<'a> {
         .on_conflict(
             OnConflict::column(entity::user::Column::DiscordId)
                 .update_columns([entity::user::Column::Name])
+                .update_columns([entity::user::Column::Admin])
                 .to_owned(),
         )
         .exec_with_returning(self.db)

@@ -16,6 +16,7 @@ pub fn Header() -> Element {
     let user_store = use_context::<Store<UserState>>();
 
     let user_logged_in = user_store.read().user.is_some();
+    let user_is_admin = user_store.read().user.as_ref().is_some_and(|u| u.admin);
     let fetch_completed = user_store.read().fetched;
 
     rsx!(div {
@@ -40,8 +41,17 @@ pub fn Header() -> Element {
 
         }
         div {
-            class: "flex items-center",
+            class: "flex items-center gap-2",
             if fetch_completed && user_logged_in {
+                if user_is_admin {
+                    Link {
+                        to: Route::Admin {},
+                        class: "btn btn-outline",
+                        p {
+                            "Admin"
+                        }
+                    }
+                }
                 a {
                     href: "/api/auth/logout",
                     div {
