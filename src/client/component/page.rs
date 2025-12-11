@@ -6,7 +6,7 @@ pub fn Page(class: Option<&'static str>, children: Element) -> Element {
 
     rsx!(
         div {
-            class: "min-h-screen pt-20 p-4 {class}",
+            class: "min-h-screen pt-24 p-4 {class}",
             {children}
         }
     )
