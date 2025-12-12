@@ -237,6 +237,132 @@ fn parse_duration(s: &str) -> Option<Duration> {
     }
 }
 
+/// Reusable form fields component for fleet category forms
+#[component]
+fn FleetCategoryFormFields(
+    category_name: Signal<String>,
+    ping_cooldown_str: Signal<String>,
+    ping_reminder_str: Signal<String>,
+    max_pre_ping_str: Signal<String>,
+    is_submitting: bool,
+) -> Element {
+    rsx! {
+        // Category Name Input
+        div {
+            class: "form-control w-full gap-3",
+            label {
+                class: "label",
+                span {
+                    class: "label-text",
+                    "Category Name"
+                }
+            }
+            input {
+                r#type: "text",
+                class: "input input-bordered w-full",
+                placeholder: "e.g., Structure Timers",
+                value: "{category_name()}",
+                oninput: move |evt| category_name.set(evt.value()),
+                disabled: is_submitting,
+                required: true,
+            }
+        }
+
+        // Ping Cooldown Input
+        div {
+            class: "form-control w-full gap-3",
+            label {
+                class: "label",
+                span {
+                    class: "label-text",
+                    "Ping Cooldown (optional)"
+                }
+            }
+            input {
+                r#type: "text",
+                class: "input input-bordered w-full",
+                placeholder: "e.g., 1h, 30m, 1h30m",
+                value: "{ping_cooldown_str()}",
+                oninput: move |evt| ping_cooldown_str.set(evt.value()),
+                disabled: is_submitting,
+            }
+            label {
+                class: "label flex-col items-start gap-1",
+                span {
+                    class: "label-text-alt",
+                    "Minimum amount of time between fleets"
+                }
+                span {
+                    class: "label-text-alt text-xs",
+                    "Format: 1h = 1 hour, 30m = 30 minutes, 1h30m = 1.5 hours"
+                }
+            }
+        }
+
+        // Ping Reminder Input
+        div {
+            class: "form-control w-full gap-3",
+            label {
+                class: "label",
+                span {
+                    class: "label-text",
+                    "Ping Reminder (optional)"
+                }
+            }
+            input {
+                r#type: "text",
+                class: "input input-bordered w-full",
+                placeholder: "e.g., 15m, 30m",
+                value: "{ping_reminder_str()}",
+                oninput: move |evt| ping_reminder_str.set(evt.value()),
+                disabled: is_submitting,
+            }
+            label {
+                class: "label flex-col items-start gap-1",
+                span {
+                    class: "label-text-alt",
+                    "Reminder ping before fleet starts"
+                }
+                span {
+                    class: "label-text-alt text-xs",
+                    "Format: 1h = 1 hour, 30m = 30 minutes, 1h30m = 1.5 hours"
+                }
+            }
+        }
+
+        // Max Pre-Ping Input
+        div {
+            class: "form-control w-full gap-3",
+            label {
+                class: "label",
+                span {
+                    class: "label-text",
+                    "Max Pre-Ping (optional)"
+                }
+            }
+            input {
+                r#type: "text",
+                class: "input input-bordered w-full",
+                placeholder: "e.g., 2h, 3h",
+                value: "{max_pre_ping_str()}",
+                oninput: move |evt| max_pre_ping_str.set(evt.value()),
+                disabled: is_submitting,
+            }
+            label {
+                class: "label flex-col items-start gap-1",
+                span {
+                    class: "label-text-alt",
+                    "Maximum advance notice for pings"
+                }
+                span {
+                    class: "label-text-alt text-xs",
+                    "Format: 1h = 1 hour, 30m = 30 minutes, 1h30m = 1.5 hours"
+                }
+            }
+        }
+    }
+}
+
 #[component]
 fn CreateCategoryModal(
     guild_id: u64,
@@ -337,118 +463,12 @@ fn CreateCategoryModal(
                 class: "flex flex-col gap-4",
                 onsubmit: on_submit,
 
-                // Category Name Input
-                div {
-                    class: "form-control w-full flex flex-col gap-2",
-                    label {
-                        class: "label",
-                        span {
-                            class: "label-text",
-                            "Category Name"
-                        }
-                    }
-                    input {
-                        r#type: "text",
-                        class: "input input-bordered w-full",
-                        placeholder: "e.g., Structure Timers",
-                        value: "{category_name()}",
-                        oninput: move |evt| category_name.set(evt.value()),
-                        disabled: is_submitting,
-                        required: true,
-                    }
-                }
-
-                // Ping Cooldown Input
-                div {
-                    class: "form-control w-full flex flex-col gap-2",
-                    label {
-                        class: "label",
-                        span {
-                            class: "label-text",
-                            "Ping Cooldown (optional)"
-                        }
-                    }
-                    input {
-                        r#type: "text",
-                        class: "input input-bordered w-full",
-                        placeholder: "e.g., 1h, 30m, 1h30m",
-                        value: "{ping_cooldown_str()}",
-                        oninput: move |evt| ping_cooldown_str.set(evt.value()),
-                        disabled: is_submitting,
-                    }
-                    label {
-                        class: "label flex-col items-start gap-1",
-                        span {
-                            class: "label-text-alt",
-                            "Minimum amount of time between fleets"
-                        }
-                        span {
-                            class: "label-text-alt text-xs",
-                            "Format: 1h = 1 hour, 30m = 30 minutes, 1h30m = 1.5 hours"
-                        }
-                    }
-                }
-
-                // Ping Reminder Input
-                div {
-                    class: "form-control w-full flex flex-col gap-2",
-                    label {
-                        class: "label",
-                        span {
-                            class: "label-text",
-                            "Ping Reminder (optional)"
-                        }
-                    }
-                    input {
-                        r#type: "text",
-                        class: "input input-bordered w-full",
-                        placeholder: "e.g., 15m, 30m",
-                        value: "{ping_reminder_str()}",
-                        oninput: move |evt| ping_reminder_str.set(evt.value()),
-                        disabled: is_submitting,
-                    }
-                    label {
-                        class: "label flex-col items-start gap-1",
-                        span {
-                            class: "label-text-alt",
-                            "Reminder ping before fleet starts"
-                        }
-                        span {
-                            class: "label-text-alt text-xs",
-                            "Format: 1h = 1 hour, 30m = 30 minutes, 1h30m = 1.5 hours"
-                        }
-                    }
-                }
-
-                // Max Pre-Ping Input
-                div {
-                    class: "form-control w-full flex flex-col gap-2",
-                    label {
-                        class: "label",
-                        span {
-                            class: "label-text",
-                            "Max Pre-Ping (optional)"
-                        }
-                    }
-                    input {
-                        r#type: "text",
-                        class: "input input-bordered w-full",
-                        placeholder: "e.g., 2h, 3h",
-                        value: "{max_pre_ping_str()}",
-                        oninput: move |evt| max_pre_ping_str.set(evt.value()),
-                        disabled: is_submitting,
-                    }
-                    label {
-                        class: "label flex-col items-start gap-1",
-                        span {
-                            class: "label-text-alt",
-                            "Maximum advance notice for pings"
-                        }
-                        span {
-                            class: "label-text-alt text-xs",
-                            "Format: 1h = 1 hour, 30m = 30 minutes, 1h30m = 1.5 hours"
-                        }
-                    }
+                FleetCategoryFormFields {
+                    category_name,
+                    ping_cooldown_str,
+                    ping_reminder_str,
+                    max_pre_ping_str,
+                    is_submitting
                 }
 
                 // Error Message
@@ -749,118 +769,12 @@ fn EditCategoryModal(
                 class: "flex flex-col gap-4",
                 onsubmit: on_submit,
 
-                // Category Name Input
-                div {
-                    class: "form-control w-full flex flex-col gap-2",
-                    label {
-                        class: "label",
-                        span {
-                            class: "label-text",
-                            "Category Name"
-                        }
-                    }
-                    input {
-                        r#type: "text",
-                        class: "input input-bordered w-full",
-                        placeholder: "e.g., Structure Timers",
-                        value: "{category_name()}",
-                        oninput: move |evt| category_name.set(evt.value()),
-                        disabled: is_submitting,
-                        required: true,
-                    }
-                }
-
-                // Ping Cooldown Input
-                div {
-                    class: "form-control w-full flex flex-col gap-2",
-                    label {
-                        class: "label",
-                        span {
-                            class: "label-text",
-                            "Ping Cooldown (optional)"
-                        }
-                    }
-                    input {
-                        r#type: "text",
-                        class: "input input-bordered w-full",
-                        placeholder: "e.g., 1h, 30m, 1h30m",
-                        value: "{ping_cooldown_str()}",
-                        oninput: move |evt| ping_cooldown_str.set(evt.value()),
-                        disabled: is_submitting,
-                    }
-                    label {
-                        class: "label flex-col items-start gap-1",
-                        span {
-                            class: "label-text-alt",
-                            "Minimum amount of time between fleets"
-                        }
-                        span {
-                            class: "label-text-alt text-xs",
-                            "Format: 1h = 1 hour, 30m = 30 minutes, 1h30m = 1.5 hours"
-                        }
-                    }
-                }
-
-                // Ping Reminder Input
-                div {
-                    class: "form-control w-full flex flex-col gap-2",
-                    label {
-                        class: "label",
-                        span {
-                            class: "label-text",
-                            "Ping Reminder (optional)"
-                        }
-                    }
-                    input {
-                        r#type: "text",
-                        class: "input input-bordered w-full",
-                        placeholder: "e.g., 15m, 30m",
-                        value: "{ping_reminder_str()}",
-                        oninput: move |evt| ping_reminder_str.set(evt.value()),
-                        disabled: is_submitting,
-                    }
-                    label {
-                        class: "label flex-col items-start gap-1",
-                        span {
-                            class: "label-text-alt",
-                            "Reminder ping before fleet starts"
-                        }
-                        span {
-                            class: "label-text-alt text-xs",
-                            "Format: 1h = 1 hour, 30m = 30 minutes, 1h30m = 1.5 hours"
-                        }
-                    }
-                }
-
-                // Max Pre-Ping Input
-                div {
-                    class: "form-control w-full flex flex-col gap-2",
-                    label {
-                        class: "label",
-                        span {
-                            class: "label-text",
-                            "Max Pre-Ping (optional)"
-                        }
-                    }
-                    input {
-                        r#type: "text",
-                        class: "input input-bordered w-full",
-                        placeholder: "e.g., 2h, 3h",
-                        value: "{max_pre_ping_str()}",
-                        oninput: move |evt| max_pre_ping_str.set(evt.value()),
-                        disabled: is_submitting,
-                    }
-                    label {
-                        class: "label flex-col items-start gap-1",
-                        span {
-                            class: "label-text-alt",
-                            "Maximum advance notice for pings"
-                        }
-                        span {
-                            class: "label-text-alt text-xs",
-                            "Format: 1h = 1 hour, 30m = 30 minutes, 1h30m = 1.5 hours"
-                        }
-                    }
+                FleetCategoryFormFields {
+                    category_name,
+                    ping_cooldown_str,
+                    ping_reminder_str,
+                    max_pre_ping_str,
+                    is_submitting
                 }
 
                 // Error Message
