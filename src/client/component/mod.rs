@@ -1,9 +1,15 @@
+pub mod confirmation_modal;
 pub mod header;
 pub mod layout;
+pub mod modal;
 pub mod page;
+pub mod pagination;
 pub mod protected_layout;
 
+pub use confirmation_modal::ConfirmationModal;
 pub use header::Header;
 pub use layout::Layout;
+pub use modal::Modal;
 pub use page::Page;
+pub use pagination::{Pagination, PaginationData};
 pub use protected_layout::{RequiresAdmin, RequiresLoggedIn};

@@ -4,7 +4,7 @@ use dioxus_logger::tracing;
 use crate::client::{
     component::{
         page::{ErrorPage, LoadingPage},
-        Page,
+        ConfirmationModal, Modal, Page, Pagination, PaginationData,
     },
     model::error::ApiError,
     router::Route,
@@ -145,7 +145,7 @@ fn FleetCategoriesSection(guild_id: u64) -> Element {
                             cache,
                             refetch_trigger
                         }
-                        Pagination {
+                        FleetCategoryPagination {
                             page,
                             per_page,
                             pagination_data: data.clone(),
@@ -187,14 +187,6 @@ fn CreateCategoryModal(
     let mut submit_name = use_signal(|| String::new());
     let mut should_submit = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-
-    // Focus modal when it opens
-    #[cfg(feature = "web")]
-    use_effect(move || {
-        if show() {
-            document::eval(r#"document.querySelector('.modal-open')?.focus()"#);
-        }
-    });
 
     // Reset form when modal is closed
     use_effect(move || {
@@ -256,86 +248,64 @@ fn CreateCategoryModal(
     let is_submitting = should_submit();
 
     rsx!(
-        // DaisyUI Modal
-        div {
-            class: if show() { "modal modal-open" } else { "modal" },
-            tabindex: "-1",
-            onkeydown: move |evt| {
-                if evt.key() == Key::Escape && !is_submitting {
-                    show.set(false);
-                }
-            },
-            div {
-                class: "modal-box",
-                h3 {
-                    class: "font-bold text-lg mb-4",
-                    "Create Fleet Category"
+        Modal {
+            show,
+            title: "Create Fleet Category".to_string(),
+            prevent_close: is_submitting,
+            form {
+                onsubmit: on_submit,
+
+                // Category Name Input
+                div {
+                    class: "form-control w-full flex flex-col gap-3",
+                    label {
+                        class: "label",
+                        span {
+                            class: "label-text",
+                            "Category Name"
+                        }
+                    }
+                    input {
+                        r#type: "text",
+                        class: "input input-bordered w-full",
+                        placeholder: "e.g., Structure Timers",
+                        value: "{category_name()}",
+                        oninput: move |evt| category_name.set(evt.value()),
+                        disabled: is_submitting,
+                        required: true,
+                    }
                 }
 
-                form {
-                    onsubmit: on_submit,
-
-                    // Category Name Input
+                // Error Message
+                if let Some(err) = error() {
                     div {
-                        class: "form-control w-full flex flex-col gap-3",
-                        label {
-                            class: "label",
-                            span {
-                                class: "label-text",
-                                "Category Name"
-                            }
-                        }
-                        input {
-                            r#type: "text",
-                            class: "input input-bordered w-full",
-                            placeholder: "e.g., Structure Timers",
-                            value: "{category_name()}",
-                            oninput: move |evt| category_name.set(evt.value()),
-                            disabled: is_submitting,
-                            required: true,
-                        }
+                        class: "alert alert-error mt-4",
+                        span { "{err}" }
                     }
+                }
 
-                    // Error Message
-                    if let Some(err) = error() {
-                        div {
-                            class: "alert alert-error mt-4",
-                            span { "{err}" }
-                        }
+                // Modal Actions
+                div {
+                    class: "modal-action",
+                    button {
+                        r#type: "button",
+                        class: "btn",
+                        onclick: move |_| show.set(false),
+                        disabled: is_submitting,
+                        "Cancel"
                     }
-
-                    // Modal Actions
-                    div {
-                        class: "modal-action",
-                        button {
-                            r#type: "button",
-                            class: "btn",
-                            onclick: move |_| show.set(false),
-                            disabled: is_submitting,
-                            "Cancel"
-                        }
-                        button {
-                            r#type: "submit",
-                            class: "btn btn-primary",
-                            disabled: is_submitting,
-                            if is_submitting {
-                                span { class: "loading loading-spinner loading-sm mr-2" }
-                                "Creating..."
-                            } else {
-                                "Create"
-                            }
+                    button {
+                        r#type: "submit",
+                        class: "btn btn-primary",
+                        disabled: is_submitting,
+                        if is_submitting {
+                            span { class: "loading loading-spinner loading-sm mr-2" }
+                            "Creating..."
+                        } else {
+                            "Create"
                         }
                     }
                 }
-            }
-            // Modal backdrop
-            div {
-                class: "modal-backdrop",
-                onclick: move |_| {
-                    if !is_submitting {
-                        show.set(false);
-                    }
-                },
             }
         }
     )
@@ -354,14 +324,6 @@ fn FleetCategoriesTable(
     let mut show_delete_modal = use_signal(|| false);
     let mut category_to_delete = use_signal(|| None::<(i32, String)>);
     let mut is_deleting = use_signal(|| false);
-
-    // Focus modal when it opens
-    #[cfg(feature = "web")]
-    use_effect(move || {
-        if show_delete_modal() {
-            document::eval(r#"document.querySelector('.modal-open')?.focus()"#);
-        }
-    });
 
     // Handle deletion with use_resource
     #[cfg(feature = "web")]
@@ -450,20 +412,10 @@ fn FleetCategoriesTable(
         }
 
         // Delete Confirmation Modal
-        div {
-            class: if show_delete_modal() { "modal modal-open" } else { "modal" },
-            tabindex: "-1",
-            onkeydown: move |evt| {
-                if evt.key() == Key::Escape && !is_deleting() {
-                    show_delete_modal.set(false);
-                }
-            },
-            div {
-                class: "modal-box",
-                h3 {
-                    class: "font-bold text-lg mb-4",
-                    "Delete Fleet Category"
-                }
+        ConfirmationModal {
+            show: show_delete_modal,
+            title: "Delete Fleet Category".to_string(),
+            message: rsx!(
                 if let Some((_, name)) = category_to_delete() {
                     p {
                         class: "py-4",
@@ -472,190 +424,44 @@ fn FleetCategoriesTable(
                         "? This action cannot be undone."
                     }
                 }
-                div {
-                    class: "modal-action",
-                    button {
-                        r#type: "button",
-                        class: "btn",
-                        onclick: move |_| {
-                            show_delete_modal.set(false);
-                        },
-                        disabled: is_deleting(),
-                        "Cancel"
-                    }
-                    button {
-                        r#type: "button",
-                        class: "btn btn-error",
-                        onclick: move |_| {
-                            is_deleting.set(true);
-                        },
-                        disabled: is_deleting(),
-                        if is_deleting() {
-                            span { class: "loading loading-spinner loading-sm mr-2" }
-                            "Deleting..."
-                        } else {
-                            "Delete"
-                        }
-                    }
-                }
-            }
-            div {
-                class: "modal-backdrop",
-                onclick: move |_| {
-                    if !is_deleting() {
-                        show_delete_modal.set(false);
-                    }
-                },
-            }
+            ),
+            confirm_text: "Delete".to_string(),
+            confirm_class: "btn-error".to_string(),
+            is_processing: is_deleting(),
+            processing_text: "Deleting...".to_string(),
+            on_confirm: move |_| {
+                is_deleting.set(true);
+            },
         }
     )
 }
 
 #[component]
-fn Pagination(
+fn FleetCategoryPagination(
     mut page: Signal<u64>,
     mut per_page: Signal<u64>,
     pagination_data: PaginatedFleetCategoriesDto,
     mut cache: Signal<FleetCategoriesCache>,
 ) -> Element {
-    let mut show_page_jump = use_signal(|| false);
-    let mut jump_page_input = use_signal(|| String::new());
+    let data = PaginationData {
+        page: pagination_data.page,
+        per_page: pagination_data.per_page,
+        total: pagination_data.total,
+        total_pages: pagination_data.total_pages,
+    };
 
-    rsx!(
-        div {
-            class: "flex justify-between items-center mt-4",
-            // Per-page selector
-            div {
-                class: "flex items-center gap-2",
-                span { "Show" }
-                select {
-                    class: "select select-bordered select-sm",
-                    value: "{per_page()}",
-                    onchange: move |evt| {
-                        if let Ok(value) = evt.value().parse::<u64>() {
-                            per_page.set(value);
-                            page.set(0); // Reset to first page
-                            // Update cache
-                            cache.write().per_page = value;
-                            cache.write().page = 0;
-                        }
-                    },
-                    option { value: "5", "5" }
-                    option { value: "10", "10" }
-                    option { value: "25", "25" }
-                    option { value: "50", "50" }
-                    option { value: "100", "100" }
-                }
-                span { "entries" }
-            }
-
-            // Pagination info and buttons
-            div {
-                class: "flex items-center gap-4",
-                span {
-                    class: "text-sm opacity-70",
-                    "Showing {(pagination_data.page * pagination_data.per_page) + 1} to {((pagination_data.page + 1) * pagination_data.per_page).min(pagination_data.total)} of {pagination_data.total}"
-                }
-                div {
-                    class: "join",
-                    button {
-                        class: "join-item btn btn-sm",
-                        disabled: pagination_data.page == 0,
-                        onclick: move |_| {
-                            if page() > 0 {
-                                let new_page = page() - 1;
-                                page.set(new_page);
-                                cache.write().page = new_page;
-                            }
-                        },
-                        "«"
-                    }
-                    button {
-                        class: "join-item btn btn-sm",
-                        onclick: move |_| {
-                            jump_page_input.set((pagination_data.page + 1).to_string());
-                            show_page_jump.set(true);
-                        },
-                        "Page {pagination_data.page + 1} of {pagination_data.total_pages}"
-                    }
-                    button {
-                        class: "join-item btn btn-sm",
-                        disabled: pagination_data.page >= pagination_data.total_pages - 1,
-                        onclick: move |_| {
-                            if page() < pagination_data.total_pages - 1 {
-                                let new_page = page() + 1;
-                                page.set(new_page);
-                                cache.write().page = new_page;
-                            }
-                        },
-                        "»"
-                    }
-                }
-            }
-        }
-
-        // Page Jump Modal
-        div {
-            class: if show_page_jump() { "modal modal-open" } else { "modal" },
-            div {
-                class: "modal-box",
-                h3 {
-                    class: "font-bold text-lg mb-4",
-                    "Jump to Page"
-                }
-                form {
-                    onsubmit: move |evt| {
-                        evt.prevent_default();
-                        if let Ok(target_page) = jump_page_input().parse::<u64>() {
-                            if target_page > 0 && target_page <= pagination_data.total_pages {
-                                let new_page = target_page - 1; // Convert to 0-indexed
-                                page.set(new_page);
-                                cache.write().page = new_page;
-                                show_page_jump.set(false);
-                            }
-                        }
-                    },
-                    div {
-                        class: "form-control w-full flex flex-col gap-3",
-                        label {
-                            class: "label",
-                            span {
-                                class: "label-text",
-                                "Page number (1-{pagination_data.total_pages})"
-                            }
-                        }
-                        input {
-                            r#type: "number",
-                            class: "input input-bordered w-full",
-                            min: "1",
-                            max: "{pagination_data.total_pages}",
-                            value: "{jump_page_input()}",
-                            oninput: move |evt| jump_page_input.set(evt.value()),
-                            autofocus: true,
-                        }
-                    }
-                    div {
-                        class: "modal-action",
-                        button {
-                            r#type: "button",
-                            class: "btn",
-                            onclick: move |_| show_page_jump.set(false),
-                            "Cancel"
-                        }
-                        button {
-                            r#type: "submit",
-                            class: "btn btn-primary",
-                            "Jump"
-                        }
-                    }
-                }
-            }
-            div {
-                class: "modal-backdrop",
-                onclick: move |_| show_page_jump.set(false),
-            }
-        }
-    )
+    rsx!(Pagination {
+        page,
+        per_page,
+        data,
+        on_page_change: move |new_page| {
+            cache.write().page = new_page;
+        },
+        on_per_page_change: move |new_per_page| {
+            cache.write().per_page = new_per_page;
+            cache.write().page = 0;
+        },
+    })
 }
 
 #[cfg(feature = "web")]
