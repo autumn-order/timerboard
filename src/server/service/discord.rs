@@ -125,4 +125,79 @@ impl<'a> UserDiscordGuildService<'a> {
 
         Ok(())
     }
+
+    /// Syncs members of a guild with logged-in users
+    /// Used during guild_create to catch up on missed member join/leave events
+    pub async fn sync_guild_members(
+        &self,
+        guild_id: u64,
+        member_discord_ids: &[u64],
+    ) -> Result<(), AppError> {
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+        let guild_repo = DiscordGuildRepository::new(self.db);
+        let user_guild_repo = UserDiscordGuildRepository::new(self.db);
+
+        tracing::debug!("Syncing members for guild {}", guild_id);
+
+        // Get the guild from database
+        let Some(guild) = guild_repo.find_by_guild_id(guild_id).await? else {
+            tracing::warn!(
+                "Guild {} not found in database during member sync",
+                guild_id
+            );
+            return Ok(());
+        };
+
+        // Get all logged-in users who are members of this Discord guild
+        let logged_in_members: Vec<entity::user::Model> = entity::prelude::User::find()
+            .filter(
+                entity::user::Column::DiscordId.is_in(
+                    member_discord_ids
+                        .iter()
+                        .map(|id| *id as i64)
+                        .collect::<Vec<_>>(),
+                ),
+            )
+            .all(self.db)
+            .await?;
+
+        if logged_in_members.is_empty() {
+            tracing::debug!(
+                "Found no logged in users for guild {}, nothing to sync",
+                guild_id
+            );
+
+            // No logged-in users in this guild, nothing to sync
+            return Ok(());
+        }
+
+        // Get existing relationships for this guild
+        let existing_relationships = user_guild_repo.get_users_by_guild(guild.id).await?;
+        let existing_user_ids: std::collections::HashSet<i32> =
+            existing_relationships.iter().map(|r| r.user_id).collect();
+
+        let logged_in_user_ids: std::collections::HashSet<i32> =
+            logged_in_members.iter().map(|u| u.id).collect();
+
+        // Remove relationships for users who are no longer in the guild
+        for relationship in existing_relationships {
+            if !logged_in_user_ids.contains(&relationship.user_id) {
+                user_guild_repo
+                    .delete(relationship.user_id, guild.id)
+                    .await?;
+            }
+        }
+
+        // Add relationships for users who are in the guild but not in our database
+        for user in logged_in_members {
+            if !existing_user_ids.contains(&user.id) {
+                user_guild_repo.create(user.id, guild.id).await?;
+            }
+        }
+
+        tracing::info!("Synced members for guild {} ({})", guild.name, guild_id);
+
+        Ok(())
+    }
 }

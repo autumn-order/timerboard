@@ -11,7 +11,7 @@ use crate::server::data::discord::{
 };
 use crate::server::data::user::UserRepository;
 use crate::server::error::AppError;
-use crate::server::service::discord::DiscordGuildRoleService;
+use crate::server::service::discord::{DiscordGuildRoleService, UserDiscordGuildService};
 
 /// Discord bot event handler
 struct Handler {
@@ -28,11 +28,21 @@ impl EventHandler for Handler {
     }
 
     /// Called when a guild becomes available or the bot joins a new guild
-    async fn guild_create(&self, _ctx: Context, guild: Guild, _is_new: Option<bool>) {
+    async fn guild_create(&self, ctx: Context, guild: Guild, _is_new: Option<bool>) {
         let guild_id = guild.id.get();
         let guild_roles = guild.roles.clone();
+        let cached_members = guild.members.clone();
+
+        tracing::debug!(
+            "Guild create event: {} ({}) - member_count: {}, cached_members: {}",
+            guild.name,
+            guild_id,
+            guild.member_count,
+            cached_members.len()
+        );
 
         let guild_repo = DiscordGuildRepository::new(&self.db);
+        let user_guild_service = UserDiscordGuildService::new(&self.db);
 
         if let Err(e) = guild_repo.upsert(guild).await {
             tracing::error!("Failed to upsert guild: {:?}", e);
@@ -43,6 +53,37 @@ impl EventHandler for Handler {
 
         if let Err(e) = role_service.update_roles(guild_id, &guild_roles).await {
             tracing::error!("Failed to update guild roles: {:?}", e);
+        }
+
+        // Fetch members from Discord API since guild.members may not be populated
+        // This requires the GUILD_MEMBERS privileged intent
+        let member_ids = match ctx
+            .http
+            .get_guild_members(guild_id.into(), None, None)
+            .await
+        {
+            Ok(members) => {
+                let ids: Vec<u64> = members.iter().map(|m| m.user.id.get()).collect();
+                tracing::debug!(
+                    "Fetched {} members from Discord API for guild {}",
+                    ids.len(),
+                    guild_id
+                );
+                ids
+            }
+            Err(e) => {
+                tracing::error!("Failed to fetch guild members from API: {:?}", e);
+                // Fallback to cached members if API call fails
+                cached_members.keys().map(|id| id.get()).collect()
+            }
+        };
+
+        // Sync guild members to catch any missed join/leave events while bot was offline
+        if let Err(e) = user_guild_service
+            .sync_guild_members(guild_id, &member_ids)
+            .await
+        {
+            tracing::error!("Failed to sync guild members: {:?}", e);
         }
     }
 
