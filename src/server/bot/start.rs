@@ -7,12 +7,14 @@ use serenity::async_trait;
 
 use crate::server::config::Config;
 use crate::server::data::discord::{
-    DiscordGuildRepository, DiscordGuildRoleRepository, UserDiscordGuildRepository,
+    DiscordGuildChannelRepository, DiscordGuildRepository, DiscordGuildRoleRepository,
+    UserDiscordGuildRepository,
 };
 use crate::server::data::user::UserRepository;
 use crate::server::error::AppError;
 use crate::server::service::discord::{
-    DiscordGuildRoleService, UserDiscordGuildRoleService, UserDiscordGuildService,
+    DiscordGuildChannelService, DiscordGuildRoleService, UserDiscordGuildRoleService,
+    UserDiscordGuildService,
 };
 
 /// Discord bot event handler
@@ -33,6 +35,7 @@ impl EventHandler for Handler {
     async fn guild_create(&self, ctx: Context, guild: Guild, _is_new: Option<bool>) {
         let guild_id = guild.id.get();
         let guild_roles = guild.roles.clone();
+        let guild_channels = guild.channels.clone();
         let cached_members = guild.members.clone();
 
         tracing::debug!(
@@ -55,6 +58,15 @@ impl EventHandler for Handler {
 
         if let Err(e) = role_service.update_roles(guild_id, &guild_roles).await {
             tracing::error!("Failed to update guild roles: {:?}", e);
+        }
+
+        let channel_service = DiscordGuildChannelService::new(&self.db);
+
+        if let Err(e) = channel_service
+            .update_channels(guild_id, &guild_channels)
+            .await
+        {
+            tracing::error!("Failed to update guild channels: {:?}", e);
         }
 
         // Fetch members from Discord API since guild.members may not be populated
@@ -285,6 +297,64 @@ impl EventHandler for Handler {
                 user.name,
                 guild_id
             );
+        }
+    }
+
+    /// Called when a channel is created in a guild
+    async fn channel_create(&self, _ctx: Context, channel: serenity::all::GuildChannel) {
+        let guild_id = channel.guild_id.get();
+        let channel_repo = DiscordGuildChannelRepository::new(&self.db);
+
+        // Only track text channels
+        if channel.kind != serenity::all::ChannelType::Text {
+            return;
+        }
+
+        if let Err(e) = channel_repo.upsert(guild_id, &channel).await {
+            tracing::error!("Failed to upsert new channel: {:?}", e);
+        } else {
+            tracing::info!("Created channel {} in guild {}", channel.name, guild_id);
+        }
+    }
+
+    /// Called when a channel is updated in a guild
+    async fn channel_update(
+        &self,
+        _ctx: Context,
+        _old: Option<serenity::all::GuildChannel>,
+        new: serenity::all::GuildChannel,
+    ) {
+        let channel = new;
+        let guild_id = channel.guild_id.get();
+        let channel_repo = DiscordGuildChannelRepository::new(&self.db);
+
+        // Only track text channels
+        if channel.kind != serenity::all::ChannelType::Text {
+            return;
+        }
+
+        if let Err(e) = channel_repo.upsert(guild_id, &channel).await {
+            tracing::error!("Failed to upsert updated channel: {:?}", e);
+        } else {
+            tracing::info!("Updated channel {} in guild {}", channel.name, guild_id);
+        }
+    }
+
+    /// Called when a channel is deleted from a guild
+    async fn channel_delete(
+        &self,
+        _ctx: Context,
+        channel: serenity::all::GuildChannel,
+        _messages: Option<Vec<serenity::all::Message>>,
+    ) {
+        let guild_id = channel.guild_id.get();
+        let channel_id = channel.id.get();
+        let channel_repo = DiscordGuildChannelRepository::new(&self.db);
+
+        if let Err(e) = channel_repo.delete(channel_id).await {
+            tracing::error!("Failed to delete channel: {:?}", e);
+        } else {
+            tracing::info!("Deleted channel {} from guild {}", channel_id, guild_id);
         }
     }
 }
