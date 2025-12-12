@@ -32,6 +32,18 @@ impl<'a> DiscordGuildRepository<'a> {
         entity::prelude::DiscordGuild::find().all(self.db).await
     }
 
+    /// Finds a guild by its Discord guild ID
+    ///
+    /// Searches for a guild in the database using the Discord-assigned guild ID.
+    /// Used to check if the bot is present in a specific guild.
+    ///
+    /// # Arguments
+    /// - `guild_id`: Discord's unique identifier for the guild (u64)
+    ///
+    /// # Returns
+    /// - `Ok(Some(Model))`: Guild found in database
+    /// - `Ok(None)`: Guild not found (bot not in this guild)
+    /// - `Err(DbErr)`: Database error during query
     pub async fn find_by_guild_id(
         &self,
         guild_id: u64,

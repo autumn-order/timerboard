@@ -11,7 +11,7 @@ use url::Url;
 use crate::server::{
     data::user::UserRepository,
     error::{auth::AuthError, AppError},
-    service::discord::UserDiscordGuildService,
+    service::discord::{UserDiscordGuildRoleService, UserDiscordGuildService},
     state::OAuth2Client,
 };
 
@@ -44,9 +44,10 @@ impl<'a> AuthService<'a> {
         let (authorize_url, csrf_state) = self
             .oauth_client
             .authorize_url(|| CsrfToken::new_random())
-            // Request scope to retrieve user information and guilds
+            // Request scope to retrieve user information, guilds, and guild member info
             .add_scope(Scope::new("identify".to_string()))
             .add_scope(Scope::new("guilds".to_string()))
+            .add_scope(Scope::new("guilds.members.read".to_string()))
             .url();
 
         (authorize_url, csrf_state)
@@ -83,6 +84,27 @@ impl<'a> AuthService<'a> {
         user_guild_service
             .sync_user_guilds(new_user.id, &user_guild_ids)
             .await?;
+
+        // Fetch and sync user's role memberships for each guild
+        let user_role_service = UserDiscordGuildRoleService::new(self.db);
+        for guild in &user_guilds {
+            if let Ok(member) = self
+                .fetch_guild_member(&token, guild.id, new_user.discord_id as u64)
+                .await
+            {
+                if let Err(e) = user_role_service
+                    .sync_user_roles(new_user.id, &member)
+                    .await
+                {
+                    tracing::warn!(
+                        "Failed to sync roles for user {} in guild {}: {:?}",
+                        new_user.id,
+                        guild.id,
+                        e
+                    );
+                }
+            }
+        }
 
         Ok(new_user)
     }
@@ -123,5 +145,41 @@ impl<'a> AuthService<'a> {
             .await?;
 
         Ok(guilds)
+    }
+
+    /// Retrieves a user's member information for a specific guild
+    ///
+    /// Fetches the user's Discord Member object for the specified guild using the OAuth token.
+    /// The Member object contains the user's roles, nickname, and other guild-specific data.
+    ///
+    /// # Arguments
+    /// - `token`: OAuth access token for the authenticated user
+    /// - `guild_id`: Discord's unique identifier for the guild
+    /// - `user_id`: Discord's unique identifier for the user
+    ///
+    /// # Returns
+    /// - `Ok(Member)`: Successfully retrieved member information
+    /// - `Err(AppError)`: HTTP request failed or user is not a member of the guild
+    async fn fetch_guild_member(
+        &self,
+        token: &StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
+        guild_id: GuildId,
+        user_id: u64,
+    ) -> Result<serenity::all::Member, AppError> {
+        let access_token = token.access_token().secret();
+
+        let member = self
+            .http_client
+            .get(format!(
+                "https://discord.com/api/users/@me/guilds/{}/member",
+                guild_id.get()
+            ))
+            .header("Authorization", format!("Bearer {}", access_token))
+            .send()
+            .await?
+            .json::<serenity::all::Member>()
+            .await?;
+
+        Ok(member)
     }
 }

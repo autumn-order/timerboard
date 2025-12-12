@@ -41,6 +41,18 @@ impl<'a> UserRepository<'a> {
             .await
     }
 
+    /// Finds a user by their Discord ID
+    ///
+    /// Searches for a user in the database using their Discord-assigned user ID.
+    /// Used to check if a Discord user has logged into the application.
+    ///
+    /// # Arguments
+    /// - `discord_id`: Discord's unique identifier for the user (u64)
+    ///
+    /// # Returns
+    /// - `Ok(Some(Model))`: User found in database (has logged in)
+    /// - `Ok(None)`: User not found (has not logged into the app)
+    /// - `Err(DbErr)`: Database error during query
     pub async fn find_by_discord_id(
         &self,
         discord_id: u64,

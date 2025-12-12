@@ -11,7 +11,9 @@ use crate::server::data::discord::{
 };
 use crate::server::data::user::UserRepository;
 use crate::server::error::AppError;
-use crate::server::service::discord::{DiscordGuildRoleService, UserDiscordGuildService};
+use crate::server::service::discord::{
+    DiscordGuildRoleService, UserDiscordGuildRoleService, UserDiscordGuildService,
+};
 
 /// Discord bot event handler
 struct Handler {
@@ -57,26 +59,27 @@ impl EventHandler for Handler {
 
         // Fetch members from Discord API since guild.members may not be populated
         // This requires the GUILD_MEMBERS privileged intent
-        let member_ids = match ctx
+        let members = match ctx
             .http
             .get_guild_members(guild_id.into(), None, None)
             .await
         {
             Ok(members) => {
-                let ids: Vec<u64> = members.iter().map(|m| m.user.id.get()).collect();
                 tracing::debug!(
                     "Fetched {} members from Discord API for guild {}",
-                    ids.len(),
+                    members.len(),
                     guild_id
                 );
-                ids
+                members
             }
             Err(e) => {
                 tracing::error!("Failed to fetch guild members from API: {:?}", e);
                 // Fallback to cached members if API call fails
-                cached_members.keys().map(|id| id.get()).collect()
+                cached_members.values().cloned().collect()
             }
         };
+
+        let member_ids: Vec<u64> = members.iter().map(|m| m.user.id.get()).collect();
 
         // Sync guild members to catch any missed join/leave events while bot was offline
         if let Err(e) = user_guild_service
@@ -84,6 +87,15 @@ impl EventHandler for Handler {
             .await
         {
             tracing::error!("Failed to sync guild members: {:?}", e);
+        }
+
+        // Sync role memberships for logged-in users
+        let user_role_service = UserDiscordGuildRoleService::new(&self.db);
+        if let Err(e) = user_role_service
+            .sync_guild_member_roles(guild_id, &members)
+            .await
+        {
+            tracing::error!("Failed to sync guild member roles: {:?}", e);
         }
     }
 
@@ -225,6 +237,53 @@ impl EventHandler for Handler {
                 "User {} left guild {} - relationship removed",
                 user.name,
                 guild.name
+            );
+        }
+    }
+
+    /// Called when a member is updated in a guild (roles, nickname, etc.)
+    async fn guild_member_update(
+        &self,
+        _ctx: Context,
+        _old: Option<serenity::all::Member>,
+        new: Option<serenity::all::Member>,
+        _event: serenity::all::GuildMemberUpdateEvent,
+    ) {
+        let Some(member) = new else {
+            return;
+        };
+
+        let discord_id = member.user.id.get();
+        let guild_id = member.guild_id.get();
+
+        let user_repo = UserRepository::new(&self.db);
+
+        // Check if this user is logged into our application
+        let Some(user) = (match user_repo.find_by_discord_id(discord_id).await {
+            Ok(user) => user,
+            Err(e) => {
+                tracing::error!("Failed to query user by discord_id: {:?}", e);
+                return;
+            }
+        }) else {
+            // User hasn't logged into the app, no need to track
+            return;
+        };
+
+        // Sync user's role memberships
+        let user_role_service = UserDiscordGuildRoleService::new(&self.db);
+        if let Err(e) = user_role_service.sync_user_roles(user.id, &member).await {
+            tracing::error!(
+                "Failed to sync roles for user {} in guild {}: {:?}",
+                user.id,
+                guild_id,
+                e
+            );
+        } else {
+            tracing::info!(
+                "Synced role memberships for user {} in guild {}",
+                user.name,
+                guild_id
             );
         }
     }

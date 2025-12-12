@@ -4,3 +4,4 @@ pub use super::discord_guild::Entity as DiscordGuild;
 pub use super::discord_guild_role::Entity as DiscordGuildRole;
 pub use super::user::Entity as User;
 pub use super::user_discord_guild::Entity as UserDiscordGuild;
+pub use super::user_discord_guild_role::Entity as UserDiscordGuildRole;

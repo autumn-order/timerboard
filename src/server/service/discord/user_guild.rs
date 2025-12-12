@@ -17,7 +17,18 @@ impl<'a> UserDiscordGuildService<'a> {
     }
 
     /// Syncs a user's guild memberships with guilds the bot is present in
-    /// Only creates relationships for guilds where both the user and bot are members
+    ///
+    /// Compares the user's Discord guild memberships with guilds in the database (where the bot is present).
+    /// Only creates relationships for guilds where both the user and bot are members. Replaces all existing
+    /// guild memberships for the user.
+    ///
+    /// # Arguments
+    /// - `user_id`: Database ID of the user
+    /// - `user_guild_ids`: Slice of Discord guild IDs the user is a member of
+    ///
+    /// # Returns
+    /// - `Ok(())`: Sync completed successfully
+    /// - `Err(AppError)`: Database error during guild query or sync
     pub async fn sync_user_guilds(
         &self,
         user_id: i32,
@@ -55,7 +66,19 @@ impl<'a> UserDiscordGuildService<'a> {
     }
 
     /// Syncs members of a guild with logged-in users
-    /// Used during guild_create to catch up on missed member join/leave events
+    ///
+    /// Updates the database to reflect which logged-in users are currently members of the guild.
+    /// Removes relationships for users no longer in the guild and adds relationships for new members.
+    /// Only processes users who have logged into the application. Used during bot startup to catch
+    /// missed member join/leave events while the bot was offline.
+    ///
+    /// # Arguments
+    /// - `guild_id`: Discord's unique identifier for the guild (u64)
+    /// - `member_discord_ids`: Slice of Discord user IDs currently in the guild
+    ///
+    /// # Returns
+    /// - `Ok(())`: Sync completed successfully
+    /// - `Err(AppError)`: Database error during user query, guild query, or relationship sync
     pub async fn sync_guild_members(
         &self,
         guild_id: u64,
