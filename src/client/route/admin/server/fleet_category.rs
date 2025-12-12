@@ -12,7 +12,7 @@ use crate::client::{
 
 use crate::model::{discord::DiscordGuildDto, fleet::PaginatedFleetCategoriesDto};
 
-use super::{ActionTabs, GuildInfoHeader, ServerAdminTab};
+use super::{ActionTabs, FleetCategoriesCache, GuildInfoHeader, ServerAdminTab};
 
 #[component]
 pub fn ServerAdminFleetCategory(guild_id: u64) -> Element {
@@ -24,30 +24,25 @@ pub fn ServerAdminFleetCategory(guild_id: u64) -> Element {
     {
         use crate::client::route::admin::get_discord_guild_by_id;
 
-        let future = use_resource(move || async move {
-            // Only fetch if we don't have the guild data or if the guild_id doesn't match
-            if guild.read().as_ref().map(|g| g.guild_id as u64) != Some(guild_id) {
-                get_discord_guild_by_id(guild_id).await
-            } else {
-                // Return a dummy error to skip updating
-                Err(ApiError {
-                    status: 0,
-                    message: "cached".to_string(),
-                })
-            }
-        });
+        // Only run resource if we need to fetch
+        let needs_fetch = guild.read().as_ref().map(|g| g.guild_id as u64) != Some(guild_id);
 
-        match &*future.read_unchecked() {
-            Some(Ok(guild_data)) => {
-                guild.set(Some(guild_data.clone()));
-                error.set(None);
+        if needs_fetch {
+            let future =
+                use_resource(move || async move { get_discord_guild_by_id(guild_id).await });
+
+            match &*future.read_unchecked() {
+                Some(Ok(guild_data)) => {
+                    guild.set(Some(guild_data.clone()));
+                    error.set(None);
+                }
+                Some(Err(err)) => {
+                    tracing::error!("Failed to fetch guild: {}", err);
+                    guild.set(None);
+                    error.set(Some(err.clone()));
+                }
+                None => (),
             }
-            Some(Err(err)) if err.status != 0 => {
-                tracing::error!("Failed to fetch guild: {}", err);
-                guild.set(None);
-                error.set(Some(err.clone()));
-            }
-            _ => (),
         }
     }
 
@@ -81,26 +76,46 @@ pub fn ServerAdminFleetCategory(guild_id: u64) -> Element {
 
 #[component]
 fn FleetCategoriesSection(guild_id: u64) -> Element {
-    let page = use_signal(|| 0u64);
-    let per_page = use_signal(|| 10u64);
-    let mut categories_data = use_signal(|| None::<Result<PaginatedFleetCategoriesDto, ApiError>>);
+    let mut cache = use_context::<Signal<FleetCategoriesCache>>();
+    let mut error = use_signal(|| None::<ApiError>);
+
+    // Get page and per_page from cache
+    let page = use_signal(|| cache.read().page);
+    let per_page = use_signal(|| cache.read().per_page);
 
     // Fetch fleet categories
     #[cfg(feature = "web")]
     {
-        let future = use_resource(move || async move {
-            get_fleet_categories(guild_id, page(), per_page()).await
-        });
+        // Check if we have cached data for this guild and page
+        let cache_read = cache.read();
+        let needs_fetch = cache_read.guild_id != guild_id
+            || cache_read.page != page()
+            || cache_read.per_page != per_page()
+            || cache_read.data.is_none();
+        drop(cache_read);
 
-        match &*future.read_unchecked() {
-            Some(Ok(data)) => {
-                categories_data.set(Some(Ok(data.clone())));
+        // Only run resource if we need to fetch
+        if needs_fetch {
+            let future = use_resource(move || async move {
+                get_fleet_categories(guild_id, page(), per_page()).await
+            });
+
+            match &*future.read_unchecked() {
+                Some(Ok(data)) => {
+                    // Update cache
+                    cache.write().guild_id = guild_id;
+                    cache.write().data = Some(data.clone());
+                    cache.write().page = page();
+                    cache.write().per_page = per_page();
+                    error.set(None);
+                }
+                Some(Err(err)) => {
+                    tracing::error!("Failed to fetch fleet categories: {}", err);
+                    cache.write().data = None;
+                    error.set(Some(err.clone()));
+                }
+                None => (),
             }
-            Some(Err(err)) => {
-                tracing::error!("Failed to fetch fleet categories: {}", err);
-                categories_data.set(Some(Err(err.clone())));
-            }
-            None => (),
         }
     }
 
@@ -122,7 +137,7 @@ fn FleetCategoriesSection(guild_id: u64) -> Element {
                 }
 
                 // Content
-                if let Some(Ok(data)) = categories_data() {
+                if let Some(data) = cache.read().data.clone() {
                     if data.categories.is_empty() {
                         div {
                             class: "text-center py-8 opacity-50",
@@ -133,10 +148,11 @@ fn FleetCategoriesSection(guild_id: u64) -> Element {
                         Pagination {
                             page,
                             per_page,
-                            pagination_data: data.clone()
+                            pagination_data: data.clone(),
+                            cache
                         }
                     }
-                } else if let Some(Err(err)) = categories_data() {
+                } else if let Some(err) = error() {
                     div {
                         class: "alert alert-error",
                         span { "Error loading categories: {err.message}" }
@@ -197,6 +213,7 @@ fn Pagination(
     mut page: Signal<u64>,
     mut per_page: Signal<u64>,
     pagination_data: PaginatedFleetCategoriesDto,
+    mut cache: Signal<FleetCategoriesCache>,
 ) -> Element {
     rsx!(
         div {
@@ -212,6 +229,9 @@ fn Pagination(
                         if let Ok(value) = evt.value().parse::<u64>() {
                             per_page.set(value);
                             page.set(0); // Reset to first page
+                            // Update cache
+                            cache.write().per_page = value;
+                            cache.write().page = 0;
                         }
                     },
                     option { value: "5", "5" }
@@ -237,7 +257,9 @@ fn Pagination(
                         disabled: pagination_data.page == 0,
                         onclick: move |_| {
                             if page() > 0 {
-                                page.set(page() - 1);
+                                let new_page = page() - 1;
+                                page.set(new_page);
+                                cache.write().page = new_page;
                             }
                         },
                         "«"
@@ -251,7 +273,9 @@ fn Pagination(
                         disabled: pagination_data.page >= pagination_data.total_pages - 1,
                         onclick: move |_| {
                             if page() < pagination_data.total_pages - 1 {
-                                page.set(page() + 1);
+                                let new_page = page() + 1;
+                                page.set(new_page);
+                                cache.write().page = new_page;
                             }
                         },
                         "»"

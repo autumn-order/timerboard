@@ -11,9 +11,18 @@ use crate::client::{
     model::error::ApiError,
     router::Route,
 };
-use crate::model::discord::DiscordGuildDto;
+use crate::model::{discord::DiscordGuildDto, fleet::PaginatedFleetCategoriesDto};
 
 pub use fleet_category::ServerAdminFleetCategory;
+
+/// Cached fleet categories data for a specific guild
+#[derive(Clone, PartialEq)]
+pub struct FleetCategoriesCache {
+    pub guild_id: u64,
+    pub data: Option<PaginatedFleetCategoriesDto>,
+    pub page: u64,
+    pub per_page: u64,
+}
 
 /// Layout component that provides guild context for server admin pages
 /// This layout is automatically dropped when navigating away from server admin pages,
@@ -23,6 +32,16 @@ pub fn ServerAdminLayout() -> Element {
     // Initialize the guild signal - it will be provided to all child routes
     // When this component is unmounted (user leaves server admin pages), the context is dropped
     use_context_provider(|| Signal::new(None::<DiscordGuildDto>));
+
+    // Initialize fleet categories cache - persists across tab navigation within server admin
+    use_context_provider(|| {
+        Signal::new(FleetCategoriesCache {
+            guild_id: 0,
+            data: None,
+            page: 0,
+            per_page: 10,
+        })
+    });
 
     rsx! {
         // Render child routes (ServerAdmin or ServerAdminFleetCategory)
@@ -46,30 +65,25 @@ pub fn ServerAdmin(guild_id: u64) -> Element {
     {
         use crate::client::route::admin::get_discord_guild_by_id;
 
-        let future = use_resource(move || async move {
-            // Only fetch if we don't have the guild data or if the guild_id doesn't match
-            if guild.read().as_ref().map(|g| g.guild_id as u64) != Some(guild_id) {
-                get_discord_guild_by_id(guild_id).await
-            } else {
-                // Return a dummy error to skip updating
-                Err(ApiError {
-                    status: 0,
-                    message: "cached".to_string(),
-                })
-            }
-        });
+        // Only run resource if we need to fetch
+        let needs_fetch = guild.read().as_ref().map(|g| g.guild_id as u64) != Some(guild_id);
 
-        match &*future.read_unchecked() {
-            Some(Ok(guild_data)) => {
-                guild.set(Some(guild_data.clone()));
-                error.set(None);
+        if needs_fetch {
+            let future =
+                use_resource(move || async move { get_discord_guild_by_id(guild_id).await });
+
+            match &*future.read_unchecked() {
+                Some(Ok(guild_data)) => {
+                    guild.set(Some(guild_data.clone()));
+                    error.set(None);
+                }
+                Some(Err(err)) => {
+                    tracing::error!("Failed to fetch guild: {}", err);
+                    guild.set(None);
+                    error.set(Some(err.clone()));
+                }
+                None => (),
             }
-            Some(Err(err)) if err.status != 0 => {
-                tracing::error!("Failed to fetch guild: {}", err);
-                guild.set(None);
-                error.set(Some(err.clone()));
-            }
-            _ => (),
         }
     }
 
