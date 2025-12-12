@@ -1,5 +1,6 @@
 .env
 db.sqlite
+/assets/tailwind.css
 
 node_modules
 

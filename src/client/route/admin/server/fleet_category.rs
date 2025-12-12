@@ -84,25 +84,18 @@ fn FleetCategoriesSection(guild_id: u64) -> Element {
     let page = use_signal(|| cache.read().page);
     let per_page = use_signal(|| cache.read().per_page);
 
-    // Fetch fleet categories
+    // Fetch fleet categories - resource automatically re-runs when page() or per_page() changes
     #[cfg(feature = "web")]
-    {
-        // Check if we have cached data for this guild and page
-        let cache_read = cache.read();
-        let needs_fetch = cache_read.guild_id != guild_id
-            || cache_read.page != page()
-            || cache_read.per_page != per_page()
-            || cache_read.data.is_none();
-        drop(cache_read);
+    let future =
+        use_resource(
+            move || async move { get_fleet_categories(guild_id, page(), per_page()).await },
+        );
 
-        // Only run resource if we need to fetch
-        if needs_fetch {
-            let future = use_resource(move || async move {
-                get_fleet_categories(guild_id, page(), per_page()).await
-            });
-
-            match &*future.read_unchecked() {
-                Some(Ok(data)) => {
+    #[cfg(feature = "web")]
+    use_effect(move || {
+        if let Some(result) = future.read_unchecked().as_ref() {
+            match result {
+                Ok(data) => {
                     // Update cache
                     cache.write().guild_id = guild_id;
                     cache.write().data = Some(data.clone());
@@ -110,15 +103,14 @@ fn FleetCategoriesSection(guild_id: u64) -> Element {
                     cache.write().per_page = per_page();
                     error.set(None);
                 }
-                Some(Err(err)) => {
+                Err(err) => {
                     tracing::error!("Failed to fetch fleet categories: {}", err);
                     cache.write().data = None;
                     error.set(Some(err.clone()));
                 }
-                None => (),
             }
         }
-    }
+    });
 
     rsx!(
         div {
