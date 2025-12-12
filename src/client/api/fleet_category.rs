@@ -1,10 +1,10 @@
 use crate::{
     client::model::error::ApiError,
-    model::fleet::{CreateFleetCategoryDto, PaginatedFleetCategoriesDto},
+    model::fleet::{CreateFleetCategoryDto, PaginatedFleetCategoriesDto, UpdateFleetCategoryDto},
 };
 
 use super::helper::{
-    delete, get, parse_empty_response, parse_response, post, send_request, serialize_json,
+    delete, get, parse_empty_response, parse_response, post, put, send_request, serialize_json,
 };
 
 /// Get paginated fleet categories for a guild
@@ -29,6 +29,23 @@ pub async fn create_fleet_category(guild_id: u64, name: String) -> Result<(), Ap
     let body = serialize_json(&payload)?;
 
     let response = send_request(post(&url).body(body)).await?;
+    parse_empty_response(response).await
+}
+
+/// Update a fleet category
+pub async fn update_fleet_category(
+    guild_id: u64,
+    category_id: i32,
+    name: String,
+) -> Result<(), ApiError> {
+    let url = format!(
+        "/api/timerboard/{}/fleet/category/{}",
+        guild_id, category_id
+    );
+    let payload = UpdateFleetCategoryDto { name };
+    let body = serialize_json(&payload)?;
+
+    let response = send_request(put(&url).body(body)).await?;
     parse_empty_response(response).await
 }
 

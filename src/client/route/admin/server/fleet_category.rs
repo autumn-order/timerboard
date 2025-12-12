@@ -17,7 +17,9 @@ use crate::{
 #[cfg(feature = "web")]
 use crate::client::api::{
     discord_guild::get_discord_guild_by_id,
-    fleet_category::{create_fleet_category, delete_fleet_category, get_fleet_categories},
+    fleet_category::{
+        create_fleet_category, delete_fleet_category, get_fleet_categories, update_fleet_category,
+    },
 };
 
 #[component]
@@ -192,9 +194,9 @@ fn CreateCategoryModal(
     let mut should_submit = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
 
-    // Reset form when modal is closed
+    // Reset form when modal opens (clears data from previous use)
     use_effect(move || {
-        if !show() {
+        if show() {
             category_name.set(String::new());
             submit_name.set(String::new());
             should_submit.set(false);
@@ -219,11 +221,8 @@ fn CreateCategoryModal(
                 Ok(_) => {
                     // Trigger refetch
                     refetch_trigger.set(refetch_trigger() + 1);
-                    // Close modal
+                    // Close modal (data persists for smooth animation)
                     show.set(false);
-                    // Reset form
-                    category_name.set(String::new());
-                    submit_name.set(String::new());
                     should_submit.set(false);
                 }
                 Err(err) => {
@@ -329,6 +328,9 @@ fn FleetCategoriesTable(
     let mut category_to_delete = use_signal(|| None::<(i32, String)>);
     let mut is_deleting = use_signal(|| false);
 
+    let mut show_edit_modal = use_signal(|| false);
+    let mut category_to_edit = use_signal(|| None::<(i32, String)>);
+
     // Handle deletion with use_resource
     #[cfg(feature = "web")]
     let delete_future = use_resource(move || async move {
@@ -350,7 +352,7 @@ fn FleetCategoriesTable(
                 Ok(_) => {
                     // Trigger refetch
                     refetch_trigger.set(refetch_trigger() + 1);
-                    // Close modal
+                    // Close modal (data persists for smooth animation)
                     show_delete_modal.set(false);
                     is_deleting.set(false);
                 }
@@ -384,6 +386,8 @@ fn FleetCategoriesTable(
                         {
                             let category_id = category.id;
                             let category_name = category.name.clone();
+                            let category_name_for_edit = category_name.clone();
+                            let category_name_for_delete = category_name.clone();
                             rsx! {
                                 tr {
                                     td { "{category.name}" }
@@ -395,12 +399,16 @@ fn FleetCategoriesTable(
                                             class: "flex gap-2 justify-end",
                                             button {
                                                 class: "btn btn-sm btn-primary",
+                                                onclick: move |_| {
+                                                    category_to_edit.set(Some((category_id, category_name_for_edit.clone())));
+                                                    show_edit_modal.set(true);
+                                                },
                                                 "Edit"
                                             }
                                             button {
                                                 class: "btn btn-sm btn-error",
                                                 onclick: move |_| {
-                                                    category_to_delete.set(Some((category_id, category_name.clone())));
+                                                    category_to_delete.set(Some((category_id, category_name_for_delete.clone())));
                                                     show_delete_modal.set(true);
                                                 },
                                                 "Delete"
@@ -436,6 +444,150 @@ fn FleetCategoriesTable(
             on_confirm: move |_| {
                 is_deleting.set(true);
             },
+        }
+
+        // Edit Category Modal
+        EditCategoryModal {
+            guild_id,
+            show: show_edit_modal,
+            category_to_edit,
+            refetch_trigger
+        }
+    )
+}
+
+#[component]
+fn EditCategoryModal(
+    guild_id: u64,
+    mut show: Signal<bool>,
+    category_to_edit: Signal<Option<(i32, String)>>,
+    mut refetch_trigger: Signal<u32>,
+) -> Element {
+    let mut category_name = use_signal(|| String::new());
+    let mut submit_name = use_signal(|| String::new());
+    let mut should_submit = use_signal(|| false);
+    let mut error = use_signal(|| None::<String>);
+    let mut category_id = use_signal(|| 0i32);
+
+    // Initialize form when modal opens with new data
+    use_effect(move || {
+        if show() {
+            if let Some((id, name)) = category_to_edit() {
+                category_name.set(name.clone());
+                category_id.set(id);
+                // Reset error and submit state when opening with new data
+                error.set(None);
+                should_submit.set(false);
+            }
+        }
+    });
+
+    // Handle form submission with use_resource
+    #[cfg(feature = "web")]
+    let future = use_resource(move || async move {
+        if should_submit() {
+            Some(update_fleet_category(guild_id, category_id(), submit_name()).await)
+        } else {
+            None
+        }
+    });
+
+    #[cfg(feature = "web")]
+    use_effect(move || {
+        if let Some(Some(result)) = future.read_unchecked().as_ref() {
+            match result {
+                Ok(_) => {
+                    // Trigger refetch
+                    refetch_trigger.set(refetch_trigger() + 1);
+                    // Close modal (data persists for smooth animation)
+                    show.set(false);
+                    should_submit.set(false);
+                }
+                Err(err) => {
+                    tracing::error!("Failed to update category: {}", err);
+                    error.set(Some(err.message.clone()));
+                    should_submit.set(false);
+                }
+            }
+        }
+    });
+
+    let on_submit = move |evt: Event<FormData>| {
+        evt.prevent_default();
+
+        let name = category_name();
+        if name.trim().is_empty() {
+            error.set(Some("Category name is required".to_string()));
+            return;
+        }
+
+        error.set(None);
+        submit_name.set(name);
+        should_submit.set(true);
+    };
+
+    let is_submitting = should_submit();
+
+    rsx!(
+        Modal {
+            show,
+            title: "Edit Fleet Category".to_string(),
+            prevent_close: is_submitting,
+            form {
+                onsubmit: on_submit,
+
+                // Category Name Input
+                div {
+                    class: "form-control w-full flex flex-col gap-3",
+                    label {
+                        class: "label",
+                        span {
+                            class: "label-text",
+                            "Category Name"
+                        }
+                    }
+                    input {
+                        r#type: "text",
+                        class: "input input-bordered w-full",
+                        placeholder: "e.g., Structure Timers",
+                        value: "{category_name()}",
+                        oninput: move |evt| category_name.set(evt.value()),
+                        disabled: is_submitting,
+                        required: true,
+                    }
+                }
+
+                // Error Message
+                if let Some(err) = error() {
+                    div {
+                        class: "alert alert-error mt-4",
+                        span { "{err}" }
+                    }
+                }
+
+                // Modal Actions
+                div {
+                    class: "modal-action",
+                    button {
+                        r#type: "button",
+                        class: "btn",
+                        onclick: move |_| show.set(false),
+                        disabled: is_submitting,
+                        "Cancel"
+                    }
+                    button {
+                        r#type: "submit",
+                        class: "btn btn-primary",
+                        disabled: is_submitting,
+                        if is_submitting {
+                            span { class: "loading loading-spinner loading-sm mr-2" }
+                            "Updating..."
+                        } else {
+                            "Update"
+                        }
+                    }
+                }
+            }
         }
     )
 }

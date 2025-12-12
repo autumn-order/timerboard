@@ -12,7 +12,7 @@ pub struct CreateFleetCategoryDto {
     pub name: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateFleetCategoryDto {
     pub name: String,
 }
