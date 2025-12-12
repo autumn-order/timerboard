@@ -24,6 +24,7 @@ impl<'a> UserDiscordGuildService<'a> {
     ///
     /// # Arguments
     /// - `user_id`: Database ID of the user
+    /// - `discord_user_id`: Discord's unique identifier for the user (for logging)
     /// - `user_guild_ids`: Slice of Discord guild IDs the user is a member of
     ///
     /// # Returns
@@ -32,6 +33,7 @@ impl<'a> UserDiscordGuildService<'a> {
     pub async fn sync_user_guilds(
         &self,
         user_id: i32,
+        discord_user_id: u64,
         user_guild_ids: &[GuildId],
     ) -> Result<(), AppError> {
         let guild_repo = DiscordGuildRepository::new(self.db);
@@ -41,25 +43,29 @@ impl<'a> UserDiscordGuildService<'a> {
         let bot_guilds = guild_repo.get_all().await?;
 
         // Find matching guilds (where both user and bot are members)
-        let matching_guild_ids: Vec<i32> = bot_guilds
+        let matching_guilds: Vec<_> = bot_guilds
             .iter()
             .filter(|bot_guild| {
                 user_guild_ids
                     .iter()
                     .any(|user_guild_id| user_guild_id.get() == bot_guild.guild_id as u64)
             })
-            .map(|guild| guild.id)
             .collect();
+
+        let matching_guild_ids: Vec<i32> = matching_guilds.iter().map(|g| g.id).collect();
+        let matching_discord_guild_ids: Vec<u64> =
+            matching_guilds.iter().map(|g| g.guild_id as u64).collect();
 
         // Sync the user's guild memberships
         user_guild_repo
             .sync_user_guilds(user_id, &matching_guild_ids)
             .await?;
 
-        tracing::info!(
-            "Synced {} guild memberships for user {}",
+        tracing::debug!(
+            "Synced {} guild memberships for user {} (guilds: {:?})",
             matching_guild_ids.len(),
-            user_id
+            discord_user_id,
+            matching_discord_guild_ids
         );
 
         Ok(())

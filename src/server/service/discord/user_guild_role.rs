@@ -126,7 +126,7 @@ impl<'a> UserDiscordGuildRoleService<'a> {
             }
         }
 
-        tracing::info!(
+        tracing::debug!(
             "Synced role memberships for {} users in guild {}",
             synced_count,
             guild_id

@@ -9,7 +9,7 @@ use serenity::all::{GuildId, User as DiscordUser};
 use url::Url;
 
 use crate::server::{
-    data::user::UserRepository,
+    data::{discord::DiscordGuildRepository, user::UserRepository},
     error::{auth::AuthError, AppError},
     service::discord::{UserDiscordGuildRoleService, UserDiscordGuildService},
     state::OAuth2Client,
@@ -82,26 +82,33 @@ impl<'a> AuthService<'a> {
 
         let user_guild_service = UserDiscordGuildService::new(self.db);
         user_guild_service
-            .sync_user_guilds(new_user.id, &user_guild_ids)
+            .sync_user_guilds(new_user.id, new_user.discord_id as u64, &user_guild_ids)
             .await?;
 
-        // Fetch and sync user's role memberships for each guild
+        // Fetch and sync user's role memberships for guilds where both user and bot are present
+        let guild_repo = DiscordGuildRepository::new(self.db);
+        let bot_guilds = guild_repo.get_all().await?;
+
+        // Only sync roles for guilds where both user and bot are members
         let user_role_service = UserDiscordGuildRoleService::new(self.db);
         for guild in &user_guilds {
-            if let Ok(member) = self
-                .fetch_guild_member(&token, guild.id, new_user.discord_id as u64)
-                .await
+            // Check if bot is in this guild
+            if bot_guilds
+                .iter()
+                .any(|bot_guild| bot_guild.guild_id as u64 == guild.id.get())
             {
-                if let Err(e) = user_role_service
-                    .sync_user_roles(new_user.id, &member)
-                    .await
-                {
-                    tracing::warn!(
-                        "Failed to sync roles for user {} in guild {}: {:?}",
-                        new_user.id,
-                        guild.id,
-                        e
-                    );
+                if let Ok(member) = self.fetch_guild_member(&token, guild.id).await {
+                    if let Err(e) = user_role_service
+                        .sync_user_roles(new_user.id, &member)
+                        .await
+                    {
+                        tracing::warn!(
+                            "Failed to sync roles for user {} in guild {}: {:?}",
+                            new_user.id,
+                            guild.id,
+                            e
+                        );
+                    }
                 }
             }
         }
@@ -155,7 +162,6 @@ impl<'a> AuthService<'a> {
     /// # Arguments
     /// - `token`: OAuth access token for the authenticated user
     /// - `guild_id`: Discord's unique identifier for the guild
-    /// - `user_id`: Discord's unique identifier for the user
     ///
     /// # Returns
     /// - `Ok(Member)`: Successfully retrieved member information
@@ -164,7 +170,6 @@ impl<'a> AuthService<'a> {
         &self,
         token: &StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
         guild_id: GuildId,
-        user_id: u64,
     ) -> Result<serenity::all::Member, AppError> {
         let access_token = token.access_token().secret();
 

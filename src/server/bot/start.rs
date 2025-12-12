@@ -280,7 +280,7 @@ impl EventHandler for Handler {
                 e
             );
         } else {
-            tracing::info!(
+            tracing::debug!(
                 "Synced role memberships for user {} in guild {}",
                 user.name,
                 guild_id
