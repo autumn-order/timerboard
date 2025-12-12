@@ -142,29 +142,33 @@ pub fn Admin() -> Element {
                     for guild in guild_list {
                         Link {
                             to: "/admin/{guild.guild_id}",
+                            class: "card bg-base-200 hover:bg-base-300 transition-colors",
                             div {
-                                class: "flex items-center gap-4 p-4 border border-neutral rounded-lg",
-                                if let Some(icon_hash) = &guild.icon_hash {
-                                    img {
-                                        src: "https://cdn.discordapp.com/icons/{guild.guild_id}/{icon_hash}.png",
-                                        alt: "{guild.name} icon",
-                                        class: "w-12 h-12 rounded-full",
-                                    }
-                                } else {
-                                    div {
-                                        class: "w-12 h-12 rounded-full bg-neutral flex items-center justify-center font-bold",
-                                        "{guild.name.chars().next().unwrap_or('?')}"
-                                    }
-                                }
+                                class: "card-body",
                                 div {
-                                    class: "flex-1",
-                                    h3 {
-                                        class: "font-semibold",
-                                        "{guild.name}"
+                                    class: "flex items-center gap-4",
+                                    if let Some(icon_hash) = &guild.icon_hash {
+                                        img {
+                                            src: "https://cdn.discordapp.com/icons/{guild.guild_id}/{icon_hash}.png",
+                                            alt: "{guild.name} icon",
+                                            class: "w-12 h-12 rounded-full",
+                                        }
+                                    } else {
+                                        div {
+                                            class: "w-12 h-12 rounded-full bg-neutral flex items-center justify-center font-bold",
+                                            "{guild.name.chars().next().unwrap_or('?')}"
+                                        }
                                     }
-                                    p {
-                                        class: "text-sm opacity-70",
-                                        "ID: {guild.guild_id}"
+                                    div {
+                                        class: "flex-1",
+                                        h3 {
+                                            class: "font-semibold",
+                                            "{guild.name}"
+                                        }
+                                        p {
+                                            class: "text-sm opacity-70",
+                                            "ID: {guild.guild_id}"
+                                        }
                                     }
                                 }
                             }
