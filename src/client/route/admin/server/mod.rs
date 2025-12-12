@@ -1,3 +1,5 @@
+pub mod fleet_category;
+
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
 
@@ -10,6 +12,14 @@ use crate::client::{
     router::Route,
 };
 use crate::model::discord::DiscordGuildDto;
+
+pub use fleet_category::ServerAdminFleetCategory;
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum ServerAdminTab {
+    Overview,
+    FleetCategories,
+}
 
 #[component]
 pub fn ServerAdmin(guild_id: u64) -> Element {
@@ -49,8 +59,8 @@ pub fn ServerAdmin(guild_id: u64) -> Element {
                         class: "btn btn-ghost mb-4",
                         "← Back to Servers"
                     }
-                    GuildInfoHeader { guild_data: guild_data }
-                    ActionTabs {  }
+                    GuildInfoHeader { guild_data: guild_data.clone() }
+                    ActionTabs { guild_id, active_tab: ServerAdminTab::Overview }
                     div {
                         class: "space-y-6",
                         OverviewSection { }
@@ -66,7 +76,7 @@ pub fn ServerAdmin(guild_id: u64) -> Element {
 }
 
 #[component]
-fn GuildInfoHeader(guild_data: DiscordGuildDto) -> Element {
+pub fn GuildInfoHeader(guild_data: DiscordGuildDto) -> Element {
     rsx!(
         // Header with guild info
         div {
@@ -105,19 +115,21 @@ fn GuildInfoHeader(guild_data: DiscordGuildDto) -> Element {
 }
 
 #[component]
-fn ActionTabs() -> Element {
+pub fn ActionTabs(guild_id: u64, active_tab: ServerAdminTab) -> Element {
     rsx! (
         div {
             role: "tablist",
             class: "tabs tabs-bordered mb-6",
-            a {
+            Link {
+                to: Route::ServerAdmin { guild_id },
                 role: "tab",
-                class: "tab tab-active",
+                class: if active_tab == ServerAdminTab::Overview { "tab tab-active" } else { "tab" },
                 "Overview"
             }
-            a {
+            Link {
+                to: Route::ServerAdminFleetCategory { guild_id },
                 role: "tab",
-                class: "tab",
+                class: if active_tab == ServerAdminTab::FleetCategories { "tab tab-active" } else { "tab" },
                 "Fleet Categories"
             }
         }

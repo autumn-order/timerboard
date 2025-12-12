@@ -1,6 +1,6 @@
 pub mod server;
 
-pub use server::ServerAdmin;
+pub use server::{ServerAdmin, ServerAdminFleetCategory};
 
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
