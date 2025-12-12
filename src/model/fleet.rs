@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FleetCategoryDto {
     pub id: i32,
     pub guild_id: i64,
@@ -17,7 +17,7 @@ pub struct UpdateFleetCategoryDto {
     pub name: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PaginatedFleetCategoriesDto {
     pub categories: Vec<FleetCategoryDto>,
     pub total: u64,
