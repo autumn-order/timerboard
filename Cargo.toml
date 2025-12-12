@@ -30,6 +30,7 @@ sea-orm = { version = "2.0.0-rc.11", features = [
   "with-chrono"
 ], optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.145", optional = true }
 serenity = { version = "0.12.4", optional = true }
 thiserror = { version = "2.0.17", optional = true }
 time = { version = "0.3.44", optional = true }
@@ -60,4 +61,4 @@ server = [
   "tower-sessions-sqlx-store",
   "url"
 ]
-web = ["dioxus/web", "reqwasm"]
+web = ["dioxus/web", "reqwasm", "serde_json"]

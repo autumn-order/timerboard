@@ -78,6 +78,7 @@ pub fn ServerAdminFleetCategory(guild_id: u64) -> Element {
 fn FleetCategoriesSection(guild_id: u64) -> Element {
     let mut cache = use_context::<Signal<FleetCategoriesCache>>();
     let mut error = use_signal(|| None::<ApiError>);
+    let mut show_create_modal = use_signal(|| false);
 
     // Get page and per_page from cache
     let page = use_signal(|| cache.read().page);
@@ -132,6 +133,7 @@ fn FleetCategoriesSection(guild_id: u64) -> Element {
                     }
                     button {
                         class: "btn btn-primary",
+                        onclick: move |_| show_create_modal.set(true),
                         "Add Category"
                     }
                 }
@@ -163,6 +165,163 @@ fn FleetCategoriesSection(guild_id: u64) -> Element {
                         span { class: "loading loading-spinner loading-lg" }
                     }
                 }
+
+                // Create Category Modal
+                CreateCategoryModal {
+                    guild_id,
+                    show: show_create_modal,
+                    cache
+                }
+            }
+        }
+    )
+}
+
+#[component]
+fn CreateCategoryModal(
+    guild_id: u64,
+    mut show: Signal<bool>,
+    mut cache: Signal<FleetCategoriesCache>,
+) -> Element {
+    let mut category_name = use_signal(|| String::new());
+    let mut submit_name = use_signal(|| String::new());
+    let mut should_submit = use_signal(|| false);
+    let mut error = use_signal(|| None::<String>);
+
+    // Reset form when modal is closed
+    use_effect(move || {
+        if !show() {
+            category_name.set(String::new());
+            submit_name.set(String::new());
+            should_submit.set(false);
+            error.set(None);
+        }
+    });
+
+    // Handle form submission with use_resource
+    #[cfg(feature = "web")]
+    let future = use_resource(move || async move {
+        if should_submit() {
+            Some(create_fleet_category(guild_id, submit_name()).await)
+        } else {
+            None
+        }
+    });
+
+    #[cfg(feature = "web")]
+    use_effect(move || {
+        if let Some(Some(result)) = future.read_unchecked().as_ref() {
+            match result {
+                Ok(_) => {
+                    // Clear cache to force refetch
+                    cache.write().data = None;
+                    // Close modal
+                    show.set(false);
+                    // Reset form
+                    category_name.set(String::new());
+                    submit_name.set(String::new());
+                    should_submit.set(false);
+                }
+                Err(err) => {
+                    tracing::error!("Failed to create category: {}", err);
+                    error.set(Some(err.message.clone()));
+                    should_submit.set(false);
+                }
+            }
+        }
+    });
+
+    let on_submit = move |evt: Event<FormData>| {
+        evt.prevent_default();
+
+        let name = category_name();
+        if name.trim().is_empty() {
+            error.set(Some("Category name is required".to_string()));
+            return;
+        }
+
+        error.set(None);
+        submit_name.set(name);
+        should_submit.set(true);
+    };
+
+    let is_submitting = should_submit();
+
+    rsx!(
+        // DaisyUI Modal
+        div {
+            class: if show() { "modal modal-open" } else { "modal" },
+            div {
+                class: "modal-box",
+                h3 {
+                    class: "font-bold text-lg mb-4",
+                    "Create Fleet Category"
+                }
+
+                form {
+                    onsubmit: on_submit,
+
+                    // Category Name Input
+                    div {
+                        class: "form-control w-full flex flex-col gap-3",
+                        label {
+                            class: "label",
+                            span {
+                                class: "label-text",
+                                "Category Name"
+                            }
+                        }
+                        input {
+                            r#type: "text",
+                            class: "input input-bordered w-full",
+                            placeholder: "e.g., Structure Timers",
+                            value: "{category_name()}",
+                            oninput: move |evt| category_name.set(evt.value()),
+                            disabled: is_submitting,
+                            required: true,
+                        }
+                    }
+
+                    // Error Message
+                    if let Some(err) = error() {
+                        div {
+                            class: "alert alert-error mt-4",
+                            span { "{err}" }
+                        }
+                    }
+
+                    // Modal Actions
+                    div {
+                        class: "modal-action",
+                        button {
+                            r#type: "button",
+                            class: "btn",
+                            onclick: move |_| show.set(false),
+                            disabled: is_submitting,
+                            "Cancel"
+                        }
+                        button {
+                            r#type: "submit",
+                            class: "btn btn-primary",
+                            disabled: is_submitting,
+                            if is_submitting {
+                                span { class: "loading loading-spinner loading-sm mr-2" }
+                                "Creating..."
+                            } else {
+                                "Create"
+                            }
+                        }
+                    }
+                }
+            }
+            // Modal backdrop
+            div {
+                class: "modal-backdrop",
+                onclick: move |_| {
+                    if !is_submitting {
+                        show.set(false);
+                    }
+                },
             }
         }
     )
@@ -170,6 +329,9 @@ fn FleetCategoriesSection(guild_id: u64) -> Element {
 
 #[component]
 fn FleetCategoriesTable(data: PaginatedFleetCategoriesDto) -> Element {
+    let mut sorted_categories = data.categories.clone();
+    sorted_categories.sort_by_key(|c| c.id);
+
     rsx!(
         div {
             class: "overflow-x-auto",
@@ -177,21 +339,28 @@ fn FleetCategoriesTable(data: PaginatedFleetCategoriesDto) -> Element {
                 class: "table table-zebra w-full",
                 thead {
                     tr {
-                        th { "ID" }
                         th { "Name" }
-                        th { "Actions" }
+                        th { class: "text-center", "Upcoming Fleets" }
+                        th { class: "text-center", "All-time Total" }
+                        th { class: "text-center", "Configured Roles" }
+                        th {
+                            class: "text-right",
+                            "Actions"
+                        }
                     }
                 }
                 tbody {
-                    for category in &data.categories {
+                    for category in &sorted_categories {
                         tr {
-                            td { "{category.id}" }
                             td { "{category.name}" }
+                            td { class: "text-center", "0" }
+                            td { class: "text-center", "0" }
+                            td { class: "text-center", "0" }
                             td {
                                 div {
-                                    class: "flex gap-2",
+                                    class: "flex gap-2 justify-end",
                                     button {
-                                        class: "btn btn-sm btn-ghost",
+                                        class: "btn btn-sm btn-primary",
                                         "Edit"
                                     }
                                     button {
@@ -322,6 +491,48 @@ async fn get_fleet_categories(
                 })?;
             Ok(data)
         }
+        _ => {
+            let message = if let Ok(error_dto) = response.json::<ErrorDto>().await {
+                error_dto.error
+            } else {
+                response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Unknown error".to_string())
+            };
+
+            Err(ApiError { status, message })
+        }
+    }
+}
+
+#[cfg(feature = "web")]
+async fn create_fleet_category(guild_id: u64, name: String) -> Result<(), ApiError> {
+    use crate::model::{api::ErrorDto, fleet::CreateFleetCategoryDto};
+    use reqwasm::http::Request;
+
+    let url = format!("/api/timerboard/{}/fleet/category", guild_id);
+
+    let payload = CreateFleetCategoryDto { name };
+
+    let response = Request::post(&url)
+        .credentials(reqwasm::http::RequestCredentials::Include)
+        .header("Content-Type", "application/json")
+        .body(serde_json::to_string(&payload).map_err(|e| ApiError {
+            status: 500,
+            message: format!("Failed to serialize request: {}", e),
+        })?)
+        .send()
+        .await
+        .map_err(|e| ApiError {
+            status: 500,
+            message: format!("Failed to send request: {}", e),
+        })?;
+
+    let status = response.status() as u64;
+
+    match status {
+        201 => Ok(()),
         _ => {
             let message = if let Ok(error_dto) = response.json::<ErrorDto>().await {
                 error_dto.error

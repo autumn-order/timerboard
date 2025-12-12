@@ -2133,6 +2133,7 @@ dependencies = [
  "reqwest 0.12.25",
  "sea-orm",
  "serde",
+ "serde_json",
  "serenity",
  "thiserror 2.0.17",
  "time",
