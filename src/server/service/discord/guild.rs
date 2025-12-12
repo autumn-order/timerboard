@@ -31,4 +31,20 @@ impl<'a> DiscordGuildService<'a> {
 
         Ok(guilds)
     }
+
+    pub async fn get_by_guild_id(
+        &self,
+        guild_id: u64,
+    ) -> Result<Option<DiscordGuildDto>, AppError> {
+        let guild_repo = DiscordGuildRepository::new(self.db);
+
+        let guild = guild_repo.find_by_guild_id(guild_id).await?;
+
+        Ok(guild.map(|g| DiscordGuildDto {
+            id: g.id,
+            guild_id: g.guild_id,
+            name: g.name,
+            icon_hash: g.icon_hash,
+        }))
+    }
 }

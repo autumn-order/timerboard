@@ -1,3 +1,7 @@
+pub mod timerboard;
+
+pub use timerboard::TimerboardAdmin;
+
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
 
@@ -35,6 +39,47 @@ pub async fn get_all_discord_guilds() -> Result<Vec<DiscordGuildDto>, ApiError> 
                     message: format!("Failed to parse Discord guild data: {}", e),
                 })?;
             Ok(guilds)
+        }
+        _ => {
+            let message = if let Ok(error_dto) = response.json::<ErrorDto>().await {
+                error_dto.error
+            } else {
+                response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Unknown error".to_string())
+            };
+
+            Err(ApiError { status, message })
+        }
+    }
+}
+
+#[cfg(feature = "web")]
+pub async fn get_discord_guild_by_id(guild_id: u64) -> Result<DiscordGuildDto, ApiError> {
+    use reqwasm::http::Request;
+
+    let response = Request::get(&format!("/api/admin/discord/guilds/{}", guild_id))
+        .credentials(reqwasm::http::RequestCredentials::Include)
+        .send()
+        .await
+        .map_err(|e| ApiError {
+            status: 500,
+            message: format!("Failed to send request: {}", e),
+        })?;
+
+    let status = response.status() as u64;
+
+    match status {
+        200 => {
+            let guild = response
+                .json::<DiscordGuildDto>()
+                .await
+                .map_err(|e| ApiError {
+                    status: 500,
+                    message: format!("Failed to parse Discord guild data: {}", e),
+                })?;
+            Ok(guild)
         }
         _ => {
             let message = if let Ok(error_dto) = response.json::<ErrorDto>().await {
@@ -95,29 +140,32 @@ pub fn Admin() -> Element {
                 div {
                     class: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-6xl",
                     for guild in guild_list {
-                        div {
-                            class: "flex items-center gap-4 p-4 border border-neutral rounded-lg",
-                            if let Some(icon_hash) = &guild.icon_hash {
-                                img {
-                                    src: "https://cdn.discordapp.com/icons/{guild.guild_id}/{icon_hash}.png",
-                                    alt: "{guild.name} icon",
-                                    class: "w-12 h-12 rounded-full",
-                                }
-                            } else {
-                                div {
-                                    class: "w-12 h-12 rounded-full bg-neutral flex items-center justify-center font-bold",
-                                    "{guild.name.chars().next().unwrap_or('?')}"
-                                }
-                            }
+                        Link {
+                            to: "/admin/{guild.guild_id}",
                             div {
-                                class: "flex-1",
-                                h3 {
-                                    class: "font-semibold",
-                                    "{guild.name}"
+                                class: "flex items-center gap-4 p-4 border border-neutral rounded-lg",
+                                if let Some(icon_hash) = &guild.icon_hash {
+                                    img {
+                                        src: "https://cdn.discordapp.com/icons/{guild.guild_id}/{icon_hash}.png",
+                                        alt: "{guild.name} icon",
+                                        class: "w-12 h-12 rounded-full",
+                                    }
+                                } else {
+                                    div {
+                                        class: "w-12 h-12 rounded-full bg-neutral flex items-center justify-center font-bold",
+                                        "{guild.name.chars().next().unwrap_or('?')}"
+                                    }
                                 }
-                                p {
-                                    class: "text-sm",
-                                    "ID: {guild.guild_id}"
+                                div {
+                                    class: "flex-1",
+                                    h3 {
+                                        class: "font-semibold",
+                                        "{guild.name}"
+                                    }
+                                    p {
+                                        class: "text-sm opacity-70",
+                                        "ID: {guild.guild_id}"
+                                    }
                                 }
                             }
                         }

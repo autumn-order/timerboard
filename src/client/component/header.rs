@@ -20,7 +20,7 @@ pub fn Header() -> Element {
     let fetch_completed = user_store.read().fetched;
 
     rsx!(div {
-        class: "fixed flex justify-between gap-4 w-full h-20 py-2 px-4 bg-base-200",
+        class: "fixed flex justify-between gap-4 w-full h-20 py-2 px-4 bg-base-200 z-20",
         div {
             class: "flex items-center",
             div {
