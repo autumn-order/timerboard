@@ -1,8 +1,11 @@
 use dioxus::prelude::*;
 
-use crate::model::{
-    discord::{DiscordGuildChannelDto, DiscordGuildRoleDto},
-    ping_format::PingFormatDto,
+use crate::{
+    client::component::{DropdownItem, SearchableDropdown, SelectedItem, SelectedItemsList},
+    model::{
+        discord::{DiscordGuildChannelDto, DiscordGuildRoleDto},
+        ping_format::PingFormatDto,
+    },
 };
 
 use super::duration::validate_duration_input;
@@ -77,17 +80,19 @@ pub struct ValidationErrorsData {
 #[component]
 pub fn FleetCategoryFormFields(
     guild_id: u64,
-    form_fields: Signal<FormFieldsData>,
+    mut form_fields: Signal<FormFieldsData>,
     validation_errors: Signal<ValidationErrorsData>,
     is_submitting: bool,
     ping_formats: Signal<Vec<PingFormatDto>>,
 ) -> Element {
-    let mut show_dropdown = use_signal(|| false);
+    // Create mutable signal for ping format search
+    let mut ping_format_search = use_signal(|| String::new());
+    let mut ping_format_dropdown_open = use_signal(|| false);
 
     // Filter ping formats based on search query
     let filtered_formats = use_memo(move || {
         let formats = ping_formats();
-        let query = form_fields().search_query.to_lowercase();
+        let query = ping_format_search().to_lowercase();
         if query.is_empty() {
             formats
         } else {
@@ -98,7 +103,7 @@ pub fn FleetCategoryFormFields(
         }
     });
 
-    // Get selected format name
+    // Get selected format name for display
     let selected_format_name = use_memo(move || {
         let formats = ping_formats();
         if let Some(id) = form_fields().ping_format_id {
@@ -139,86 +144,34 @@ pub fn FleetCategoryFormFields(
             // Ping Format Dropdown with Search
             div {
                 class: "form-control w-full flex flex-col gap-2",
-            label {
-                class: "label",
-                span {
-                    class: "label-text",
-                    "Ping Format"
-                }
-            }
-            div {
-                class: "relative",
-                input {
-                    r#type: "text",
-                    class: "input input-bordered w-full",
-                    placeholder: if selected_format_name().is_some() { "" } else { "Search ping formats..." },
-                    value: if show_dropdown() {
-                        "{form_fields().search_query}"
-                    } else if let Some(name) = &selected_format_name() {
-                        "{name}"
-                    } else {
-                        ""
-                    },
-                    onfocus: move |_| {
-                        show_dropdown.set(true);
-                        form_fields.write().search_query = String::new();
-                    },
-                    onblur: move |_| {
-                        show_dropdown.set(false);
-                    },
-                    oninput: move |evt| {
-                        form_fields.write().search_query = evt.value();
-                        show_dropdown.set(true);
-                    },
-                    disabled: is_submitting,
-                    required: true,
-                }
-                {
-                    let formats = filtered_formats();
-                    if show_dropdown() {
-                        if !formats.is_empty() {
-                            rsx! {
-                                div {
-                                    class: "absolute z-10 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-60 overflow-y-auto",
-                                    for format in formats {
-                                        div {
-                                            key: "{format.id}",
-                                            class: if Some(format.id) == form_fields().ping_format_id {
-                                                "px-4 py-2 cursor-pointer bg-primary text-primary-content hover:bg-primary-focus"
-                                            } else {
-                                                "px-4 py-2 cursor-pointer hover:bg-base-200"
-                                            },
-                                            onmousedown: move |evt| {
-                                                evt.prevent_default();
-                                                form_fields.write().ping_format_id = Some(format.id);
-                                                form_fields.write().search_query = String::new();
-                                                show_dropdown.set(false);
-                                            },
-                                            "{format.name}"
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            rsx! {
-                                div {
-                                    class: "absolute z-10 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg",
-                                    div {
-                                        class: "px-4 py-2 text-center opacity-50",
-                                        if !form_fields().search_query.is_empty() {
-                                            "No ping formats found"
-                                        } else {
-                                            "No ping formats available"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        rsx! {}
+                label {
+                    class: "label",
+                    span {
+                        class: "label-text",
+                        "Ping Format"
                     }
                 }
-            }
+                SearchableDropdown {
+                    search_query: ping_format_search,
+                    placeholder: "Search ping formats...".to_string(),
+                    display_value: selected_format_name(),
+                    disabled: is_submitting,
+                    required: true,
+                    has_items: !filtered_formats().is_empty(),
+                    show_dropdown_signal: Some(ping_format_dropdown_open),
+                    for format in filtered_formats() {
+                        DropdownItem {
+                            key: "{format.id}",
+                            selected: Some(format.id) == form_fields().ping_format_id,
+                            on_select: move |_| {
+                                form_fields.write().ping_format_id = Some(format.id);
+                                ping_format_search.set(String::new());
+                                ping_format_dropdown_open.set(false);
+                            },
+                            "{format.name}"
+                        }
+                    }
+                }
                 label {
                     class: "label",
                     span {
@@ -436,8 +389,9 @@ fn AccessRolesTab(
     mut form_fields: Signal<FormFieldsData>,
     is_submitting: bool,
 ) -> Element {
-    let mut show_dropdown = use_signal(|| false);
     let mut available_roles = use_signal(|| Vec::<DiscordGuildRoleDto>::new());
+    let mut role_search_query = use_signal(|| String::new());
+    let mut role_dropdown_open = use_signal(|| false);
 
     // Fetch roles when component mounts
     #[cfg(feature = "web")]
@@ -454,7 +408,7 @@ fn AccessRolesTab(
     // Filter available roles by search query and exclude already added roles
     let filtered_roles = use_memo(move || {
         let roles = available_roles();
-        let query = form_fields().role_search_query.to_lowercase();
+        let query = role_search_query().to_lowercase();
         let access_role_ids: Vec<i64> = form_fields()
             .access_roles
             .iter()
@@ -502,189 +456,122 @@ fn AccessRolesTab(
                     class: "label",
                     span { class: "label-text", "Add Access Role" }
                 }
-                div {
-                    class: "relative",
-                    input {
-                        r#type: "text",
-                        class: "input input-bordered w-full",
-                        placeholder: "Search roles...",
-                        value: "{form_fields().role_search_query}",
-                        onfocus: move |_| {
-                            show_dropdown.set(true);
-                        },
-                        onclick: move |_| {
-                            show_dropdown.set(true);
-                        },
-                        oninput: move |evt| {
-                            form_fields.write().role_search_query = evt.value();
-                            show_dropdown.set(true);
-                        },
-                        disabled: is_submitting,
-                    }
-                    // Click outside to close dropdown
-                    if show_dropdown() {
-                        div {
-                            class: "fixed inset-0 z-0",
-                            onclick: move |_| {
-                                show_dropdown.set(false);
-                                form_fields.write().role_search_query = String::new();
-                            }
-                        }
-                    }
-                    {
-                        let roles = filtered_roles();
-                        if show_dropdown() {
-                            if !roles.is_empty() {
-                                rsx! {
+                SearchableDropdown {
+                    search_query: role_search_query,
+                    placeholder: "Search roles...".to_string(),
+                    display_value: None,
+                    disabled: is_submitting,
+                    has_items: !filtered_roles().is_empty(),
+                    show_dropdown_signal: Some(role_dropdown_open),
+                    for role in filtered_roles() {
+                        {
+                            let role_name = role.name.clone();
+                            let role_color = role.color.clone();
+                            rsx! {
+                                DropdownItem {
+                                    key: "{role.role_id}",
+                                    on_select: move |_| {
+                                        let new_role = RoleData {
+                                            id: role.role_id,
+                                            name: role.name.clone(),
+                                            color: role.color.clone(),
+                                        };
+                                        let new_access_role = AccessRoleData {
+                                            role: new_role,
+                                            can_view: true,
+                                            can_create: false,
+                                            can_manage: false,
+                                        };
+                                        form_fields.write().access_roles.push(new_access_role);
+                                        role_search_query.set(String::new());
+                                        role_dropdown_open.set(false);
+                                    },
                                     div {
-                                        class: "absolute z-10 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-60 overflow-y-auto",
-                                        for role in roles {
-                                            {
-                                                let role_color = role.color.clone();
-                                                let role_name = role.name.clone();
-                                                rsx! {
-                                                    div {
-                                                        key: "{role.role_id}",
-                                                        class: "px-4 py-2 cursor-pointer hover:bg-base-200 flex items-center gap-2",
-                                                        onmousedown: move |evt| {
-                                                            evt.prevent_default();
-                                                            let new_role = RoleData {
-                                                                id: role.role_id,
-                                                                name: role.name.clone(),
-                                                                color: role.color.clone(),
-                                                            };
-                                                            let new_access_role = super::form_fields::AccessRoleData {
-                                                                role: new_role,
-                                                                can_view: true,
-                                                                can_create: false,
-                                                                can_manage: false,
-                                                            };
-                                                            form_fields.write().access_roles.push(new_access_role);
-                                                            form_fields.write().role_search_query = String::new();
-                                                            show_dropdown.set(false);
-                                                        },
-                                                        div {
-                                                            class: "w-4 h-4 rounded",
-                                                            style: "background-color: {role_color};"
-                                                        }
-                                                        "{role_name}"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                rsx! {
-                                    div {
-                                        class: "absolute z-10 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg",
+                                        class: "flex items-center gap-2",
                                         div {
-                                            class: "px-4 py-2 text-center opacity-50 text-sm",
-                                            if !form_fields().role_search_query.is_empty() {
-                                                "No roles found"
-                                            } else {
-                                                "No roles available"
-                                            }
+                                            class: "w-4 h-4 rounded",
+                                            style: "background-color: {role_color};"
                                         }
+                                        "{role_name}"
                                     }
                                 }
                             }
-                        } else {
-                            rsx! {}
                         }
                     }
                 }
             }
 
             // List of access roles with scrollable container
-            div {
-                class: "flex flex-col gap-2",
-                label {
-                    class: "label",
-                    span { class: "label-text font-semibold", "Configured Access Roles" }
-                }
-                div {
-                    class: if form_fields().access_roles.is_empty() { "space-y-2" } else { "space-y-2 max-h-96 overflow-y-auto border border-base-300 rounded-lg p-2 bg-base-200" },
-                if form_fields().access_roles.is_empty() {
-                    div {
-                        class: "text-center py-8 opacity-50 text-sm",
-                        "No access roles configured. Add roles to control who can view, create, or manage fleets in this category."
-                    }
-                } else {
-                    for access_role in sorted_access_roles() {
-                        {
-                            let role_id = access_role.role.id;
-                            let role_name = access_role.role.name.clone();
-                            let role_color = access_role.role.color.clone();
-                            let can_view = access_role.can_view;
-                            let can_create = access_role.can_create;
-                            let can_manage = access_role.can_manage;
-                            // Find the actual index in form_fields
-                            let actual_index = form_fields().access_roles.iter().position(|ar| ar.role.id == role_id).unwrap_or(0);
-                            rsx! {
+            SelectedItemsList {
+                label: "Configured Access Roles".to_string(),
+                empty_message: "No access roles configured. Add roles to control who can view, create, or manage fleets in this category.".to_string(),
+                is_empty: sorted_access_roles().is_empty(),
+                for access_role in sorted_access_roles() {
+                    {
+                        let role_id = access_role.role.id;
+                        let role_name = access_role.role.name.clone();
+                        let role_color = access_role.role.color.clone();
+                        let can_view = access_role.can_view;
+                        let can_create = access_role.can_create;
+                        let can_manage = access_role.can_manage;
+                        // Find the actual index in form_fields
+                        let actual_index = form_fields().access_roles.iter().position(|ar| ar.role.id == role_id).unwrap_or(0);
+                        rsx! {
+                            SelectedItem {
+                                key: "{role_id}",
+                                disabled: is_submitting,
+                                on_remove: move |_| {
+                                    form_fields.write().access_roles.remove(actual_index);
+                                },
                                 div {
-                                    key: "{role_id}",
-                                    class: "flex items-center gap-3 p-3 bg-base-100 rounded-lg",
-                                    div {
-                                        class: "w-4 h-4 rounded flex-shrink-0",
-                                        style: "background-color: {role_color};"
-                                    }
-                                    div {
-                                        class: "flex-1 font-medium",
-                                        "{role_name}"
-                                    }
-                                    div {
-                                        class: "flex gap-4",
-                                        label {
-                                            class: "label cursor-pointer gap-2",
-                                            span { class: "label-text text-xs", "View" }
-                                            input {
-                                                r#type: "checkbox",
-                                                class: "checkbox checkbox-sm [transition:none]",
-                                                checked: can_view,
-                                                disabled: is_submitting,
-                                                onchange: move |evt| {
-                                                    form_fields.write().access_roles[actual_index].can_view = evt.checked();
-                                                }
-                                            }
-                                        }
-                                        label {
-                                            class: "label cursor-pointer gap-2",
-                                            span { class: "label-text text-xs", "Create" }
-                                            input {
-                                                r#type: "checkbox",
-                                                class: "checkbox checkbox-sm [transition:none]",
-                                                checked: can_create,
-                                                disabled: is_submitting,
-                                                onchange: move |evt| {
-                                                    form_fields.write().access_roles[actual_index].can_create = evt.checked();
-                                                }
-                                            }
-                                        }
-                                        label {
-                                            class: "label cursor-pointer gap-2",
-                                            span { class: "label-text text-xs", "Manage" }
-                                            input {
-                                                r#type: "checkbox",
-                                                class: "checkbox checkbox-sm [transition:none]",
-                                                checked: can_manage,
-                                                disabled: is_submitting,
-                                                onchange: move |evt| {
-                                                    form_fields.write().access_roles[actual_index].can_manage = evt.checked();
-                                                }
-                                            }
-                                        }
-                                    }
-                                    button {
-                                        r#type: "button",
-                                        class: "btn btn-sm btn-error btn-square",
-                                        disabled: is_submitting,
-                                        onclick: move |_| {
-                                            form_fields.write().access_roles.remove(actual_index);
-                                        },
-                                        "✕"
-                                    }
+                                    class: "w-4 h-4 rounded flex-shrink-0",
+                                    style: "background-color: {role_color};"
                                 }
+                                div {
+                                    class: "flex-1 font-medium",
+                                    "{role_name}"
+                                }
+                                div {
+                                    class: "flex gap-4",
+                                    label {
+                                        class: "label cursor-pointer gap-2",
+                                        span { class: "label-text text-xs", "View" }
+                                        input {
+                                            r#type: "checkbox",
+                                            class: "checkbox checkbox-sm [transition:none]",
+                                            checked: can_view,
+                                            disabled: is_submitting,
+                                            onchange: move |evt| {
+                                                form_fields.write().access_roles[actual_index].can_view = evt.checked();
+                                            }
+                                        }
+                                    }
+                                    label {
+                                        class: "label cursor-pointer gap-2",
+                                        span { class: "label-text text-xs", "Create" }
+                                        input {
+                                            r#type: "checkbox",
+                                            class: "checkbox checkbox-sm [transition:none]",
+                                            checked: can_create,
+                                            disabled: is_submitting,
+                                            onchange: move |evt| {
+                                                form_fields.write().access_roles[actual_index].can_create = evt.checked();
+                                            }
+                                        }
+                                    }
+                                    label {
+                                        class: "label cursor-pointer gap-2",
+                                        span { class: "label-text text-xs", "Manage" }
+                                        input {
+                                            r#type: "checkbox",
+                                            class: "checkbox checkbox-sm [transition:none]",
+                                            checked: can_manage,
+                                            disabled: is_submitting,
+                                            onchange: move |evt| {
+                                                form_fields.write().access_roles[actual_index].can_manage = evt.checked();
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -702,8 +589,9 @@ fn PingRolesTab(
     mut form_fields: Signal<FormFieldsData>,
     is_submitting: bool,
 ) -> Element {
-    let mut show_dropdown = use_signal(|| false);
     let mut available_roles = use_signal(|| Vec::<DiscordGuildRoleDto>::new());
+    let mut role_search_query = use_signal(|| String::new());
+    let mut role_dropdown_open = use_signal(|| false);
 
     // Fetch roles when component mounts
     #[cfg(feature = "web")]
@@ -720,7 +608,7 @@ fn PingRolesTab(
     // Filter available roles by search query and exclude already added roles
     let filtered_roles = use_memo(move || {
         let roles = available_roles();
-        let query = form_fields().role_search_query.to_lowercase();
+        let query = role_search_query().to_lowercase();
         let ping_role_ids: Vec<i64> = form_fields().ping_roles.iter().map(|r| r.id).collect();
 
         let mut filtered: Vec<_> = roles
@@ -764,138 +652,71 @@ fn PingRolesTab(
                     class: "label",
                     span { class: "label-text", "Add Ping Role" }
                 }
-                div {
-                    class: "relative",
-                    input {
-                        r#type: "text",
-                        class: "input input-bordered w-full",
-                        placeholder: "Search roles...",
-                        value: "{form_fields().role_search_query}",
-                        onfocus: move |_| {
-                            show_dropdown.set(true);
-                        },
-                        onclick: move |_| {
-                            show_dropdown.set(true);
-                        },
-                        oninput: move |evt| {
-                            form_fields.write().role_search_query = evt.value();
-                            show_dropdown.set(true);
-                        },
-                        disabled: is_submitting,
-                    }
-                    // Click outside to close dropdown
-                    if show_dropdown() {
-                        div {
-                            class: "fixed inset-0 z-0",
-                            onclick: move |_| {
-                                show_dropdown.set(false);
-                                form_fields.write().role_search_query = String::new();
-                            }
-                        }
-                    }
-                    {
-                        let roles = filtered_roles();
-                        if show_dropdown() {
-                            if !roles.is_empty() {
-                                rsx! {
+                SearchableDropdown {
+                    search_query: role_search_query,
+                    placeholder: "Search roles...".to_string(),
+                    display_value: None,
+                    disabled: is_submitting,
+                    has_items: !filtered_roles().is_empty(),
+                    show_dropdown_signal: Some(role_dropdown_open),
+                    for role in filtered_roles() {
+                        {
+                            let role_name = role.name.clone();
+                            let role_color = role.color.clone();
+                            rsx! {
+                                DropdownItem {
+                                    key: "{role.role_id}",
+                                    on_select: move |_| {
+                                        let new_role = RoleData {
+                                            id: role.role_id,
+                                            name: role.name.clone(),
+                                            color: role.color.clone(),
+                                        };
+                                        form_fields.write().ping_roles.push(new_role);
+                                        role_search_query.set(String::new());
+                                        role_dropdown_open.set(false);
+                                    },
                                     div {
-                                        class: "absolute z-10 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-60 overflow-y-auto",
-                                        for role in roles {
-                                            {
-                                                let role_color = role.color.clone();
-                                                let role_name = role.name.clone();
-                                                rsx! {
-                                                    div {
-                                                        key: "{role.role_id}",
-                                                        class: "px-4 py-2 cursor-pointer hover:bg-base-200 flex items-center gap-2",
-                                                        onmousedown: move |evt| {
-                                                            evt.prevent_default();
-                                                            let new_role = RoleData {
-                                                                id: role.role_id,
-                                                                name: role.name.clone(),
-                                                                color: role.color.clone(),
-                                                            };
-                                                            form_fields.write().ping_roles.push(new_role);
-                                                            form_fields.write().role_search_query = String::new();
-                                                            show_dropdown.set(false);
-                                                        },
-                                                        div {
-                                                            class: "w-4 h-4 rounded",
-                                                            style: "background-color: {role_color};"
-                                                        }
-                                                        "{role_name}"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                rsx! {
-                                    div {
-                                        class: "absolute z-10 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg",
+                                        class: "flex items-center gap-2",
                                         div {
-                                            class: "px-4 py-2 text-center opacity-50 text-sm",
-                                            if !form_fields().role_search_query.is_empty() {
-                                                "No roles found"
-                                            } else {
-                                                "No roles available"
-                                            }
+                                            class: "w-4 h-4 rounded",
+                                            style: "background-color: {role_color};"
                                         }
+                                        "{role_name}"
                                     }
                                 }
                             }
-                        } else {
-                            rsx! {}
                         }
                     }
                 }
             }
 
             // List of ping roles with scrollable container
-            div {
-                class: "flex flex-col gap-2",
-                label {
-                    class: "label",
-                    span { class: "label-text font-semibold", "Configured Ping Roles" }
-                }
-                div {
-                    class: if form_fields().ping_roles.is_empty() { "space-y-2" } else { "space-y-2 max-h-96 overflow-y-auto border border-base-300 rounded-lg p-2 bg-base-200" },
-                if form_fields().ping_roles.is_empty() {
-                    div {
-                        class: "text-center py-8 opacity-50 text-sm",
-                        "No ping roles configured. Add roles to specify who gets notified about fleets in this category."
-                    }
-                } else {
-                    for role in sorted_ping_roles() {
-                        {
-                            let role_id = role.id;
-                            let role_name = role.name.clone();
-                            let role_color = role.color.clone();
-                            // Find the actual index in form_fields
-                            let actual_index = form_fields().ping_roles.iter().position(|r| r.id == role_id).unwrap_or(0);
-                            rsx! {
+            SelectedItemsList {
+                label: "Configured Ping Roles".to_string(),
+                empty_message: "No ping roles configured. Add roles to specify who gets notified about fleets in this category.".to_string(),
+                is_empty: sorted_ping_roles().is_empty(),
+                for role in sorted_ping_roles() {
+                    {
+                        let role_id = role.id;
+                        let role_name = role.name.clone();
+                        let role_color = role.color.clone();
+                        // Find the actual index in form_fields
+                        let actual_index = form_fields().ping_roles.iter().position(|r| r.id == role_id).unwrap_or(0);
+                        rsx! {
+                            SelectedItem {
+                                key: "{role_id}",
+                                disabled: is_submitting,
+                                on_remove: move |_| {
+                                    form_fields.write().ping_roles.remove(actual_index);
+                                },
                                 div {
-                                    key: "{role_id}",
-                                    class: "flex items-center gap-3 p-3 bg-base-100 rounded-lg",
-                                    div {
-                                        class: "w-4 h-4 rounded flex-shrink-0",
-                                        style: "background-color: {role_color};"
-                                    }
-                                    div {
-                                        class: "flex-1 font-medium",
-                                        "{role_name}"
-                                    }
-                                    button {
-                                        r#type: "button",
-                                        class: "btn btn-sm btn-error btn-square",
-                                        disabled: is_submitting,
-                                        onclick: move |_| {
-                                            form_fields.write().ping_roles.remove(actual_index);
-                                        },
-                                        "✕"
-                                    }
+                                    class: "w-4 h-4 rounded flex-shrink-0",
+                                    style: "background-color: {role_color};"
                                 }
+                                div {
+                                    class: "flex-1 font-medium",
+                                    "{role_name}"
                                 }
                             }
                         }
@@ -913,8 +734,9 @@ fn ChannelsTab(
     mut form_fields: Signal<FormFieldsData>,
     is_submitting: bool,
 ) -> Element {
-    let mut show_dropdown = use_signal(|| false);
     let mut available_channels = use_signal(|| Vec::<DiscordGuildChannelDto>::new());
+    let mut channel_search_query = use_signal(|| String::new());
+    let mut channel_dropdown_open = use_signal(|| false);
 
     // Fetch channels when component mounts
     #[cfg(feature = "web")]
@@ -933,7 +755,7 @@ fn ChannelsTab(
     // Filter available channels by search query and exclude already added channels
     let filtered_channels = use_memo(move || {
         let channels = available_channels();
-        let query = form_fields().channel_search_query.to_lowercase();
+        let query = channel_search_query().to_lowercase();
         let channel_ids: Vec<i64> = form_fields().channels.iter().map(|c| c.id).collect();
 
         channels
@@ -971,122 +793,57 @@ fn ChannelsTab(
                     class: "label",
                     span { class: "label-text", "Add Channel" }
                 }
-                div {
-                    class: "relative",
-                    input {
-                        r#type: "text",
-                        class: "input input-bordered w-full",
-                        placeholder: "Search channels...",
-                        value: "{form_fields().channel_search_query}",
-                        onfocus: move |_| {
-                            show_dropdown.set(true);
-                        },
-                        onclick: move |_| {
-                            show_dropdown.set(true);
-                        },
-                        oninput: move |evt| {
-                            form_fields.write().channel_search_query = evt.value();
-                            show_dropdown.set(true);
-                        },
-                        disabled: is_submitting,
-                    }
-                    // Click outside to close dropdown
-                    if show_dropdown() {
-                        div {
-                            class: "fixed inset-0 z-0",
-                            onclick: move |_| {
-                                show_dropdown.set(false);
-                                form_fields.write().channel_search_query = String::new();
-                            }
-                        }
-                    }
-                    {
-                        let channels = filtered_channels();
-                        if show_dropdown() {
-                            if !channels.is_empty() {
-                                rsx! {
-                                    div {
-                                        class: "absolute z-10 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg max-h-60 overflow-y-auto",
-                                        for channel in channels {
-                                            div {
-                                                key: "{channel.channel_id}",
-                                                class: "px-4 py-2 cursor-pointer hover:bg-base-200",
-                                                onmousedown: move |evt| {
-                                                    evt.prevent_default();
-                                                    let new_channel = ChannelData {
-                                                        id: channel.channel_id,
-                                                        name: channel.name.clone(),
-                                                    };
-                                                    form_fields.write().channels.push(new_channel);
-                                                    form_fields.write().channel_search_query = String::new();
-                                                    show_dropdown.set(false);
-                                                },
-                                                "# {channel.name}"
-                                            }
-                                        }
-                                    }
-                                }
-                            } else {
-                                rsx! {
-                                    div {
-                                        class: "absolute z-10 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg",
-                                        div {
-                                            class: "px-4 py-2 text-center opacity-50 text-sm",
-                                            if !form_fields().channel_search_query.is_empty() {
-                                                "No channels found"
-                                            } else {
-                                                "No channels available"
-                                            }
-                                        }
-                                    }
+                SearchableDropdown {
+                    search_query: channel_search_query,
+                    placeholder: "Search channels...".to_string(),
+                    display_value: None,
+                    disabled: is_submitting,
+                    has_items: !filtered_channels().is_empty(),
+                    show_dropdown_signal: Some(channel_dropdown_open),
+                    for channel in filtered_channels() {
+                        {
+                            let channel_name = channel.name.clone();
+                            rsx! {
+                                DropdownItem {
+                                    key: "{channel.channel_id}",
+                                    on_select: move |_| {
+                                        let new_channel = ChannelData {
+                                            id: channel.channel_id,
+                                            name: channel.name.clone(),
+                                        };
+                                        form_fields.write().channels.push(new_channel);
+                                        channel_search_query.set(String::new());
+                                        channel_dropdown_open.set(false);
+                                    },
+                                    "# {channel_name}"
                                 }
                             }
-                        } else {
-                            rsx! {}
                         }
                     }
                 }
             }
 
             // List of channels with scrollable container
-            div {
-                class: "flex flex-col gap-2",
-                label {
-                    class: "label",
-                    span { class: "label-text font-semibold", "Configured Channels" }
-                }
-                div {
-                    class: if form_fields().channels.is_empty() { "space-y-2" } else { "space-y-2 max-h-96 overflow-y-auto border border-base-300 rounded-lg p-2 bg-base-200" },
-                if form_fields().channels.is_empty() {
-                    div {
-                        class: "text-center py-8 opacity-50 text-sm",
-                        "No channels configured. Add channels where fleet notifications will be sent."
-                    }
-                } else {
-                    for channel in sorted_channels() {
-                        {
-                            let channel_id = channel.id;
-                            let channel_name = channel.name.clone();
-                            // Find the actual index in form_fields
-                            let actual_index = form_fields().channels.iter().position(|c| c.id == channel_id).unwrap_or(0);
-                            rsx! {
+            SelectedItemsList {
+                label: "Configured Channels".to_string(),
+                empty_message: "No channels configured. Add channels where fleet notifications will be sent.".to_string(),
+                is_empty: sorted_channels().is_empty(),
+                for channel in sorted_channels() {
+                    {
+                        let channel_id = channel.id;
+                        let channel_name = channel.name.clone();
+                        // Find the actual index in form_fields
+                        let actual_index = form_fields().channels.iter().position(|c| c.id == channel_id).unwrap_or(0);
+                        rsx! {
+                            SelectedItem {
+                                key: "{channel_id}",
+                                disabled: is_submitting,
+                                on_remove: move |_| {
+                                    form_fields.write().channels.remove(actual_index);
+                                },
                                 div {
-                                    key: "{channel_id}",
-                                    class: "flex items-center gap-3 p-3 bg-base-100 rounded-lg",
-                                    div {
-                                        class: "flex-1 font-medium",
-                                        "# {channel_name}"
-                                    }
-                                    button {
-                                        r#type: "button",
-                                        class: "btn btn-sm btn-error btn-square",
-                                        disabled: is_submitting,
-                                        onclick: move |_| {
-                                            form_fields.write().channels.remove(actual_index);
-                                        },
-                                        "✕"
-                                    }
-                                }
+                                    class: "flex-1 font-medium",
+                                    "# {channel_name}"
                                 }
                             }
                         }

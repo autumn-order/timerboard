@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
 
-use crate::client::component::Modal;
+use crate::client::component::{Modal, SelectedItemsList};
 
 #[cfg(feature = "web")]
 use crate::client::api::ping_format::{create_ping_format, update_ping_format};
@@ -347,26 +347,28 @@ fn PingFormatFormFields(mut form_fields: Signal<FormFieldsData>, is_submitting: 
             }
         }
 
-        // Fields section
+        // Fields section with add button
         div {
             class: "form-control w-full",
             div {
                 class: "flex justify-between items-center mb-2",
                 label {
                     class: "label",
-                    span { class: "label-text", "Fields" }
+                    span { class: "label-text font-semibold", "Fields" }
                 }
                 button {
                     r#type: "button",
-                    class: "btn btn-sm btn-ghost",
+                    class: "btn btn-sm btn-primary",
                     onclick: add_field,
                     disabled: is_submitting,
                     "＋ Add Field"
                 }
             }
 
-            div {
-                class: "space-y-2",
+            SelectedItemsList {
+                label: "".to_string(),
+                empty_message: "No fields added. Click \"Add Field\" to create fields.".to_string(),
+                is_empty: form_fields().fields.is_empty(),
                 for (index, field) in form_fields().fields.iter().enumerate() {
                     {
                         let field_name = field.name.clone();
@@ -374,11 +376,15 @@ fn PingFormatFormFields(mut form_fields: Signal<FormFieldsData>, is_submitting: 
                         rsx! {
                             div {
                                 key: "{index}",
-                                class: if is_dragging { "flex gap-2 items-center opacity-50" } else { "flex gap-2 items-center" },
+                                class: if is_dragging {
+                                    "flex items-center gap-3 p-3 bg-base-100 rounded-lg opacity-50"
+                                } else {
+                                    "flex items-center gap-3 p-3 bg-base-100 rounded-lg"
+                                },
                                 ondragover: on_drag_over,
                                 ondrop: on_drop(index),
                                 div {
-                                    class: "cursor-move text-xl opacity-50 hover:opacity-100 select-none",
+                                    class: "cursor-move text-xl opacity-50 hover:opacity-100 select-none flex-shrink-0",
                                     title: "Drag to reorder",
                                     draggable: !is_submitting,
                                     ondragstart: on_drag_start(index),
@@ -397,7 +403,7 @@ fn PingFormatFormFields(mut form_fields: Signal<FormFieldsData>, is_submitting: 
                                 }
                                 button {
                                     r#type: "button",
-                                    class: "btn btn-sm btn-error btn-square",
+                                    class: "btn btn-sm btn-error btn-square flex-shrink-0",
                                     disabled: is_submitting,
                                     onclick: move |_| {
                                         form_fields.write().fields.remove(index);
@@ -406,13 +412,6 @@ fn PingFormatFormFields(mut form_fields: Signal<FormFieldsData>, is_submitting: 
                                 }
                             }
                         }
-                    }
-                }
-
-                if form_fields().fields.is_empty() {
-                    div {
-                        class: "text-center py-4 opacity-50 text-sm",
-                        "No fields added. Click \"Add Field\" to create fields."
                     }
                 }
             }
