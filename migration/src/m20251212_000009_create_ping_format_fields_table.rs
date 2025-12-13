@@ -1,6 +1,6 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-use super::m20251212_000008_create_ping_format::PingFormat;
+use super::m20251212_000008_create_ping_format_table::PingFormat;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

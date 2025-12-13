@@ -12,6 +12,9 @@ use crate::server::{
             create_fleet_category, delete_fleet_category, get_fleet_categories,
             update_fleet_category,
         },
+        ping_format::{
+            create_ping_format, delete_ping_format, get_ping_formats, update_ping_format,
+        },
     },
     state::AppState,
 };
@@ -32,5 +35,13 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/timerboard/{guild_id}/fleet/category/{fleet_id}",
             put(update_fleet_category).delete(delete_fleet_category),
+        )
+        .route(
+            "/api/timerboard/{guild_id}/ping/format",
+            post(create_ping_format).get(get_ping_formats),
+        )
+        .route(
+            "/api/timerboard/{guild_id}/ping/format/{format_id}",
+            put(update_ping_format).delete(delete_ping_format),
         )
 }
