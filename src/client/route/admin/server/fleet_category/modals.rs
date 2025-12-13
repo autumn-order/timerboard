@@ -163,6 +163,7 @@ pub fn CreateCategoryModal(
             show,
             title: "Create Fleet Category".to_string(),
             prevent_close: is_submitting,
+            class: Some("max-w-4xl"),
             form {
                 class: "flex flex-col gap-4",
                 onsubmit: on_submit,
@@ -263,6 +264,12 @@ pub fn EditCategoryModal(
                         .as_ref()
                         .map(|d| format_duration(d))
                         .unwrap_or_default(),
+                    active_tab: Default::default(),
+                    role_search_query: String::new(),
+                    channel_search_query: String::new(),
+                    access_roles: Vec::new(),
+                    ping_roles: Vec::new(),
+                    channels: Vec::new(),
                 });
                 submit_data.write().0 = category.id;
                 validation_errors.set(ValidationErrorsData::default());
@@ -366,6 +373,7 @@ pub fn EditCategoryModal(
             show,
             title: "Edit Fleet Category".to_string(),
             prevent_close: is_submitting,
+            class: Some("max-w-4xl"),
             form {
                 class: "flex flex-col gap-4",
                 onsubmit: on_submit,

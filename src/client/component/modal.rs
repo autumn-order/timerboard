@@ -1,7 +1,14 @@
 use dioxus::prelude::*;
 
 #[component]
-pub fn Modal(show: Signal<bool>, title: String, prevent_close: bool, children: Element) -> Element {
+pub fn Modal(
+    show: Signal<bool>,
+    title: String,
+    prevent_close: bool,
+    class: Option<&'static str>,
+    children: Element,
+) -> Element {
+    let class: &str = class.unwrap_or_default();
     // Focus modal when it opens
     #[cfg(feature = "web")]
     use_effect(move || {
@@ -20,12 +27,14 @@ pub fn Modal(show: Signal<bool>, title: String, prevent_close: bool, children: E
                 }
             },
             div {
-                class: "modal-box",
-                h3 {
-                    class: "font-bold text-lg mb-4",
-                    "{title}"
+                class: "modal-box {class}",
+                div {
+                    h3 {
+                        class: "font-bold text-lg mb-4",
+                        "{title}"
+                    }
+                    {children}
                 }
-                {children}
             }
             div {
                 class: "modal-backdrop",
