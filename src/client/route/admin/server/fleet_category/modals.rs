@@ -6,11 +6,25 @@ use crate::client::component::Modal;
 
 use super::{
     duration::{format_duration, parse_duration, validate_duration_input},
-    form_fields::FleetCategoryFormFields,
+    form_fields::{FleetCategoryFormFields, FormFieldsData, ValidationErrorsData},
 };
 
 #[cfg(feature = "web")]
 use crate::client::api::fleet_category::{create_fleet_category, update_fleet_category};
+
+/// Duration field values for submission
+#[derive(Clone, Default)]
+struct DurationFields {
+    ping_cooldown: Option<Duration>,
+    ping_reminder: Option<Duration>,
+    max_pre_ping: Option<Duration>,
+}
+
+impl ValidationErrorsData {
+    fn has_errors(&self) -> bool {
+        self.ping_cooldown.is_some() || self.ping_reminder.is_some() || self.max_pre_ping.is_some()
+    }
+}
 
 #[component]
 pub fn CreateCategoryModal(
@@ -18,36 +32,20 @@ pub fn CreateCategoryModal(
     mut show: Signal<bool>,
     mut refetch_trigger: Signal<u32>,
 ) -> Element {
-    let mut category_name = use_signal(|| String::new());
-    let mut ping_cooldown_str = use_signal(|| String::new());
-    let mut ping_reminder_str = use_signal(|| String::new());
-    let mut max_pre_ping_str = use_signal(|| String::new());
-    let mut submit_name = use_signal(|| String::new());
-    let mut submit_ping_cooldown = use_signal(|| None::<Duration>);
-    let mut submit_ping_reminder = use_signal(|| None::<Duration>);
-    let mut submit_max_pre_ping = use_signal(|| None::<Duration>);
+    let mut form_fields = use_signal(FormFieldsData::default);
+    let mut submit_data = use_signal(|| (String::new(), DurationFields::default()));
+    let mut validation_errors = use_signal(ValidationErrorsData::default);
     let mut should_submit = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    let mut ping_cooldown_error = use_signal(|| None::<String>);
-    let mut ping_reminder_error = use_signal(|| None::<String>);
-    let mut max_pre_ping_error = use_signal(|| None::<String>);
 
     // Reset form when modal opens (clears data from previous use)
     use_effect(move || {
         if show() {
-            category_name.set(String::new());
-            ping_cooldown_str.set(String::new());
-            ping_reminder_str.set(String::new());
-            max_pre_ping_str.set(String::new());
-            submit_name.set(String::new());
-            submit_ping_cooldown.set(None);
-            submit_ping_reminder.set(None);
-            submit_max_pre_ping.set(None);
+            form_fields.set(FormFieldsData::default());
+            submit_data.set((String::new(), DurationFields::default()));
+            validation_errors.set(ValidationErrorsData::default());
             should_submit.set(false);
             error.set(None);
-            ping_cooldown_error.set(None);
-            ping_reminder_error.set(None);
-            max_pre_ping_error.set(None);
         }
     });
 
@@ -55,13 +53,14 @@ pub fn CreateCategoryModal(
     #[cfg(feature = "web")]
     let future = use_resource(move || async move {
         if should_submit() {
+            let (name, durations) = submit_data();
             Some(
                 create_fleet_category(
                     guild_id,
-                    submit_name(),
-                    submit_ping_cooldown(),
-                    submit_ping_reminder(),
-                    submit_max_pre_ping(),
+                    name,
+                    durations.ping_cooldown,
+                    durations.ping_reminder,
+                    durations.max_pre_ping,
                 )
                 .await,
             )
@@ -93,28 +92,30 @@ pub fn CreateCategoryModal(
     let on_submit = move |evt: Event<FormData>| {
         evt.prevent_default();
 
-        let name = category_name();
-        if name.trim().is_empty() {
+        let fields = form_fields();
+        if fields.category_name.trim().is_empty() {
             error.set(Some("Category name is required".to_string()));
             return;
         }
 
         // Validate all duration fields before submitting
-        let cooldown_err = validate_duration_input(&ping_cooldown_str());
-        let reminder_err = validate_duration_input(&ping_reminder_str());
-        let pre_ping_err = validate_duration_input(&max_pre_ping_str());
+        let errors = ValidationErrorsData {
+            ping_cooldown: validate_duration_input(&fields.ping_cooldown_str),
+            ping_reminder: validate_duration_input(&fields.ping_reminder_str),
+            max_pre_ping: validate_duration_input(&fields.max_pre_ping_str),
+        };
 
-        ping_cooldown_error.set(cooldown_err.clone());
-        ping_reminder_error.set(reminder_err.clone());
-        max_pre_ping_error.set(pre_ping_err.clone());
+        validation_errors.set(errors.clone());
 
         // Only submit if all validations pass
-        if cooldown_err.is_none() && reminder_err.is_none() && pre_ping_err.is_none() {
+        if !errors.has_errors() {
             error.set(None);
-            submit_name.set(name);
-            submit_ping_cooldown.set(parse_duration(&ping_cooldown_str()));
-            submit_ping_reminder.set(parse_duration(&ping_reminder_str()));
-            submit_max_pre_ping.set(parse_duration(&max_pre_ping_str()));
+            let durations = DurationFields {
+                ping_cooldown: parse_duration(&fields.ping_cooldown_str),
+                ping_reminder: parse_duration(&fields.ping_reminder_str),
+                max_pre_ping: parse_duration(&fields.max_pre_ping_str),
+            };
+            submit_data.set((fields.category_name, durations));
             should_submit.set(true);
         } else {
             error.set(Some("Please fix the validation errors above".to_string()));
@@ -122,9 +123,7 @@ pub fn CreateCategoryModal(
     };
 
     let is_submitting = should_submit();
-    let has_validation_errors = ping_cooldown_error().is_some()
-        || ping_reminder_error().is_some()
-        || max_pre_ping_error().is_some();
+    let has_validation_errors = validation_errors().has_errors();
 
     rsx!(
         Modal {
@@ -136,14 +135,9 @@ pub fn CreateCategoryModal(
                 onsubmit: on_submit,
 
                 FleetCategoryFormFields {
-                    category_name,
-                    ping_cooldown_str,
-                    ping_reminder_str,
-                    max_pre_ping_str,
-                    is_submitting,
-                    ping_cooldown_error,
-                    ping_reminder_error,
-                    max_pre_ping_error
+                    form_fields,
+                    validation_errors,
+                    is_submitting
                 }
 
                 // Error Message
@@ -188,54 +182,38 @@ pub fn EditCategoryModal(
     category_to_edit: Signal<Option<crate::model::fleet::FleetCategoryDto>>,
     mut refetch_trigger: Signal<u32>,
 ) -> Element {
-    let mut category_name = use_signal(|| String::new());
-    let mut ping_cooldown_str = use_signal(|| String::new());
-    let mut ping_reminder_str = use_signal(|| String::new());
-    let mut max_pre_ping_str = use_signal(|| String::new());
-    let mut submit_name = use_signal(|| String::new());
-    let mut submit_ping_cooldown = use_signal(|| None::<Duration>);
-    let mut submit_ping_reminder = use_signal(|| None::<Duration>);
-    let mut submit_max_pre_ping = use_signal(|| None::<Duration>);
+    let mut form_fields = use_signal(FormFieldsData::default);
+    let mut submit_data = use_signal(|| (0i32, String::new(), DurationFields::default()));
+    let mut validation_errors = use_signal(ValidationErrorsData::default);
     let mut should_submit = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    let mut category_id = use_signal(|| 0i32);
-    let mut ping_cooldown_error = use_signal(|| None::<String>);
-    let mut ping_reminder_error = use_signal(|| None::<String>);
-    let mut max_pre_ping_error = use_signal(|| None::<String>);
 
     // Initialize form when modal opens with new data
     use_effect(move || {
         if show() {
             if let Some(category) = category_to_edit() {
-                category_name.set(category.name.clone());
-                category_id.set(category.id);
-                ping_cooldown_str.set(
-                    category
+                form_fields.set(FormFieldsData {
+                    category_name: category.name.clone(),
+                    ping_cooldown_str: category
                         .ping_lead_time
                         .as_ref()
                         .map(|d| format_duration(d))
                         .unwrap_or_default(),
-                );
-                ping_reminder_str.set(
-                    category
+                    ping_reminder_str: category
                         .ping_reminder
                         .as_ref()
                         .map(|d| format_duration(d))
                         .unwrap_or_default(),
-                );
-                max_pre_ping_str.set(
-                    category
+                    max_pre_ping_str: category
                         .max_pre_ping
                         .as_ref()
                         .map(|d| format_duration(d))
                         .unwrap_or_default(),
-                );
-                // Reset error and submit state when opening with new data
+                });
+                submit_data.write().0 = category.id;
+                validation_errors.set(ValidationErrorsData::default());
                 error.set(None);
                 should_submit.set(false);
-                ping_cooldown_error.set(None);
-                ping_reminder_error.set(None);
-                max_pre_ping_error.set(None);
             }
         }
     });
@@ -244,14 +222,15 @@ pub fn EditCategoryModal(
     #[cfg(feature = "web")]
     let future = use_resource(move || async move {
         if should_submit() {
+            let (id, name, durations) = submit_data();
             Some(
                 update_fleet_category(
                     guild_id,
-                    category_id(),
-                    submit_name(),
-                    submit_ping_cooldown(),
-                    submit_ping_reminder(),
-                    submit_max_pre_ping(),
+                    id,
+                    name,
+                    durations.ping_cooldown,
+                    durations.ping_reminder,
+                    durations.max_pre_ping,
                 )
                 .await,
             )
@@ -283,28 +262,31 @@ pub fn EditCategoryModal(
     let on_submit = move |evt: Event<FormData>| {
         evt.prevent_default();
 
-        let name = category_name();
-        if name.trim().is_empty() {
+        let fields = form_fields();
+        if fields.category_name.trim().is_empty() {
             error.set(Some("Category name is required".to_string()));
             return;
         }
 
         // Validate all duration fields before submitting
-        let cooldown_err = validate_duration_input(&ping_cooldown_str());
-        let reminder_err = validate_duration_input(&ping_reminder_str());
-        let pre_ping_err = validate_duration_input(&max_pre_ping_str());
+        let errors = ValidationErrorsData {
+            ping_cooldown: validate_duration_input(&fields.ping_cooldown_str),
+            ping_reminder: validate_duration_input(&fields.ping_reminder_str),
+            max_pre_ping: validate_duration_input(&fields.max_pre_ping_str),
+        };
 
-        ping_cooldown_error.set(cooldown_err.clone());
-        ping_reminder_error.set(reminder_err.clone());
-        max_pre_ping_error.set(pre_ping_err.clone());
+        validation_errors.set(errors.clone());
 
         // Only submit if all validations pass
-        if cooldown_err.is_none() && reminder_err.is_none() && pre_ping_err.is_none() {
+        if !errors.has_errors() {
             error.set(None);
-            submit_name.set(name);
-            submit_ping_cooldown.set(parse_duration(&ping_cooldown_str()));
-            submit_ping_reminder.set(parse_duration(&ping_reminder_str()));
-            submit_max_pre_ping.set(parse_duration(&max_pre_ping_str()));
+            let durations = DurationFields {
+                ping_cooldown: parse_duration(&fields.ping_cooldown_str),
+                ping_reminder: parse_duration(&fields.ping_reminder_str),
+                max_pre_ping: parse_duration(&fields.max_pre_ping_str),
+            };
+            let id = submit_data().0;
+            submit_data.set((id, fields.category_name, durations));
             should_submit.set(true);
         } else {
             error.set(Some("Please fix the validation errors above".to_string()));
@@ -312,9 +294,7 @@ pub fn EditCategoryModal(
     };
 
     let is_submitting = should_submit();
-    let has_validation_errors = ping_cooldown_error().is_some()
-        || ping_reminder_error().is_some()
-        || max_pre_ping_error().is_some();
+    let has_validation_errors = validation_errors().has_errors();
 
     rsx!(
         Modal {
@@ -326,14 +306,9 @@ pub fn EditCategoryModal(
                 onsubmit: on_submit,
 
                 FleetCategoryFormFields {
-                    category_name,
-                    ping_cooldown_str,
-                    ping_reminder_str,
-                    max_pre_ping_str,
-                    is_submitting,
-                    ping_cooldown_error,
-                    ping_reminder_error,
-                    max_pre_ping_error
+                    form_fields,
+                    validation_errors,
+                    is_submitting
                 }
 
                 // Error Message

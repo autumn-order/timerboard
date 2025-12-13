@@ -2,17 +2,29 @@ use dioxus::prelude::*;
 
 use super::duration::validate_duration_input;
 
+/// Form field values
+#[derive(Clone, Default, PartialEq)]
+pub struct FormFieldsData {
+    pub category_name: String,
+    pub ping_cooldown_str: String,
+    pub ping_reminder_str: String,
+    pub max_pre_ping_str: String,
+}
+
+/// Validation errors for duration fields
+#[derive(Clone, Default, PartialEq)]
+pub struct ValidationErrorsData {
+    pub ping_cooldown: Option<String>,
+    pub ping_reminder: Option<String>,
+    pub max_pre_ping: Option<String>,
+}
+
 /// Reusable form fields component for fleet category forms
 #[component]
 pub fn FleetCategoryFormFields(
-    category_name: Signal<String>,
-    ping_cooldown_str: Signal<String>,
-    ping_reminder_str: Signal<String>,
-    max_pre_ping_str: Signal<String>,
+    form_fields: Signal<FormFieldsData>,
+    validation_errors: Signal<ValidationErrorsData>,
     is_submitting: bool,
-    ping_cooldown_error: Signal<Option<String>>,
-    ping_reminder_error: Signal<Option<String>>,
-    max_pre_ping_error: Signal<Option<String>>,
 ) -> Element {
     rsx! {
         // Category Name Input
@@ -29,8 +41,10 @@ pub fn FleetCategoryFormFields(
                 r#type: "text",
                 class: "input input-bordered w-full",
                 placeholder: "e.g., Structure Timers",
-                value: "{category_name()}",
-                oninput: move |evt| category_name.set(evt.value()),
+                value: "{form_fields().category_name}",
+                oninput: move |evt| {
+                    form_fields.write().category_name = evt.value();
+                },
                 disabled: is_submitting,
                 required: true,
             }
@@ -48,17 +62,17 @@ pub fn FleetCategoryFormFields(
             }
             input {
                 r#type: "text",
-                class: if ping_cooldown_error().is_some() { "input input-bordered input-error w-full" } else { "input input-bordered w-full" },
+                class: if validation_errors().ping_cooldown.is_some() { "input input-bordered input-error w-full" } else { "input input-bordered w-full" },
                 placeholder: "e.g., 1h, 30m, 1h30m",
-                value: "{ping_cooldown_str()}",
+                value: "{form_fields().ping_cooldown_str}",
                 oninput: move |evt| {
                     let value = evt.value();
-                    ping_cooldown_str.set(value.clone());
-                    ping_cooldown_error.set(validate_duration_input(&value));
+                    form_fields.write().ping_cooldown_str = value.clone();
+                    validation_errors.write().ping_cooldown = validate_duration_input(&value);
                 },
                 disabled: is_submitting,
             }
-            if let Some(error) = ping_cooldown_error() {
+            if let Some(error) = &validation_errors().ping_cooldown {
                 div {
                     class: "text-error text-sm mt-1",
                     "{error}"
@@ -89,17 +103,17 @@ pub fn FleetCategoryFormFields(
             }
             input {
                 r#type: "text",
-                class: if ping_reminder_error().is_some() { "input input-bordered input-error w-full" } else { "input input-bordered w-full" },
+                class: if validation_errors().ping_reminder.is_some() { "input input-bordered input-error w-full" } else { "input input-bordered w-full" },
                 placeholder: "e.g., 15m, 30m",
-                value: "{ping_reminder_str()}",
+                value: "{form_fields().ping_reminder_str}",
                 oninput: move |evt| {
                     let value = evt.value();
-                    ping_reminder_str.set(value.clone());
-                    ping_reminder_error.set(validate_duration_input(&value));
+                    form_fields.write().ping_reminder_str = value.clone();
+                    validation_errors.write().ping_reminder = validate_duration_input(&value);
                 },
                 disabled: is_submitting,
             }
-            if let Some(error) = ping_reminder_error() {
+            if let Some(error) = &validation_errors().ping_reminder {
                 div {
                     class: "text-error text-sm mt-1",
                     "{error}"
@@ -130,17 +144,17 @@ pub fn FleetCategoryFormFields(
             }
             input {
                 r#type: "text",
-                class: if max_pre_ping_error().is_some() { "input input-bordered input-error w-full" } else { "input input-bordered w-full" },
+                class: if validation_errors().max_pre_ping.is_some() { "input input-bordered input-error w-full" } else { "input input-bordered w-full" },
                 placeholder: "e.g., 2h, 3h",
-                value: "{max_pre_ping_str()}",
+                value: "{form_fields().max_pre_ping_str}",
                 oninput: move |evt| {
                     let value = evt.value();
-                    max_pre_ping_str.set(value.clone());
-                    max_pre_ping_error.set(validate_duration_input(&value));
+                    form_fields.write().max_pre_ping_str = value.clone();
+                    validation_errors.write().max_pre_ping = validate_duration_input(&value);
                 },
                 disabled: is_submitting,
             }
-            if let Some(error) = max_pre_ping_error() {
+            if let Some(error) = &validation_errors().max_pre_ping {
                 div {
                     class: "text-error text-sm mt-1",
                     "{error}"
