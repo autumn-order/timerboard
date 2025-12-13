@@ -2,7 +2,9 @@ use dioxus::prelude::*;
 
 use crate::client::component::{Layout, RequiresAdmin, RequiresLoggedIn};
 use crate::client::route::{
-    admin::{server::ServerAdminLayout, ServerAdmin, ServerAdminFleetCategory},
+    admin::{
+        server::ServerAdminLayout, ServerAdmin, ServerAdminFleetCategory, ServerAdminPingFormat,
+    },
     Admin, Home, Login, NotFound,
 };
 
@@ -30,6 +32,9 @@ pub enum Route {
 
             #[route("/server/:guild_id/categories")]
             ServerAdminFleetCategory { guild_id: u64 },
+
+            #[route("/server/:guild_id/ping-formats")]
+            ServerAdminPingFormat { guild_id: u64 },
         #[end_layout]
     #[end_nest]
     #[end_layout]

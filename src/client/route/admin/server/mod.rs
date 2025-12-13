@@ -1,6 +1,8 @@
 pub mod fleet_category;
+pub mod ping_format;
 
 pub use fleet_category::ServerAdminFleetCategory;
+pub use ping_format::ServerAdminPingFormat;
 
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
@@ -14,7 +16,10 @@ use crate::{
         model::error::ApiError,
         router::Route,
     },
-    model::{discord::DiscordGuildDto, fleet::PaginatedFleetCategoriesDto},
+    model::{
+        discord::DiscordGuildDto, fleet::PaginatedFleetCategoriesDto,
+        ping_format::PaginatedPingFormatsDto,
+    },
 };
 
 #[cfg(feature = "web")]
@@ -25,6 +30,15 @@ use crate::client::api::discord_guild::get_discord_guild_by_id;
 pub struct FleetCategoriesCache {
     pub guild_id: u64,
     pub data: Option<PaginatedFleetCategoriesDto>,
+    pub page: u64,
+    pub per_page: u64,
+}
+
+/// Cached ping formats data for a specific guild
+#[derive(Clone, PartialEq)]
+pub struct PingFormatsCache {
+    pub guild_id: u64,
+    pub data: Option<PaginatedPingFormatsDto>,
     pub page: u64,
     pub per_page: u64,
 }
@@ -48,6 +62,16 @@ pub fn ServerAdminLayout() -> Element {
         })
     });
 
+    // Initialize ping formats cache - persists across tab navigation within server admin
+    use_context_provider(|| {
+        Signal::new(PingFormatsCache {
+            guild_id: 0,
+            data: None,
+            page: 0,
+            per_page: 10,
+        })
+    });
+
     rsx! {
         // Render child routes (ServerAdmin or ServerAdminFleetCategory)
         Outlet::<Route> {}
@@ -58,6 +82,7 @@ pub fn ServerAdminLayout() -> Element {
 pub enum ServerAdminTab {
     Overview,
     FleetCategories,
+    PingFormats,
 }
 
 #[component]
@@ -174,6 +199,12 @@ pub fn ActionTabs(guild_id: u64, active_tab: ServerAdminTab) -> Element {
                 role: "tab",
                 class: if active_tab == ServerAdminTab::FleetCategories { "tab tab-active" } else { "tab" },
                 "Fleet Categories"
+            }
+            Link {
+                to: Route::ServerAdminPingFormat { guild_id },
+                role: "tab",
+                class: if active_tab == ServerAdminTab::PingFormats { "tab tab-active" } else { "tab" },
+                "Ping Formats"
             }
         }
     )
