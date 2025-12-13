@@ -1,4 +1,5 @@
 pub mod confirmation_modal;
+pub mod fullscreen_modal;
 pub mod header;
 pub mod layout;
 pub mod modal;
@@ -7,6 +8,7 @@ pub mod pagination;
 pub mod protected_layout;
 
 pub use confirmation_modal::ConfirmationModal;
+pub use fullscreen_modal::FullScreenModal;
 pub use header::Header;
 pub use layout::Layout;
 pub use modal::Modal;

@@ -23,10 +23,10 @@ pub fn Pagination(
 
     rsx!(
         div {
-            class: "flex justify-between items-center mt-4",
+            class: "flex flex-col sm:flex-row justify-between items-center mt-4 gap-4",
             // Per-page selector
             div {
-                class: "flex items-center gap-2",
+                class: "flex items-center gap-2 text-sm",
                 span { "Show" }
                 select {
                     class: "select select-bordered select-sm",
@@ -49,15 +49,15 @@ pub fn Pagination(
 
             // Pagination info and buttons
             div {
-                class: "flex items-center gap-4",
+                class: "flex flex-col sm:flex-row items-center gap-2 sm:gap-4",
                 span {
-                    class: "text-sm opacity-70",
+                    class: "text-xs sm:text-sm opacity-70 whitespace-nowrap",
                     "Showing {(data.page * data.per_page) + 1} to {((data.page + 1) * data.per_page).min(data.total)} of {data.total}"
                 }
                 div {
                     class: "join",
                     button {
-                        class: "join-item btn btn-sm",
+                        class: "join-item btn btn-xs sm:btn-sm",
                         disabled: data.page == 0,
                         onclick: move |_| {
                             if page() > 0 {
@@ -69,7 +69,7 @@ pub fn Pagination(
                         "«"
                     }
                     button {
-                        class: "join-item btn btn-sm",
+                        class: "join-item btn btn-xs sm:btn-sm",
                         onclick: move |_| {
                             jump_page_input.set((data.page + 1).to_string());
                             show_page_jump.set(true);
@@ -77,7 +77,7 @@ pub fn Pagination(
                         "Page {data.page + 1} of {data.total_pages}"
                     }
                     button {
-                        class: "join-item btn btn-sm",
+                        class: "join-item btn btn-xs sm:btn-sm",
                         disabled: data.page >= data.total_pages - 1,
                         onclick: move |_| {
                             if page() < data.total_pages - 1 {

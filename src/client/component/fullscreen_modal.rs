@@ -1,7 +1,8 @@
 use dioxus::prelude::*;
 
+/// Larger modal that goes fullscreen on smaller device sizes
 #[component]
-pub fn Modal(
+pub fn FullScreenModal(
     show: Signal<bool>,
     title: String,
     prevent_close: bool,
@@ -27,7 +28,7 @@ pub fn Modal(
                 }
             },
             div {
-                class: "modal-box {class} w-11/12 max-w-lg",
+                class: "modal-box {class} w-full h-full max-w-none max-h-none sm:w-11/12 sm:max-w-5xl sm:h-auto sm:max-h-[90vh] m-0 sm:m-auto rounded-none sm:rounded-lg",
                 // Header with title and close button
                 div {
                     class: "flex justify-between items-center mb-4",

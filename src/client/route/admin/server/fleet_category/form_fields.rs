@@ -339,7 +339,7 @@ pub fn FleetCategoryFormFields(
 
         // Divider
         div {
-            class: "divider mt-6"
+            class: "divider"
         }
 
         // Tabbed Configuration Section

@@ -2,7 +2,7 @@ use chrono::Duration;
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
 
-use crate::{client::component::Modal, model::ping_format::PingFormatDto};
+use crate::{client::component::FullScreenModal, model::ping_format::PingFormatDto};
 
 use super::{
     duration::{format_duration, parse_duration, validate_duration_input},
@@ -159,11 +159,11 @@ pub fn CreateCategoryModal(
     let has_validation_errors = validation_errors().has_errors();
 
     rsx!(
-        Modal {
+        FullScreenModal {
             show,
             title: "Create Fleet Category".to_string(),
             prevent_close: is_submitting,
-            class: Some("max-w-4xl"),
+            class: None,
             form {
                 class: "flex flex-col gap-4",
                 onsubmit: on_submit,
@@ -369,11 +369,11 @@ pub fn EditCategoryModal(
     let has_validation_errors = validation_errors().has_errors();
 
     rsx!(
-        Modal {
+        FullScreenModal {
             show,
             title: "Edit Fleet Category".to_string(),
             prevent_close: is_submitting,
-            class: Some("max-w-4xl"),
+            class: None,
             form {
                 class: "flex flex-col gap-4",
                 onsubmit: on_submit,
