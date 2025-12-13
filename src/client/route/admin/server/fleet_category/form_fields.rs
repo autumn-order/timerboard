@@ -461,7 +461,7 @@ fn AccessRolesTab(
             .map(|ar| ar.role.id)
             .collect();
 
-        roles
+        let mut filtered: Vec<_> = roles
             .into_iter()
             .filter(|r| !access_role_ids.contains(&r.role_id))
             .filter(|r| {
@@ -471,7 +471,25 @@ fn AccessRolesTab(
                     r.name.to_lowercase().contains(&query)
                 }
             })
-            .collect::<Vec<_>>()
+            .collect();
+
+        // Sort by position descending (higher position first)
+        filtered.sort_by_key(|r| std::cmp::Reverse(r.position));
+        filtered
+    });
+
+    // Sort access roles by position (descending - higher position first)
+    let sorted_access_roles = use_memo(move || {
+        let mut roles = form_fields().access_roles.clone();
+        let role_positions: std::collections::HashMap<i64, i16> = available_roles()
+            .iter()
+            .map(|r| (r.role_id, r.position))
+            .collect();
+
+        roles.sort_by_key(|ar| {
+            std::cmp::Reverse(role_positions.get(&ar.role.id).copied().unwrap_or(i16::MIN))
+        });
+        roles
     });
 
     rsx! {
@@ -494,14 +512,24 @@ fn AccessRolesTab(
                         onfocus: move |_| {
                             show_dropdown.set(true);
                         },
-                        onblur: move |_| {
-                            show_dropdown.set(false);
+                        onclick: move |_| {
+                            show_dropdown.set(true);
                         },
                         oninput: move |evt| {
                             form_fields.write().role_search_query = evt.value();
                             show_dropdown.set(true);
                         },
                         disabled: is_submitting,
+                    }
+                    // Click outside to close dropdown
+                    if show_dropdown() {
+                        div {
+                            class: "fixed inset-0 z-0",
+                            onclick: move |_| {
+                                show_dropdown.set(false);
+                                form_fields.write().role_search_query = String::new();
+                            }
+                        }
                     }
                     {
                         let roles = filtered_roles();
@@ -568,25 +596,39 @@ fn AccessRolesTab(
                 }
             }
 
-            // List of access roles
+            // List of access roles with scrollable container
             div {
-                class: "space-y-2",
+                class: "flex flex-col gap-2",
+                label {
+                    class: "label",
+                    span { class: "label-text font-semibold", "Configured Access Roles" }
+                }
+                div {
+                    class: if form_fields().access_roles.is_empty() { "space-y-2" } else { "space-y-2 max-h-96 overflow-y-auto border border-base-300 rounded-lg p-2 bg-base-200" },
                 if form_fields().access_roles.is_empty() {
                     div {
                         class: "text-center py-8 opacity-50 text-sm",
                         "No access roles configured. Add roles to control who can view, create, or manage fleets in this category."
                     }
                 } else {
-                    for (index, access_role) in form_fields().access_roles.iter().enumerate() {
+                    for access_role in sorted_access_roles() {
                         {
+                            let role_id = access_role.role.id;
                             let role_name = access_role.role.name.clone();
+                            let role_color = access_role.role.color.clone();
                             let can_view = access_role.can_view;
                             let can_create = access_role.can_create;
                             let can_manage = access_role.can_manage;
+                            // Find the actual index in form_fields
+                            let actual_index = form_fields().access_roles.iter().position(|ar| ar.role.id == role_id).unwrap_or(0);
                             rsx! {
                                 div {
-                                    key: "{index}",
-                                    class: "flex items-center gap-3 p-3 bg-base-200 rounded-lg",
+                                    key: "{role_id}",
+                                    class: "flex items-center gap-3 p-3 bg-base-100 rounded-lg",
+                                    div {
+                                        class: "w-4 h-4 rounded flex-shrink-0",
+                                        style: "background-color: {role_color};"
+                                    }
                                     div {
                                         class: "flex-1 font-medium",
                                         "{role_name}"
@@ -598,11 +640,11 @@ fn AccessRolesTab(
                                             span { class: "label-text text-xs", "View" }
                                             input {
                                                 r#type: "checkbox",
-                                                class: "checkbox checkbox-sm",
+                                                class: "checkbox checkbox-sm [transition:none]",
                                                 checked: can_view,
                                                 disabled: is_submitting,
                                                 onchange: move |evt| {
-                                                    form_fields.write().access_roles[index].can_view = evt.checked();
+                                                    form_fields.write().access_roles[actual_index].can_view = evt.checked();
                                                 }
                                             }
                                         }
@@ -611,11 +653,11 @@ fn AccessRolesTab(
                                             span { class: "label-text text-xs", "Create" }
                                             input {
                                                 r#type: "checkbox",
-                                                class: "checkbox checkbox-sm",
+                                                class: "checkbox checkbox-sm [transition:none]",
                                                 checked: can_create,
                                                 disabled: is_submitting,
                                                 onchange: move |evt| {
-                                                    form_fields.write().access_roles[index].can_create = evt.checked();
+                                                    form_fields.write().access_roles[actual_index].can_create = evt.checked();
                                                 }
                                             }
                                         }
@@ -624,11 +666,11 @@ fn AccessRolesTab(
                                             span { class: "label-text text-xs", "Manage" }
                                             input {
                                                 r#type: "checkbox",
-                                                class: "checkbox checkbox-sm",
+                                                class: "checkbox checkbox-sm [transition:none]",
                                                 checked: can_manage,
                                                 disabled: is_submitting,
                                                 onchange: move |evt| {
-                                                    form_fields.write().access_roles[index].can_manage = evt.checked();
+                                                    form_fields.write().access_roles[actual_index].can_manage = evt.checked();
                                                 }
                                             }
                                         }
@@ -638,10 +680,11 @@ fn AccessRolesTab(
                                         class: "btn btn-sm btn-error btn-square",
                                         disabled: is_submitting,
                                         onclick: move |_| {
-                                            form_fields.write().access_roles.remove(index);
+                                            form_fields.write().access_roles.remove(actual_index);
                                         },
                                         "✕"
                                     }
+                                }
                                 }
                             }
                         }
@@ -680,7 +723,7 @@ fn PingRolesTab(
         let query = form_fields().role_search_query.to_lowercase();
         let ping_role_ids: Vec<i64> = form_fields().ping_roles.iter().map(|r| r.id).collect();
 
-        roles
+        let mut filtered: Vec<_> = roles
             .into_iter()
             .filter(|r| !ping_role_ids.contains(&r.role_id))
             .filter(|r| {
@@ -690,7 +733,25 @@ fn PingRolesTab(
                     r.name.to_lowercase().contains(&query)
                 }
             })
-            .collect::<Vec<_>>()
+            .collect();
+
+        // Sort by position descending (higher position first)
+        filtered.sort_by_key(|r| std::cmp::Reverse(r.position));
+        filtered
+    });
+
+    // Sort ping roles by position (descending - higher position first)
+    let sorted_ping_roles = use_memo(move || {
+        let mut roles = form_fields().ping_roles.clone();
+        let role_positions: std::collections::HashMap<i64, i16> = available_roles()
+            .iter()
+            .map(|r| (r.role_id, r.position))
+            .collect();
+
+        roles.sort_by_key(|r| {
+            std::cmp::Reverse(role_positions.get(&r.id).copied().unwrap_or(i16::MIN))
+        });
+        roles
     });
 
     rsx! {
@@ -713,14 +774,24 @@ fn PingRolesTab(
                         onfocus: move |_| {
                             show_dropdown.set(true);
                         },
-                        onblur: move |_| {
-                            show_dropdown.set(false);
+                        onclick: move |_| {
+                            show_dropdown.set(true);
                         },
                         oninput: move |evt| {
                             form_fields.write().role_search_query = evt.value();
                             show_dropdown.set(true);
                         },
                         disabled: is_submitting,
+                    }
+                    // Click outside to close dropdown
+                    if show_dropdown() {
+                        div {
+                            class: "fixed inset-0 z-0",
+                            onclick: move |_| {
+                                show_dropdown.set(false);
+                                form_fields.write().role_search_query = String::new();
+                            }
+                        }
                     }
                     {
                         let roles = filtered_roles();
@@ -781,22 +852,36 @@ fn PingRolesTab(
                 }
             }
 
-            // List of ping roles
+            // List of ping roles with scrollable container
             div {
-                class: "space-y-2",
+                class: "flex flex-col gap-2",
+                label {
+                    class: "label",
+                    span { class: "label-text font-semibold", "Configured Ping Roles" }
+                }
+                div {
+                    class: if form_fields().ping_roles.is_empty() { "space-y-2" } else { "space-y-2 max-h-96 overflow-y-auto border border-base-300 rounded-lg p-2 bg-base-200" },
                 if form_fields().ping_roles.is_empty() {
                     div {
                         class: "text-center py-8 opacity-50 text-sm",
                         "No ping roles configured. Add roles to specify who gets notified about fleets in this category."
                     }
                 } else {
-                    for (index, role) in form_fields().ping_roles.iter().enumerate() {
+                    for role in sorted_ping_roles() {
                         {
+                            let role_id = role.id;
                             let role_name = role.name.clone();
+                            let role_color = role.color.clone();
+                            // Find the actual index in form_fields
+                            let actual_index = form_fields().ping_roles.iter().position(|r| r.id == role_id).unwrap_or(0);
                             rsx! {
                                 div {
-                                    key: "{index}",
-                                    class: "flex items-center gap-3 p-3 bg-base-200 rounded-lg",
+                                    key: "{role_id}",
+                                    class: "flex items-center gap-3 p-3 bg-base-100 rounded-lg",
+                                    div {
+                                        class: "w-4 h-4 rounded flex-shrink-0",
+                                        style: "background-color: {role_color};"
+                                    }
                                     div {
                                         class: "flex-1 font-medium",
                                         "{role_name}"
@@ -806,10 +891,11 @@ fn PingRolesTab(
                                         class: "btn btn-sm btn-error btn-square",
                                         disabled: is_submitting,
                                         onclick: move |_| {
-                                            form_fields.write().ping_roles.remove(index);
+                                            form_fields.write().ping_roles.remove(actual_index);
                                         },
                                         "✕"
                                     }
+                                }
                                 }
                             }
                         }
@@ -863,6 +949,18 @@ fn ChannelsTab(
             .collect::<Vec<_>>()
     });
 
+    // Sort channels by position
+    let sorted_channels = use_memo(move || {
+        let mut channels = form_fields().channels.clone();
+        let channel_positions: std::collections::HashMap<i64, i32> = available_channels()
+            .iter()
+            .map(|c| (c.channel_id, c.position))
+            .collect();
+
+        channels.sort_by_key(|c| channel_positions.get(&c.id).copied().unwrap_or(i32::MAX));
+        channels
+    });
+
     rsx! {
         div {
             class: "space-y-4",
@@ -883,14 +981,24 @@ fn ChannelsTab(
                         onfocus: move |_| {
                             show_dropdown.set(true);
                         },
-                        onblur: move |_| {
-                            show_dropdown.set(false);
+                        onclick: move |_| {
+                            show_dropdown.set(true);
                         },
                         oninput: move |evt| {
                             form_fields.write().channel_search_query = evt.value();
                             show_dropdown.set(true);
                         },
                         disabled: is_submitting,
+                    }
+                    // Click outside to close dropdown
+                    if show_dropdown() {
+                        div {
+                            class: "fixed inset-0 z-0",
+                            onclick: move |_| {
+                                show_dropdown.set(false);
+                                form_fields.write().channel_search_query = String::new();
+                            }
+                        }
                     }
                     {
                         let channels = filtered_channels();
@@ -940,22 +1048,31 @@ fn ChannelsTab(
                 }
             }
 
-            // List of channels
+            // List of channels with scrollable container
             div {
-                class: "space-y-2",
+                class: "flex flex-col gap-2",
+                label {
+                    class: "label",
+                    span { class: "label-text font-semibold", "Configured Channels" }
+                }
+                div {
+                    class: if form_fields().channels.is_empty() { "space-y-2" } else { "space-y-2 max-h-96 overflow-y-auto border border-base-300 rounded-lg p-2 bg-base-200" },
                 if form_fields().channels.is_empty() {
                     div {
                         class: "text-center py-8 opacity-50 text-sm",
                         "No channels configured. Add channels where fleet notifications will be sent."
                     }
                 } else {
-                    for (index, channel) in form_fields().channels.iter().enumerate() {
+                    for channel in sorted_channels() {
                         {
+                            let channel_id = channel.id;
                             let channel_name = channel.name.clone();
+                            // Find the actual index in form_fields
+                            let actual_index = form_fields().channels.iter().position(|c| c.id == channel_id).unwrap_or(0);
                             rsx! {
                                 div {
-                                    key: "{index}",
-                                    class: "flex items-center gap-3 p-3 bg-base-200 rounded-lg",
+                                    key: "{channel_id}",
+                                    class: "flex items-center gap-3 p-3 bg-base-100 rounded-lg",
                                     div {
                                         class: "flex-1 font-medium",
                                         "# {channel_name}"
@@ -965,10 +1082,11 @@ fn ChannelsTab(
                                         class: "btn btn-sm btn-error btn-square",
                                         disabled: is_submitting,
                                         onclick: move |_| {
-                                            form_fields.write().channels.remove(index);
+                                            form_fields.write().channels.remove(actual_index);
                                         },
                                         "✕"
                                     }
+                                }
                                 }
                             }
                         }
