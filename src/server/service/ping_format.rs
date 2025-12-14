@@ -20,7 +20,7 @@ impl<'a> PingFormatService<'a> {
     /// Creates a new ping format with its fields
     pub async fn create(
         &self,
-        guild_id: i64,
+        guild_id: u64,
         name: String,
         fields: Vec<(String, i32)>, // (name, priority)
     ) -> Result<PingFormatDto, AppError> {
@@ -34,7 +34,7 @@ impl<'a> PingFormatService<'a> {
         let mut result_fields = Vec::new();
         for (field_name, priority) in fields {
             let field = field_repo
-                .create(ping_format.id as i64, field_name, priority)
+                .create(ping_format.id, field_name, priority)
                 .await?;
             result_fields.push(PingFormatFieldDto {
                 id: field.id,
@@ -47,9 +47,14 @@ impl<'a> PingFormatService<'a> {
         // Get fleet category count
         let fleet_category_count = format_repo.get_fleet_category_count(ping_format.id).await?;
 
+        let guild_id = ping_format
+            .guild_id
+            .parse::<u64>()
+            .map_err(|e| AppError::InternalError(format!("Failed to parse guild_id: {}", e)))?;
+
         Ok(PingFormatDto {
             id: ping_format.id,
-            guild_id: ping_format.guild_id,
+            guild_id,
             name: ping_format.name,
             fields: result_fields,
             fleet_category_count,
@@ -59,7 +64,7 @@ impl<'a> PingFormatService<'a> {
     /// Gets paginated ping formats for a guild with all their fields
     pub async fn get_paginated(
         &self,
-        guild_id: i64,
+        guild_id: u64,
         page: u64,
         per_page: u64,
     ) -> Result<PaginatedPingFormatsDto, AppError> {
@@ -78,15 +83,18 @@ impl<'a> PingFormatService<'a> {
 
         let mut ping_format_dtos = Vec::new();
         for ping_format in ping_formats {
-            let fields = field_repo
-                .get_by_ping_format_id(ping_format.id as i64)
-                .await?;
+            let fields = field_repo.get_by_ping_format_id(ping_format.id).await?;
 
             let fleet_category_count = format_repo.get_fleet_category_count(ping_format.id).await?;
 
+            let guild_id = ping_format
+                .guild_id
+                .parse::<u64>()
+                .map_err(|e| AppError::InternalError(format!("Failed to parse guild_id: {}", e)))?;
+
             ping_format_dtos.push(PingFormatDto {
                 id: ping_format.id,
-                guild_id: ping_format.guild_id,
+                guild_id,
                 name: ping_format.name,
                 fields: fields
                     .into_iter()
@@ -115,7 +123,7 @@ impl<'a> PingFormatService<'a> {
     pub async fn update(
         &self,
         id: i32,
-        guild_id: i64,
+        guild_id: u64,
         name: String,
         fields: Vec<(Option<i32>, String, i32)>, // (id, name, priority) - id is None for new fields
     ) -> Result<Option<PingFormatDto>, AppError> {
@@ -131,9 +139,7 @@ impl<'a> PingFormatService<'a> {
         let ping_format = format_repo.update(id, name).await?;
 
         // Get existing fields
-        let existing_fields = field_repo
-            .get_by_ping_format_id(ping_format.id as i64)
-            .await?;
+        let existing_fields = field_repo.get_by_ping_format_id(ping_format.id).await?;
 
         // Determine which fields to keep, update, or create
         let mut updated_fields = Vec::new();
@@ -153,7 +159,7 @@ impl<'a> PingFormatService<'a> {
             } else {
                 // Create new field
                 let field = field_repo
-                    .create(ping_format.id as i64, field_name, priority)
+                    .create(ping_format.id, field_name, priority)
                     .await?;
                 updated_fields.push(PingFormatFieldDto {
                     id: field.id,
@@ -174,9 +180,14 @@ impl<'a> PingFormatService<'a> {
         // Get fleet category count
         let fleet_category_count = format_repo.get_fleet_category_count(ping_format.id).await?;
 
+        let guild_id = ping_format
+            .guild_id
+            .parse::<u64>()
+            .map_err(|e| AppError::InternalError(format!("Failed to parse guild_id: {}", e)))?;
+
         Ok(Some(PingFormatDto {
             id: ping_format.id,
-            guild_id: ping_format.guild_id,
+            guild_id,
             name: ping_format.name,
             fields: updated_fields,
             fleet_category_count,
@@ -185,7 +196,7 @@ impl<'a> PingFormatService<'a> {
 
     /// Deletes a ping format and all its fields
     /// Returns true if deleted, false if not found or doesn't belong to guild
-    pub async fn delete(&self, id: i32, guild_id: i64) -> Result<bool, AppError> {
+    pub async fn delete(&self, id: i32, guild_id: u64) -> Result<bool, AppError> {
         let format_repo = PingFormatRepository::new(self.db);
 
         // Check if ping format exists and belongs to the guild

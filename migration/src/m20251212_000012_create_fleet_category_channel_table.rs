@@ -16,7 +16,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(pk_auto(FleetCategoryChannel::Id))
                     .col(integer(FleetCategoryChannel::FleetCategoryId))
-                    .col(big_unsigned(FleetCategoryChannel::ChannelId))
+                    .col(string(FleetCategoryChannel::ChannelId))
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_fleet_category_channel_category_id")

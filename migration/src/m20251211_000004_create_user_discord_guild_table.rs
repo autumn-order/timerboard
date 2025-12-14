@@ -16,7 +16,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(pk_auto(UserDiscordGuild::Id))
                     .col(integer(UserDiscordGuild::UserId))
-                    .col(integer(UserDiscordGuild::GuildId))
+                    .col(string(UserDiscordGuild::GuildId))
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_user_discord_guild_user_id")
@@ -29,7 +29,7 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .name("fk_user_discord_guild_guild_id")
                             .from(UserDiscordGuild::Table, UserDiscordGuild::GuildId)
-                            .to(DiscordGuild::Table, DiscordGuild::Id)
+                            .to(DiscordGuild::Table, DiscordGuild::GuildId)
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::Cascade),
                     )

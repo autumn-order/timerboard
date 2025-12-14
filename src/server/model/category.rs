@@ -1,9 +1,10 @@
 use chrono::Duration;
+use sea_orm::DbErr;
 
 /// Simple access role data without UI display fields (name, color)
 #[derive(Debug, Clone)]
 pub struct AccessRoleData {
-    pub role_id: i64,
+    pub role_id: u64,
     pub can_view: bool,
     pub can_create: bool,
     pub can_manage: bool,
@@ -12,7 +13,7 @@ pub struct AccessRoleData {
 /// Access role with enriched display data
 #[derive(Debug, Clone)]
 pub struct AccessRole {
-    pub role_id: i64,
+    pub role_id: u64,
     pub role_name: String,
     pub role_color: String,
     pub position: i16,
@@ -25,13 +26,18 @@ impl AccessRole {
     pub fn from_entity(
         entity: entity::fleet_category_access_role::Model,
         role_model: Option<entity::discord_guild_role::Model>,
-    ) -> Self {
-        Self {
-            role_id: entity.role_id,
+    ) -> Result<Self, DbErr> {
+        let role_id = entity
+            .role_id
+            .parse::<u64>()
+            .map_err(|e| DbErr::Custom(format!("Failed to parse role_id: {}", e)))?;
+
+        Ok(Self {
+            role_id,
             role_name: role_model
                 .as_ref()
                 .map(|r| r.name.clone())
-                .unwrap_or_else(|| format!("Unknown Role ({})", entity.role_id)),
+                .unwrap_or_else(|| format!("Unknown Role ({})", role_id)),
             role_color: role_model
                 .as_ref()
                 .map(|r| r.color.clone())
@@ -40,7 +46,7 @@ impl AccessRole {
             can_view: entity.can_view,
             can_create: entity.can_create,
             can_manage: entity.can_manage,
-        }
+        })
     }
 
     pub fn to_dto(&self) -> crate::model::category::FleetCategoryAccessRoleDto {
@@ -70,7 +76,7 @@ impl From<crate::model::category::FleetCategoryAccessRoleDto> for AccessRoleData
 /// Ping role with enriched display data
 #[derive(Debug, Clone)]
 pub struct PingRole {
-    pub role_id: i64,
+    pub role_id: u64,
     pub role_name: String,
     pub role_color: String,
     pub position: i16,
@@ -80,19 +86,24 @@ impl PingRole {
     pub fn from_entity(
         entity: entity::fleet_category_ping_role::Model,
         role_model: Option<entity::discord_guild_role::Model>,
-    ) -> Self {
-        Self {
-            role_id: entity.role_id,
+    ) -> Result<Self, DbErr> {
+        let role_id = entity
+            .role_id
+            .parse::<u64>()
+            .map_err(|e| DbErr::Custom(format!("Failed to parse role_id: {}", e)))?;
+
+        Ok(Self {
+            role_id,
             role_name: role_model
                 .as_ref()
                 .map(|r| r.name.clone())
-                .unwrap_or_else(|| format!("Unknown Role ({})", entity.role_id)),
+                .unwrap_or_else(|| format!("Unknown Role ({})", role_id)),
             role_color: role_model
                 .as_ref()
                 .map(|r| r.color.clone())
                 .unwrap_or_else(|| "#99aab5".to_string()),
             position: role_model.as_ref().map(|r| r.position).unwrap_or(0),
-        }
+        })
     }
 
     pub fn to_dto(&self) -> crate::model::category::FleetCategoryPingRoleDto {
@@ -108,7 +119,7 @@ impl PingRole {
 /// Channel with enriched display data
 #[derive(Debug, Clone)]
 pub struct Channel {
-    pub channel_id: i64,
+    pub channel_id: u64,
     pub channel_name: String,
     pub position: i32,
 }
@@ -117,15 +128,20 @@ impl Channel {
     pub fn from_entity(
         entity: entity::fleet_category_channel::Model,
         channel_model: Option<entity::discord_guild_channel::Model>,
-    ) -> Self {
-        Self {
-            channel_id: entity.channel_id,
+    ) -> Result<Self, DbErr> {
+        let channel_id = entity
+            .channel_id
+            .parse::<u64>()
+            .map_err(|e| DbErr::Custom(format!("Failed to parse channel_id: {}", e)))?;
+
+        Ok(Self {
+            channel_id,
             channel_name: channel_model
                 .as_ref()
                 .map(|ch| ch.name.clone())
-                .unwrap_or_else(|| format!("Unknown Channel ({})", entity.channel_id)),
+                .unwrap_or_else(|| format!("Unknown Channel ({})", channel_id)),
             position: channel_model.as_ref().map(|ch| ch.position).unwrap_or(0),
-        }
+        })
     }
 
     pub fn to_dto(&self) -> crate::model::category::FleetCategoryChannelDto {
@@ -140,19 +156,19 @@ impl Channel {
 /// Parameters for creating a fleet category
 #[derive(Debug, Clone)]
 pub struct CreateFleetCategoryParams {
-    pub guild_id: i64,
+    pub guild_id: u64,
     pub ping_format_id: i32,
     pub name: String,
     pub ping_lead_time: Option<Duration>,
     pub ping_reminder: Option<Duration>,
     pub max_pre_ping: Option<Duration>,
     pub access_roles: Vec<AccessRoleData>,
-    pub ping_roles: Vec<i64>,
-    pub channels: Vec<i64>,
+    pub ping_roles: Vec<u64>,
+    pub channels: Vec<u64>,
 }
 
 impl CreateFleetCategoryParams {
-    pub fn from_dto(guild_id: i64, dto: crate::model::category::CreateFleetCategoryDto) -> Self {
+    pub fn from_dto(guild_id: u64, dto: crate::model::category::CreateFleetCategoryDto) -> Self {
         Self {
             guild_id,
             ping_format_id: dto.ping_format_id,
@@ -171,21 +187,21 @@ impl CreateFleetCategoryParams {
 #[derive(Debug, Clone)]
 pub struct UpdateFleetCategoryParams {
     pub id: i32,
-    pub guild_id: i64,
+    pub guild_id: u64,
     pub ping_format_id: i32,
     pub name: String,
     pub ping_lead_time: Option<Duration>,
     pub ping_reminder: Option<Duration>,
     pub max_pre_ping: Option<Duration>,
     pub access_roles: Vec<AccessRoleData>,
-    pub ping_roles: Vec<i64>,
-    pub channels: Vec<i64>,
+    pub ping_roles: Vec<u64>,
+    pub channels: Vec<u64>,
 }
 
 impl UpdateFleetCategoryParams {
     pub fn from_dto(
         id: i32,
-        guild_id: i64,
+        guild_id: u64,
         dto: crate::model::category::UpdateFleetCategoryDto,
     ) -> Self {
         Self {
@@ -243,7 +259,7 @@ pub struct FleetCategoryWithCounts {
 #[derive(Debug, Clone)]
 pub struct FleetCategory {
     pub id: i32,
-    pub guild_id: i64,
+    pub guild_id: u64,
     pub ping_format_id: i32,
     pub ping_format_name: String,
     pub name: String,
@@ -256,28 +272,34 @@ pub struct FleetCategory {
 }
 
 impl FleetCategory {
-    pub fn from_with_relations(data: FleetCategoryWithRelations) -> Self {
-        let access_roles = data
+    pub fn from_with_relations(data: FleetCategoryWithRelations) -> Result<Self, DbErr> {
+        let guild_id = data
+            .category
+            .guild_id
+            .parse::<u64>()
+            .map_err(|e| DbErr::Custom(format!("Failed to parse guild_id: {}", e)))?;
+
+        let access_roles: Result<Vec<AccessRole>, DbErr> = data
             .access_roles
             .into_iter()
             .map(|(ar, role_model)| AccessRole::from_entity(ar, role_model))
             .collect();
 
-        let ping_roles = data
+        let ping_roles: Result<Vec<PingRole>, DbErr> = data
             .ping_roles
             .into_iter()
             .map(|(pr, role_model)| PingRole::from_entity(pr, role_model))
             .collect();
 
-        let channels = data
+        let channels: Result<Vec<Channel>, DbErr> = data
             .channels
             .into_iter()
             .map(|(c, channel_model)| Channel::from_entity(c, channel_model))
             .collect();
 
-        Self {
+        Ok(Self {
             id: data.category.id,
-            guild_id: data.category.guild_id,
+            guild_id,
             ping_format_id: data.category.ping_format_id,
             ping_format_name: data
                 .ping_format
@@ -296,10 +318,10 @@ impl FleetCategory {
                 .category
                 .max_pre_ping
                 .map(|s| Duration::seconds(s as i64)),
-            access_roles,
-            ping_roles,
-            channels,
-        }
+            access_roles: access_roles?,
+            ping_roles: ping_roles?,
+            channels: channels?,
+        })
     }
 
     pub fn to_dto(self) -> crate::model::category::FleetCategoryDto {
@@ -327,7 +349,7 @@ impl FleetCategory {
 #[derive(Debug, Clone)]
 pub struct FleetCategoryListItem {
     pub id: i32,
-    pub guild_id: i64,
+    pub guild_id: u64,
     pub ping_format_id: i32,
     pub ping_format_name: String,
     pub name: String,
@@ -340,10 +362,16 @@ pub struct FleetCategoryListItem {
 }
 
 impl FleetCategoryListItem {
-    pub fn from_with_counts(data: FleetCategoryWithCounts) -> Self {
-        Self {
+    pub fn from_with_counts(data: FleetCategoryWithCounts) -> Result<Self, DbErr> {
+        let guild_id = data
+            .category
+            .guild_id
+            .parse::<u64>()
+            .map_err(|e| DbErr::Custom(format!("Failed to parse guild_id: {}", e)))?;
+
+        Ok(Self {
             id: data.category.id,
-            guild_id: data.category.guild_id,
+            guild_id,
             ping_format_id: data.category.ping_format_id,
             ping_format_name: data
                 .ping_format
@@ -365,13 +393,18 @@ impl FleetCategoryListItem {
             access_roles_count: data.access_roles_count,
             ping_roles_count: data.ping_roles_count,
             channels_count: data.channels_count,
-        }
+        })
     }
 
-    pub fn from_entity(category: entity::fleet_category::Model) -> Self {
-        Self {
+    pub fn from_entity(category: entity::fleet_category::Model) -> Result<Self, DbErr> {
+        let guild_id = category
+            .guild_id
+            .parse::<u64>()
+            .map_err(|e| DbErr::Custom(format!("Failed to parse guild_id: {}", e)))?;
+
+        Ok(Self {
             id: category.id,
-            guild_id: category.guild_id,
+            guild_id,
             ping_format_id: category.ping_format_id,
             ping_format_name: String::new(),
             name: category.name,
@@ -381,7 +414,7 @@ impl FleetCategoryListItem {
             access_roles_count: 0,
             ping_roles_count: 0,
             channels_count: 0,
-        }
+        })
     }
 
     pub fn to_dto(self) -> crate::model::category::FleetCategoryListItemDto {

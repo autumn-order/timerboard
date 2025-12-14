@@ -2,7 +2,7 @@ use oauth2::basic::BasicClient;
 use oauth2::{AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 use sea_orm::DatabaseConnection;
 use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
-use tower_sessions_sqlx_store::PostgresStore;
+use tower_sessions_sqlx_store::SqliteStore;
 
 use crate::server::data::user::UserRepository;
 use crate::server::service::admin::code::AdminCodeService;
@@ -36,9 +36,9 @@ pub async fn connect_to_database(config: &Config) -> Result<sea_orm::DatabaseCon
     Ok(db)
 }
 
-/// Creates a session manager using PostgreSQL for session storage
+/// Creates a session manager using SQLite for session storage
 ///
-/// Sets up session handling with PostgreSQL as the backing store. Sessions expire after 7 days
+/// Sets up session handling with SQLite as the backing store. Sessions expire after 7 days
 /// of inactivity. Cookie security settings are automatically configured based on build mode
 /// (secure cookies in release, non-secure in debug for easier local development).
 ///
@@ -50,12 +50,12 @@ pub async fn connect_to_database(config: &Config) -> Result<sea_orm::DatabaseCon
 /// - `Err(AppError)` - Failed to initialize session store
 pub async fn connect_to_session(
     db: &sea_orm::DatabaseConnection,
-) -> Result<SessionManagerLayer<PostgresStore>, AppError> {
+) -> Result<SessionManagerLayer<SqliteStore>, AppError> {
     use time::Duration;
 
     // Get the underlying SQLx pool from SeaORM connection
-    let pool = db.get_postgres_connection_pool();
-    let session_store = PostgresStore::new(pool.clone());
+    let pool = db.get_sqlite_connection_pool();
+    let session_store = SqliteStore::new(pool.clone());
 
     // Initialize the session table in the database
     session_store.migrate().await?;

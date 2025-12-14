@@ -14,7 +14,7 @@ impl MigrationTrait for Migration {
                     .table(DiscordGuild::Table)
                     .if_not_exists()
                     .col(pk_auto(DiscordGuild::Id))
-                    .col(big_unsigned_uniq(DiscordGuild::GuildId))
+                    .col(string_uniq(DiscordGuild::GuildId))
                     .col(string(DiscordGuild::Name))
                     .col(string_null(DiscordGuild::IconHash))
                     .to_owned(),

@@ -14,7 +14,7 @@ impl MigrationTrait for Migration {
                     .table(PingFormat::Table)
                     .if_not_exists()
                     .col(pk_auto(PingFormat::Id))
-                    .col(big_unsigned(PingFormat::GuildId))
+                    .col(string(PingFormat::GuildId))
                     .col(string(PingFormat::Name))
                     .foreign_key(
                         ForeignKey::create()

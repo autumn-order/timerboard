@@ -13,7 +13,7 @@ impl<'a> DiscordGuildRepository<'a> {
 
     pub async fn upsert(&self, guild: Guild) -> Result<entity::discord_guild::Model, DbErr> {
         entity::prelude::DiscordGuild::insert(entity::discord_guild::ActiveModel {
-            guild_id: ActiveValue::Set(guild.id.get() as i64),
+            guild_id: ActiveValue::Set(guild.id.get().to_string()),
             name: ActiveValue::Set(guild.name),
             icon_hash: ActiveValue::Set(guild.icon_hash.map(|i| i.to_string())),
             ..Default::default()
@@ -49,7 +49,7 @@ impl<'a> DiscordGuildRepository<'a> {
         guild_id: u64,
     ) -> Result<Option<entity::discord_guild::Model>, DbErr> {
         entity::prelude::DiscordGuild::find()
-            .filter(entity::discord_guild::Column::GuildId.eq(guild_id as i64))
+            .filter(entity::discord_guild::Column::GuildId.eq(guild_id.to_string()))
             .one(self.db)
             .await
     }

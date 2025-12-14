@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FleetCategoryAccessRoleDto {
     #[serde(
-        serialize_with = "serialize_i64_as_string",
-        deserialize_with = "deserialize_i64_from_string"
+        serialize_with = "serialize_u64_as_string",
+        deserialize_with = "deserialize_u64_from_string"
     )]
-    pub role_id: i64,
+    pub role_id: u64,
     pub role_name: String,
     pub role_color: String,
     pub position: i16,
@@ -19,10 +19,10 @@ pub struct FleetCategoryAccessRoleDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FleetCategoryPingRoleDto {
     #[serde(
-        serialize_with = "serialize_i64_as_string",
-        deserialize_with = "deserialize_i64_from_string"
+        serialize_with = "serialize_u64_as_string",
+        deserialize_with = "deserialize_u64_from_string"
     )]
-    pub role_id: i64,
+    pub role_id: u64,
     pub role_name: String,
     pub role_color: String,
     pub position: i16,
@@ -31,10 +31,10 @@ pub struct FleetCategoryPingRoleDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FleetCategoryChannelDto {
     #[serde(
-        serialize_with = "serialize_i64_as_string",
-        deserialize_with = "deserialize_i64_from_string"
+        serialize_with = "serialize_u64_as_string",
+        deserialize_with = "deserialize_u64_from_string"
     )]
-    pub channel_id: i64,
+    pub channel_id: u64,
     pub channel_name: String,
     pub position: i32,
 }
@@ -43,10 +43,10 @@ pub struct FleetCategoryChannelDto {
 pub struct FleetCategoryDto {
     pub id: i32,
     #[serde(
-        serialize_with = "serialize_i64_as_string",
-        deserialize_with = "deserialize_i64_from_string"
+        serialize_with = "serialize_u64_as_string",
+        deserialize_with = "deserialize_u64_from_string"
     )]
-    pub guild_id: i64,
+    pub guild_id: u64,
     pub ping_format_id: i32,
     pub ping_format_name: String,
     pub name: String,
@@ -62,10 +62,10 @@ pub struct FleetCategoryDto {
 pub struct FleetCategoryListItemDto {
     pub id: i32,
     #[serde(
-        serialize_with = "serialize_i64_as_string",
-        deserialize_with = "deserialize_i64_from_string"
+        serialize_with = "serialize_u64_as_string",
+        deserialize_with = "deserialize_u64_from_string"
     )]
-    pub guild_id: i64,
+    pub guild_id: u64,
     pub ping_format_id: i32,
     pub ping_format_name: String,
     pub name: String,
@@ -110,19 +110,19 @@ pub struct PaginatedFleetCategoriesDto {
     pub total_pages: u64,
 }
 
-fn serialize_i64_as_string<S>(value: &i64, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_u64_as_string<S>(value: &u64, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
     serializer.serialize_str(&value.to_string())
 }
 
-fn deserialize_i64_from_string<'de, D>(deserializer: D) -> Result<i64, D::Error>
+fn deserialize_u64_from_string<'de, D>(deserializer: D) -> Result<u64, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
     use serde::de::Error;
     String::deserialize(deserializer)?
-        .parse::<i64>()
+        .parse::<u64>()
         .map_err(D::Error::custom)
 }

@@ -18,8 +18,8 @@ impl<'a> DiscordGuildRoleRepository<'a> {
         role: &Role,
     ) -> Result<entity::discord_guild_role::Model, DbErr> {
         entity::prelude::DiscordGuildRole::insert(entity::discord_guild_role::ActiveModel {
-            guild_id: ActiveValue::Set(guild_id as i64),
-            role_id: ActiveValue::Set(role.id.get() as i64),
+            guild_id: ActiveValue::Set(guild_id.to_string()),
+            role_id: ActiveValue::Set(role.id.get().to_string()),
             name: ActiveValue::Set(role.name.clone()),
             color: ActiveValue::Set(format!("#{:06X}", role.colour.0)),
             position: ActiveValue::Set(role.position as i16),
@@ -55,7 +55,7 @@ impl<'a> DiscordGuildRoleRepository<'a> {
 
     pub async fn delete(&self, role_id: u64) -> Result<(), DbErr> {
         entity::prelude::DiscordGuildRole::delete_many()
-            .filter(entity::discord_guild_role::Column::RoleId.eq(role_id))
+            .filter(entity::discord_guild_role::Column::RoleId.eq(role_id.to_string()))
             .exec(self.db)
             .await?;
         Ok(())
@@ -66,7 +66,7 @@ impl<'a> DiscordGuildRoleRepository<'a> {
         guild_id: u64,
     ) -> Result<Vec<entity::discord_guild_role::Model>, DbErr> {
         entity::prelude::DiscordGuildRole::find()
-            .filter(entity::discord_guild_role::Column::GuildId.eq(guild_id))
+            .filter(entity::discord_guild_role::Column::GuildId.eq(guild_id.to_string()))
             .all(self.db)
             .await
     }

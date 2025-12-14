@@ -16,7 +16,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(pk_auto(UserDiscordGuildRole::Id))
                     .col(integer(UserDiscordGuildRole::UserId))
-                    .col(integer(UserDiscordGuildRole::GuildRoleId))
+                    .col(string(UserDiscordGuildRole::RoleId))
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_user_discord_guild_role_user_id")
@@ -27,12 +27,9 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk_user_discord_guild_role_guild_role_id")
-                            .from(
-                                UserDiscordGuildRole::Table,
-                                UserDiscordGuildRole::GuildRoleId,
-                            )
-                            .to(DiscordGuildRole::Table, DiscordGuildRole::Id)
+                            .name("fk_user_discord_guild_role_role_id")
+                            .from(UserDiscordGuildRole::Table, UserDiscordGuildRole::RoleId)
+                            .to(DiscordGuildRole::Table, DiscordGuildRole::RoleId)
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::Cascade),
                     )
@@ -41,7 +38,7 @@ impl MigrationTrait for Migration {
                             .unique()
                             .name("idx_user_guild_role_unique")
                             .col(UserDiscordGuildRole::UserId)
-                            .col(UserDiscordGuildRole::GuildRoleId),
+                            .col(UserDiscordGuildRole::RoleId),
                     )
                     .to_owned(),
             )
@@ -60,5 +57,5 @@ pub enum UserDiscordGuildRole {
     Table,
     Id,
     UserId,
-    GuildRoleId,
+    RoleId,
 }

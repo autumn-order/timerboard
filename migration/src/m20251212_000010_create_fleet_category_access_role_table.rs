@@ -16,7 +16,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(pk_auto(FleetCategoryAccessRole::Id))
                     .col(integer(FleetCategoryAccessRole::FleetCategoryId))
-                    .col(big_unsigned(FleetCategoryAccessRole::RoleId))
+                    .col(string(FleetCategoryAccessRole::RoleId))
                     .col(boolean(FleetCategoryAccessRole::CanView).default(true))
                     .col(boolean(FleetCategoryAccessRole::CanCreate).default(false))
                     .col(boolean(FleetCategoryAccessRole::CanManage).default(false))

@@ -16,7 +16,7 @@ impl<'a> UserDiscordGuildRepository<'a> {
     ///
     /// # Arguments
     /// - `user_id`: Database ID of the user
-    /// - `guild_id`: Database ID of the guild
+    /// - `guild_id`: Discord guild ID
     ///
     /// # Returns
     /// - `Ok(Model)`: The created user-guild relationship
@@ -24,11 +24,11 @@ impl<'a> UserDiscordGuildRepository<'a> {
     pub async fn create(
         &self,
         user_id: i32,
-        guild_id: i32,
+        guild_id: u64,
     ) -> Result<entity::user_discord_guild::Model, DbErr> {
         entity::prelude::UserDiscordGuild::insert(entity::user_discord_guild::ActiveModel {
             user_id: ActiveValue::Set(user_id),
-            guild_id: ActiveValue::Set(guild_id),
+            guild_id: ActiveValue::Set(guild_id.to_string()),
             ..Default::default()
         })
         .exec_with_returning(self.db)
@@ -42,7 +42,7 @@ impl<'a> UserDiscordGuildRepository<'a> {
     ///
     /// # Arguments
     /// - `user_id`: Database ID of the user
-    /// - `guild_ids`: Slice of database IDs for the guilds
+    /// - `guild_ids`: Slice of Discord guild IDs
     ///
     /// # Returns
     /// - `Ok(Vec<Model>)`: Vector of newly created relationships (excludes existing ones)
@@ -50,15 +50,16 @@ impl<'a> UserDiscordGuildRepository<'a> {
     pub async fn create_many(
         &self,
         user_id: i32,
-        guild_ids: &[i32],
+        guild_ids: &[u64],
     ) -> Result<Vec<entity::user_discord_guild::Model>, DbErr> {
         let mut results = Vec::new();
 
         for guild_id in guild_ids {
             // Check if relationship already exists
+            let guild_id_str = guild_id.to_string();
             let exists = entity::prelude::UserDiscordGuild::find()
                 .filter(entity::user_discord_guild::Column::UserId.eq(user_id))
-                .filter(entity::user_discord_guild::Column::GuildId.eq(*guild_id))
+                .filter(entity::user_discord_guild::Column::GuildId.eq(guild_id_str.as_str()))
                 .one(self.db)
                 .await?;
 
@@ -97,15 +98,16 @@ impl<'a> UserDiscordGuildRepository<'a> {
     ///
     /// # Arguments
     /// - `user_id`: Database ID of the user
-    /// - `guild_id`: Database ID of the guild
+    /// - `guild_id`: Discord guild ID
     ///
     /// # Returns
     /// - `Ok(())`: Relationship successfully deleted
     /// - `Err(DbErr)`: Database error during deletion
-    pub async fn delete(&self, user_id: i32, guild_id: i32) -> Result<(), DbErr> {
+    pub async fn delete(&self, user_id: i32, guild_id: u64) -> Result<(), DbErr> {
+        let guild_id_str = guild_id.to_string();
         entity::prelude::UserDiscordGuild::delete_many()
             .filter(entity::user_discord_guild::Column::UserId.eq(user_id))
-            .filter(entity::user_discord_guild::Column::GuildId.eq(guild_id))
+            .filter(entity::user_discord_guild::Column::GuildId.eq(guild_id_str.as_str()))
             .exec(self.db)
             .await?;
         Ok(())
@@ -117,17 +119,18 @@ impl<'a> UserDiscordGuildRepository<'a> {
     /// which logged-in users are members of a particular guild.
     ///
     /// # Arguments
-    /// - `guild_id`: Database ID of the guild
+    /// - `guild_id`: Discord guild ID
     ///
     /// # Returns
     /// - `Ok(Vec<Model>)`: Vector of user-guild relationships for the guild
     /// - `Err(DbErr)`: Database error during query
     pub async fn get_users_by_guild(
         &self,
-        guild_id: i32,
+        guild_id: u64,
     ) -> Result<Vec<entity::user_discord_guild::Model>, DbErr> {
+        let guild_id_str = guild_id.to_string();
         entity::prelude::UserDiscordGuild::find()
-            .filter(entity::user_discord_guild::Column::GuildId.eq(guild_id))
+            .filter(entity::user_discord_guild::Column::GuildId.eq(guild_id_str.as_str()))
             .all(self.db)
             .await
     }
@@ -139,12 +142,12 @@ impl<'a> UserDiscordGuildRepository<'a> {
     ///
     /// # Arguments
     /// - `user_id`: Database ID of the user
-    /// - `guild_ids`: Slice of database IDs for guilds the user should be a member of
+    /// - `guild_ids`: Slice of Discord guild IDs the user should be a member of
     ///
     /// # Returns
     /// - `Ok(())`: Sync completed successfully
     /// - `Err(DbErr)`: Database error during deletion or creation
-    pub async fn sync_user_guilds(&self, user_id: i32, guild_ids: &[i32]) -> Result<(), DbErr> {
+    pub async fn sync_user_guilds(&self, user_id: i32, guild_ids: &[u64]) -> Result<(), DbErr> {
         // Delete all existing relationships for this user
         self.delete_by_user(user_id).await?;
 

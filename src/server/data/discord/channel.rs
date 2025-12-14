@@ -29,8 +29,8 @@ impl<'a> DiscordGuildChannelRepository<'a> {
         channel: &GuildChannel,
     ) -> Result<entity::discord_guild_channel::Model, DbErr> {
         entity::prelude::DiscordGuildChannel::insert(entity::discord_guild_channel::ActiveModel {
-            guild_id: ActiveValue::Set(guild_id as i64),
-            channel_id: ActiveValue::Set(channel.id.get() as i64),
+            guild_id: ActiveValue::Set(guild_id.to_string()),
+            channel_id: ActiveValue::Set(channel.id.get().to_string()),
             name: ActiveValue::Set(channel.name.clone()),
             position: ActiveValue::Set(channel.position as i32),
             ..Default::default()
@@ -59,7 +59,7 @@ impl<'a> DiscordGuildChannelRepository<'a> {
     /// - `Err(DbErr)`: Database error during deletion
     pub async fn delete(&self, channel_id: u64) -> Result<(), DbErr> {
         entity::prelude::DiscordGuildChannel::delete_many()
-            .filter(entity::discord_guild_channel::Column::ChannelId.eq(channel_id as i64))
+            .filter(entity::discord_guild_channel::Column::ChannelId.eq(channel_id.to_string()))
             .exec(self.db)
             .await?;
         Ok(())
@@ -82,21 +82,8 @@ impl<'a> DiscordGuildChannelRepository<'a> {
         use sea_orm::QueryOrder;
 
         entity::prelude::DiscordGuildChannel::find()
-            .filter(entity::discord_guild_channel::Column::GuildId.eq(guild_id as i64))
+            .filter(entity::discord_guild_channel::Column::GuildId.eq(guild_id.to_string()))
             .order_by_asc(entity::discord_guild_channel::Column::Position)
-            .all(self.db)
-            .await
-    }
-
-    /// Retrieves all channels across all guilds
-    ///
-    /// Fetches all channel records in the database.
-    ///
-    /// # Returns
-    /// - `Ok(Vec<Model>)`: List of all channels
-    /// - `Err(DbErr)`: Database error during query
-    pub async fn get_all(&self) -> Result<Vec<entity::discord_guild_channel::Model>, DbErr> {
-        entity::prelude::DiscordGuildChannel::find()
             .all(self.db)
             .await
     }

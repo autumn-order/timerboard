@@ -17,7 +17,7 @@ impl MigrationTrait for Migration {
                     .table(FleetCategory::Table)
                     .if_not_exists()
                     .col(pk_auto(FleetCategory::Id))
-                    .col(big_unsigned(FleetCategory::GuildId))
+                    .col(string(FleetCategory::GuildId))
                     .col(integer(FleetCategory::PingFormatId))
                     .col(string(FleetCategory::Name))
                     .col(integer_null(FleetCategory::PingCooldown))

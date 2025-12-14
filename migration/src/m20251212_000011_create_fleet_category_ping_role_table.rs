@@ -16,7 +16,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(pk_auto(FleetCategoryPingRole::Id))
                     .col(integer(FleetCategoryPingRole::FleetCategoryId))
-                    .col(big_unsigned(FleetCategoryPingRole::RoleId))
+                    .col(string(FleetCategoryPingRole::RoleId))
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_fleet_category_ping_role_category_id")

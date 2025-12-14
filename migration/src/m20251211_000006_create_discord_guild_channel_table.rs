@@ -14,8 +14,8 @@ impl MigrationTrait for Migration {
                     .table(DiscordGuildChannel::Table)
                     .if_not_exists()
                     .col(pk_auto(DiscordGuildChannel::Id))
-                    .col(big_unsigned(DiscordGuildChannel::GuildId))
-                    .col(big_unsigned_uniq(DiscordGuildChannel::ChannelId))
+                    .col(string(DiscordGuildChannel::GuildId))
+                    .col(string_uniq(DiscordGuildChannel::ChannelId))
                     .col(string(DiscordGuildChannel::Name))
                     .col(integer(DiscordGuildChannel::Position))
                     .foreign_key(

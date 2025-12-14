@@ -27,8 +27,12 @@ impl<'a> UserRepository<'a> {
             update_columns.push(entity::user::Column::Admin);
         }
 
+        // Convert u64 to i32 - Note: This may overflow for very large Discord IDs
+        // TODO: Migrate user.discord_id to String type like other Discord ID fields
+        let discord_id_i32 = user.id.get() as i32;
+
         entity::prelude::User::insert(entity::user::ActiveModel {
-            discord_id: ActiveValue::Set(user.id.get() as i64),
+            discord_id: ActiveValue::Set(discord_id_i32),
             name: ActiveValue::Set(user.name),
             admin: ActiveValue::Set(is_admin.unwrap_or(false)),
             ..Default::default()
@@ -66,8 +70,12 @@ impl<'a> UserRepository<'a> {
         &self,
         discord_id: u64,
     ) -> Result<Option<entity::user::Model>, DbErr> {
+        // Convert u64 to i32 - Note: This may overflow for very large Discord IDs
+        // TODO: Migrate user.discord_id to String type like other Discord ID fields
+        let discord_id_i32 = discord_id as i32;
+
         entity::prelude::User::find()
-            .filter(entity::user::Column::DiscordId.eq(discord_id as i64))
+            .filter(entity::user::Column::DiscordId.eq(discord_id_i32))
             .one(self.db)
             .await
     }

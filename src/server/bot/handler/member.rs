@@ -45,7 +45,15 @@ pub async fn handle_guild_member_addition(
     };
 
     // Create the user-guild relationship
-    if let Err(e) = user_guild_repo.create(user.id, guild.id).await {
+    let guild_id_u64 = match guild.guild_id.parse::<u64>() {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!("Failed to parse guild_id: {:?}", e);
+            return;
+        }
+    };
+
+    if let Err(e) = user_guild_repo.create(user.id, guild_id_u64).await {
         tracing::error!("Failed to create user-guild relationship: {:?}", e);
     } else {
         tracing::info!(
@@ -100,7 +108,15 @@ pub async fn handle_guild_member_removal(
     };
 
     // Delete the user-guild relationship
-    if let Err(e) = user_guild_repo.delete(user.id, guild.id).await {
+    let guild_id_u64 = match guild.guild_id.parse::<u64>() {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!("Failed to parse guild_id: {:?}", e);
+            return;
+        }
+    };
+
+    if let Err(e) = user_guild_repo.delete(user.id, guild_id_u64).await {
         tracing::error!("Failed to delete user-guild relationship: {:?}", e);
     } else {
         tracing::info!(
