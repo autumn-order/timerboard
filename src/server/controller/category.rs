@@ -78,7 +78,7 @@ pub async fn get_fleet_categories(
 pub async fn get_fleet_category_by_id(
     State(state): State<AppState>,
     session: Session,
-    Path((guild_id, fleet_id)): Path<(i64, i32)>,
+    Path((guild_id, category_id)): Path<(i64, i32)>,
 ) -> Result<impl IntoResponse, AppError> {
     let _ = AuthGuard::new(&state.db, &session)
         .require(&[Permission::Admin])
@@ -86,7 +86,7 @@ pub async fn get_fleet_category_by_id(
 
     let service = FleetCategoryService::new(&state.db);
 
-    let category = service.get_by_id(fleet_id).await?;
+    let category = service.get_by_id(category_id).await?;
 
     match category {
         Some(cat) => {
@@ -106,7 +106,7 @@ pub async fn get_fleet_category_by_id(
 pub async fn update_fleet_category(
     State(state): State<AppState>,
     session: Session,
-    Path((guild_id, fleet_id)): Path<(i64, i32)>,
+    Path((guild_id, category_id)): Path<(i64, i32)>,
     Json(payload): Json<UpdateFleetCategoryDto>,
 ) -> Result<impl IntoResponse, AppError> {
     let _ = AuthGuard::new(&state.db, &session)
@@ -116,7 +116,7 @@ pub async fn update_fleet_category(
     let service = FleetCategoryService::new(&state.db);
 
     // Convert DTO to server model
-    let params = UpdateFleetCategoryParams::from_dto(fleet_id, guild_id, payload);
+    let params = UpdateFleetCategoryParams::from_dto(category_id, guild_id, payload);
 
     let category = service.update(params).await?;
 
@@ -157,7 +157,7 @@ pub async fn get_fleet_categories_by_ping_format(
 pub async fn delete_fleet_category(
     State(state): State<AppState>,
     session: Session,
-    Path((guild_id, fleet_id)): Path<(i64, i32)>,
+    Path((guild_id, category_id)): Path<(i64, i32)>,
 ) -> Result<impl IntoResponse, AppError> {
     let _ = AuthGuard::new(&state.db, &session)
         .require(&[Permission::Admin])
@@ -165,7 +165,7 @@ pub async fn delete_fleet_category(
 
     let service = FleetCategoryService::new(&state.db);
 
-    let deleted = service.delete(fleet_id, guild_id).await?;
+    let deleted = service.delete(category_id, guild_id).await?;
 
     if deleted {
         Ok(StatusCode::NO_CONTENT)

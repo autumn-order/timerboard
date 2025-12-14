@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Router,
 };
 
@@ -23,42 +23,67 @@ use crate::server::{
 };
 
 pub fn router() -> Router<AppState> {
+    Router::new().nest("/api", api_router())
+}
+
+fn api_router() -> Router<AppState> {
     Router::new()
-        .route("/api/auth/login", get(login))
-        .route("/api/auth/callback", get(callback))
-        .route("/api/auth/logout", get(logout))
-        .route("/api/auth/user", get(get_user))
-        .route("/api/admin/bot/add", get(add_bot))
-        .route("/api/admin/guilds", get(get_all_discord_guilds))
-        .route("/api/admin/guild/{guild_id}", get(get_discord_guild_by_id))
+        .nest("/auth", auth_router())
+        .nest("/admin", admin_router())
+}
+
+fn auth_router() -> Router<AppState> {
+    Router::new()
+        .route("/login", get(login))
+        .route("/callback", get(callback))
+        .route("/logout", get(logout))
+        .route("/user", get(get_user))
+}
+
+fn admin_router() -> Router<AppState> {
+    Router::new()
+        .route("/bot/add", get(add_bot))
+        .nest("/servers", servers_router())
+}
+
+fn servers_router() -> Router<AppState> {
+    Router::new()
+        .route("/", get(get_all_discord_guilds))
+        .route("/{guild_id}", get(get_discord_guild_by_id))
+        .nest("/{guild_id}/categories", server_categories_router())
+        .nest("/{guild_id}/formats", server_formats_router())
+        .nest("/{guild_id}/roles", server_roles_router())
+        .nest("/{guild_id}/channels", server_channels_router())
+}
+
+fn server_categories_router() -> Router<AppState> {
+    Router::new()
+        .route("/", get(get_fleet_categories).post(create_fleet_category))
         .route(
-            "/api/timerboard/{guild_id}/fleet/category",
-            post(create_fleet_category).get(get_fleet_categories),
-        )
-        .route(
-            "/api/timerboard/{guild_id}/fleet/category/{fleet_id}",
+            "/{category_id}",
             get(get_fleet_category_by_id)
                 .put(update_fleet_category)
                 .delete(delete_fleet_category),
         )
+}
+
+fn server_formats_router() -> Router<AppState> {
+    Router::new()
+        .route("/", get(get_ping_formats).post(create_ping_format))
         .route(
-            "/api/timerboard/{guild_id}/fleet/category/by-ping-format/{ping_format_id}",
-            get(get_fleet_categories_by_ping_format),
-        )
-        .route(
-            "/api/timerboard/{guild_id}/ping/format",
-            post(create_ping_format).get(get_ping_formats),
-        )
-        .route(
-            "/api/timerboard/{guild_id}/ping/format/{format_id}",
+            "/{format_id}",
             put(update_ping_format).delete(delete_ping_format),
         )
         .route(
-            "/api/timerboard/{guild_id}/discord/roles",
-            get(get_discord_guild_roles),
+            "/{format_id}/categories",
+            get(get_fleet_categories_by_ping_format),
         )
-        .route(
-            "/api/timerboard/{guild_id}/discord/channels",
-            get(get_discord_guild_channels),
-        )
+}
+
+fn server_roles_router() -> Router<AppState> {
+    Router::new().route("/", get(get_discord_guild_roles))
+}
+
+fn server_channels_router() -> Router<AppState> {
+    Router::new().route("/", get(get_discord_guild_channels))
 }

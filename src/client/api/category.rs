@@ -20,7 +20,7 @@ pub async fn get_fleet_categories(
     per_page: u64,
 ) -> Result<PaginatedFleetCategoriesDto, ApiError> {
     let url = format!(
-        "/api/timerboard/{}/fleet/category?page={}&entries={}",
+        "/api/admin/servers/{}/categories?page={}&entries={}",
         guild_id, page, per_page
     );
 
@@ -33,10 +33,7 @@ pub async fn get_fleet_category_by_id(
     guild_id: u64,
     category_id: i32,
 ) -> Result<FleetCategoryDto, ApiError> {
-    let url = format!(
-        "/api/timerboard/{}/fleet/category/{}",
-        guild_id, category_id
-    );
+    let url = format!("/api/admin/servers/{}/categories/{}", guild_id, category_id);
 
     let response = send_request(get(&url)).await?;
     parse_response(response).await
@@ -54,7 +51,7 @@ pub async fn create_fleet_category(
     ping_roles: Vec<FleetCategoryPingRoleDto>,
     channels: Vec<FleetCategoryChannelDto>,
 ) -> Result<(), ApiError> {
-    let url = format!("/api/timerboard/{}/fleet/category", guild_id);
+    let url = format!("/api/admin/servers/{}/categories", guild_id);
     let payload = CreateFleetCategoryDto {
         ping_format_id,
         name,
@@ -84,10 +81,7 @@ pub async fn update_fleet_category(
     ping_roles: Vec<FleetCategoryPingRoleDto>,
     channels: Vec<FleetCategoryChannelDto>,
 ) -> Result<(), ApiError> {
-    let url = format!(
-        "/api/timerboard/{}/fleet/category/{}",
-        guild_id, category_id
-    );
+    let url = format!("/api/admin/servers/{}/categories/{}", guild_id, category_id);
     let payload = UpdateFleetCategoryDto {
         ping_format_id,
         name,
@@ -106,10 +100,7 @@ pub async fn update_fleet_category(
 
 /// Delete a fleet category
 pub async fn delete_fleet_category(guild_id: u64, category_id: i32) -> Result<(), ApiError> {
-    let url = format!(
-        "/api/timerboard/{}/fleet/category/{}",
-        guild_id, category_id
-    );
+    let url = format!("/api/admin/servers/{}/categories/{}", guild_id, category_id);
 
     let response = send_request(delete(&url)).await?;
     parse_empty_response(response).await
@@ -121,7 +112,7 @@ pub async fn get_fleet_categories_by_ping_format(
     ping_format_id: i32,
 ) -> Result<Vec<FleetCategoryDto>, ApiError> {
     let url = format!(
-        "/api/timerboard/{}/fleet/category/by-ping-format/{}",
+        "/api/admin/servers/{}/formats/{}/categories",
         guild_id, ping_format_id
     );
 

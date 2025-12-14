@@ -17,7 +17,7 @@ pub async fn get_ping_formats(
     per_page: u64,
 ) -> Result<PaginatedPingFormatsDto, ApiError> {
     let url = format!(
-        "/api/timerboard/{}/ping/format?page={}&entries={}",
+        "/api/admin/servers/{}/formats?page={}&entries={}",
         guild_id, page, per_page
     );
 
@@ -31,7 +31,7 @@ pub async fn create_ping_format(
     name: String,
     fields: Vec<(String, i32)>, // (name, priority)
 ) -> Result<(), ApiError> {
-    let url = format!("/api/timerboard/{}/ping/format", guild_id);
+    let url = format!("/api/admin/servers/{}/formats", guild_id);
     let payload = CreatePingFormatDto {
         name,
         fields: fields
@@ -52,7 +52,7 @@ pub async fn update_ping_format(
     name: String,
     fields: Vec<(Option<i32>, String, i32)>, // (id, name, priority)
 ) -> Result<(), ApiError> {
-    let url = format!("/api/timerboard/{}/ping/format/{}", guild_id, format_id);
+    let url = format!("/api/admin/servers/{}/formats/{}", guild_id, format_id);
     let payload = UpdatePingFormatDto {
         name,
         fields: fields
@@ -68,7 +68,7 @@ pub async fn update_ping_format(
 
 /// Delete a ping format
 pub async fn delete_ping_format(guild_id: u64, format_id: i32) -> Result<(), ApiError> {
-    let url = format!("/api/timerboard/{}/ping/format/{}", guild_id, format_id);
+    let url = format!("/api/admin/servers/{}/formats/{}", guild_id, format_id);
 
     let response = send_request(delete(&url)).await?;
     parse_empty_response(response).await

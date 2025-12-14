@@ -12,7 +12,7 @@ pub async fn get_discord_guild_roles(
     per_page: u64,
 ) -> Result<PaginatedDiscordGuildRolesDto, ApiError> {
     let url = format!(
-        "/api/timerboard/{}/discord/roles?page={}&entries={}",
+        "/api/admin/servers/{}/roles?page={}&entries={}",
         guild_id, page, per_page
     );
 
@@ -27,7 +27,7 @@ pub async fn get_discord_guild_channels(
     per_page: u64,
 ) -> Result<PaginatedDiscordGuildChannelsDto, ApiError> {
     let url = format!(
-        "/api/timerboard/{}/discord/channels?page={}&entries={}",
+        "/api/admin/servers/{}/channels?page={}&entries={}",
         guild_id, page, per_page
     );
 
