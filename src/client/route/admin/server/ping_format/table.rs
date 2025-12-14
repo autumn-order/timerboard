@@ -13,7 +13,7 @@ use super::modals::EditPingFormatModal;
 
 #[cfg(feature = "web")]
 use crate::client::api::{
-    fleet_category::get_fleet_categories_by_ping_format, ping_format::delete_ping_format,
+    category::get_fleet_categories_by_ping_format, ping_format::delete_ping_format,
 };
 
 #[component]

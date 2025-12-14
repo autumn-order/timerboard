@@ -13,10 +13,12 @@ use super::{
 #[cfg(feature = "web")]
 use crate::{
     client::api::{
-        fleet_category::{create_fleet_category, get_fleet_category_by_id, update_fleet_category},
+        category::{create_fleet_category, get_fleet_category_by_id, update_fleet_category},
         ping_format::get_ping_formats,
     },
-    model::fleet::{FleetCategoryAccessRoleDto, FleetCategoryChannelDto, FleetCategoryPingRoleDto},
+    model::category::{
+        FleetCategoryAccessRoleDto, FleetCategoryChannelDto, FleetCategoryPingRoleDto,
+    },
 };
 
 /// Duration field values for submission

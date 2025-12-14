@@ -41,8 +41,8 @@ impl AccessRole {
         }
     }
 
-    pub fn to_dto(&self) -> crate::model::fleet::FleetCategoryAccessRoleDto {
-        crate::model::fleet::FleetCategoryAccessRoleDto {
+    pub fn to_dto(&self) -> crate::model::category::FleetCategoryAccessRoleDto {
+        crate::model::category::FleetCategoryAccessRoleDto {
             role_id: self.role_id,
             role_name: self.role_name.clone(),
             role_color: self.role_color.clone(),
@@ -53,8 +53,8 @@ impl AccessRole {
     }
 }
 
-impl From<crate::model::fleet::FleetCategoryAccessRoleDto> for AccessRoleData {
-    fn from(dto: crate::model::fleet::FleetCategoryAccessRoleDto) -> Self {
+impl From<crate::model::category::FleetCategoryAccessRoleDto> for AccessRoleData {
+    fn from(dto: crate::model::category::FleetCategoryAccessRoleDto) -> Self {
         Self {
             role_id: dto.role_id,
             can_view: dto.can_view,
@@ -90,8 +90,8 @@ impl PingRole {
         }
     }
 
-    pub fn to_dto(&self) -> crate::model::fleet::FleetCategoryPingRoleDto {
-        crate::model::fleet::FleetCategoryPingRoleDto {
+    pub fn to_dto(&self) -> crate::model::category::FleetCategoryPingRoleDto {
+        crate::model::category::FleetCategoryPingRoleDto {
             role_id: self.role_id,
             role_name: self.role_name.clone(),
             role_color: self.role_color.clone(),
@@ -120,8 +120,8 @@ impl Channel {
         }
     }
 
-    pub fn to_dto(&self) -> crate::model::fleet::FleetCategoryChannelDto {
-        crate::model::fleet::FleetCategoryChannelDto {
+    pub fn to_dto(&self) -> crate::model::category::FleetCategoryChannelDto {
+        crate::model::category::FleetCategoryChannelDto {
             channel_id: self.channel_id,
             channel_name: self.channel_name.clone(),
         }
@@ -143,7 +143,7 @@ pub struct CreateFleetCategoryParams {
 }
 
 impl CreateFleetCategoryParams {
-    pub fn from_dto(guild_id: i64, dto: crate::model::fleet::CreateFleetCategoryDto) -> Self {
+    pub fn from_dto(guild_id: i64, dto: crate::model::category::CreateFleetCategoryDto) -> Self {
         Self {
             guild_id,
             ping_format_id: dto.ping_format_id,
@@ -177,7 +177,7 @@ impl UpdateFleetCategoryParams {
     pub fn from_dto(
         id: i32,
         guild_id: i64,
-        dto: crate::model::fleet::UpdateFleetCategoryDto,
+        dto: crate::model::category::UpdateFleetCategoryDto,
     ) -> Self {
         Self {
             id,
@@ -293,8 +293,8 @@ impl FleetCategory {
         }
     }
 
-    pub fn to_dto(self) -> crate::model::fleet::FleetCategoryDto {
-        crate::model::fleet::FleetCategoryDto {
+    pub fn to_dto(self) -> crate::model::category::FleetCategoryDto {
+        crate::model::category::FleetCategoryDto {
             id: self.id,
             guild_id: self.guild_id,
             ping_format_id: self.ping_format_id,
@@ -375,8 +375,8 @@ impl FleetCategoryListItem {
         }
     }
 
-    pub fn to_dto(self) -> crate::model::fleet::FleetCategoryListItemDto {
-        crate::model::fleet::FleetCategoryListItemDto {
+    pub fn to_dto(self) -> crate::model::category::FleetCategoryListItemDto {
+        crate::model::category::FleetCategoryListItemDto {
             id: self.id,
             guild_id: self.guild_id,
             ping_format_id: self.ping_format_id,
@@ -403,8 +403,8 @@ pub struct PaginatedFleetCategories {
 }
 
 impl PaginatedFleetCategories {
-    pub fn to_dto(self) -> crate::model::fleet::PaginatedFleetCategoriesDto {
-        crate::model::fleet::PaginatedFleetCategoriesDto {
+    pub fn to_dto(self) -> crate::model::category::PaginatedFleetCategoriesDto {
+        crate::model::category::PaginatedFleetCategoriesDto {
             categories: self.categories.into_iter().map(|c| c.to_dto()).collect(),
             total: self.total,
             page: self.page,

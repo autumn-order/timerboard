@@ -27,9 +27,7 @@ use modals::CreateCategoryModal;
 use table::{FleetCategoriesTable, FleetCategoryPagination};
 
 #[cfg(feature = "web")]
-use crate::client::api::{
-    discord_guild::get_discord_guild_by_id, fleet_category::get_fleet_categories,
-};
+use crate::client::api::{category::get_fleet_categories, discord_guild::get_discord_guild_by_id};
 
 #[component]
 pub fn ServerAdminFleetCategory(guild_id: u64) -> Element {

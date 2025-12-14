@@ -17,7 +17,7 @@ use crate::{
         router::Route,
     },
     model::{
-        discord::DiscordGuildDto, fleet::PaginatedFleetCategoriesDto,
+        category::PaginatedFleetCategoriesDto, discord::DiscordGuildDto,
         ping_format::PaginatedPingFormatsDto,
     },
 };

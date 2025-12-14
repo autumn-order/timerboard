@@ -6,13 +6,13 @@ use crate::{
         component::{ConfirmationModal, Pagination, PaginationData},
         route::admin::server::FleetCategoriesCache,
     },
-    model::fleet::PaginatedFleetCategoriesDto,
+    model::category::PaginatedFleetCategoriesDto,
 };
 
 use super::modals::EditCategoryModal;
 
 #[cfg(feature = "web")]
-use crate::client::api::fleet_category::delete_fleet_category;
+use crate::client::api::category::delete_fleet_category;
 
 #[component]
 pub fn FleetCategoriesTable(

@@ -8,7 +8,7 @@ pub mod discord;
 pub mod discord_guild;
 
 #[cfg(feature = "web")]
-pub mod fleet_category;
+pub mod category;
 
 #[cfg(feature = "web")]
 pub mod ping_format;

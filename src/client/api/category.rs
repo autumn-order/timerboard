@@ -2,7 +2,7 @@ use chrono::Duration;
 
 use crate::{
     client::model::error::ApiError,
-    model::fleet::{
+    model::category::{
         CreateFleetCategoryDto, FleetCategoryAccessRoleDto, FleetCategoryChannelDto,
         FleetCategoryDto, FleetCategoryPingRoleDto, PaginatedFleetCategoriesDto,
         UpdateFleetCategoryDto,

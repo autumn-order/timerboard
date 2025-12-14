@@ -8,7 +8,7 @@ use serde::Deserialize;
 use tower_sessions::Session;
 
 use crate::{
-    model::fleet::{CreateFleetCategoryDto, UpdateFleetCategoryDto},
+    model::category::{CreateFleetCategoryDto, UpdateFleetCategoryDto},
     server::{
         error::AppError,
         middleware::auth::{AuthGuard, Permission},
