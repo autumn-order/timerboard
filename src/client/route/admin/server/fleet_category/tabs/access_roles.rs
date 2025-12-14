@@ -73,14 +73,7 @@ pub fn AccessRolesTab(
     // Sort access roles by position (descending - higher position first)
     let sorted_access_roles = use_memo(move || {
         let mut roles = form_fields().access_roles.clone();
-        let role_positions: std::collections::HashMap<i64, i16> = available_roles()
-            .iter()
-            .map(|r| (r.role_id, r.position))
-            .collect();
-
-        roles.sort_by_key(|ar| {
-            std::cmp::Reverse(role_positions.get(&ar.role.id).copied().unwrap_or(i16::MIN))
-        });
+        roles.sort_by_key(|ar| std::cmp::Reverse(ar.role.position));
         roles
     });
 
@@ -114,6 +107,7 @@ pub fn AccessRolesTab(
                                             id: role.role_id,
                                             name: role.name.clone(),
                                             color: role.color.clone(),
+                                            position: role.position,
                                         };
                                         let new_access_role = AccessRoleData {
                                             role: new_role,

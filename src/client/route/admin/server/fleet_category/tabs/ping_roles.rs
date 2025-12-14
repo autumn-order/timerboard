@@ -69,14 +69,7 @@ pub fn PingRolesTab(
     // Sort ping roles by position (descending - higher position first)
     let sorted_ping_roles = use_memo(move || {
         let mut roles = form_fields().ping_roles.clone();
-        let role_positions: std::collections::HashMap<i64, i16> = available_roles()
-            .iter()
-            .map(|r| (r.role_id, r.position))
-            .collect();
-
-        roles.sort_by_key(|r| {
-            std::cmp::Reverse(role_positions.get(&r.id).copied().unwrap_or(i16::MIN))
-        });
+        roles.sort_by_key(|r| std::cmp::Reverse(r.position));
         roles
     });
 
@@ -110,6 +103,7 @@ pub fn PingRolesTab(
                                             id: role.role_id,
                                             name: role.name.clone(),
                                             color: role.color.clone(),
+                                            position: role.position,
                                         };
                                         form_fields.write().ping_roles.push(new_role);
                                         role_search_query.set(String::new());

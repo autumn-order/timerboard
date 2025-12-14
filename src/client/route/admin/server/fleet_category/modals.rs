@@ -333,6 +333,7 @@ pub fn EditCategoryModal(
                             id: ar.role_id,
                             name: ar.role_name.clone(),
                             color: ar.role_color.clone(),
+                            position: ar.position,
                         },
                         can_view: ar.can_view,
                         can_create: ar.can_create,
@@ -346,6 +347,7 @@ pub fn EditCategoryModal(
                         id: pr.role_id,
                         name: pr.role_name.clone(),
                         color: pr.role_color.clone(),
+                        position: pr.position,
                     })
                     .collect(),
                 channels: category
@@ -354,6 +356,7 @@ pub fn EditCategoryModal(
                     .map(|c| ChannelData {
                         id: c.channel_id,
                         name: c.channel_name.clone(),
+                        position: c.position,
                     })
                     .collect(),
             });

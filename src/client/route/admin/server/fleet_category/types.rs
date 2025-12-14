@@ -18,6 +18,7 @@ pub struct RoleData {
     pub id: i64,
     pub name: String,
     pub color: String,
+    pub position: i16,
 }
 
 /// Channel data
@@ -25,6 +26,7 @@ pub struct RoleData {
 pub struct ChannelData {
     pub id: i64,
     pub name: String,
+    pub position: i32,
 }
 
 /// Access role with permissions

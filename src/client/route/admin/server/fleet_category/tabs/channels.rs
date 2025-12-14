@@ -66,15 +66,10 @@ pub fn ChannelsTab(
         filtered
     });
 
-    // Sort channels by position
+    // Sort channels by position (ascending - lower position first)
     let sorted_channels = use_memo(move || {
         let mut channels = form_fields().channels.clone();
-        let channel_positions: std::collections::HashMap<i64, i32> = available_channels()
-            .iter()
-            .map(|c| (c.channel_id, c.position))
-            .collect();
-
-        channels.sort_by_key(|c| channel_positions.get(&c.id).copied().unwrap_or(i32::MAX));
+        channels.sort_by_key(|c| c.position);
         channels
     });
 
@@ -106,6 +101,7 @@ pub fn ChannelsTab(
                                         let new_channel = ChannelData {
                                             id: channel.channel_id,
                                             name: channel.name.clone(),
+                                            position: channel.position,
                                         };
                                         form_fields.write().channels.push(new_channel);
                                         channel_search_query.set(String::new());
