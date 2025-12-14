@@ -6,7 +6,7 @@ use crate::{
         FleetCategoryAccessRoleDto, FleetCategoryChannelDto, FleetCategoryDto,
         FleetCategoryListItemDto, FleetCategoryPingRoleDto, PaginatedFleetCategoriesDto,
     },
-    server::{data::fleet::FleetCategoryRepository, error::AppError},
+    server::{data::category::FleetCategoryRepository, error::AppError},
 };
 
 pub struct FleetCategoryService<'a> {

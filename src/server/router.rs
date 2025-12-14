@@ -7,13 +7,13 @@ use crate::server::{
     controller::{
         admin::add_bot,
         auth::{callback, get_user, login, logout},
+        category::{
+            create_fleet_category, delete_fleet_category, get_fleet_categories,
+            get_fleet_categories_by_ping_format, get_fleet_category_by_id, update_fleet_category,
+        },
         discord::{
             get_all_discord_guilds, get_discord_guild_by_id, get_discord_guild_channels,
             get_discord_guild_roles,
-        },
-        fleet::{
-            create_fleet_category, delete_fleet_category, get_fleet_categories,
-            get_fleet_categories_by_ping_format, get_fleet_category_by_id, update_fleet_category,
         },
         ping_format::{
             create_ping_format, delete_ping_format, get_ping_formats, update_ping_format,

@@ -14,7 +14,7 @@ use crate::{
     server::{
         error::AppError,
         middleware::auth::{AuthGuard, Permission},
-        service::fleet::FleetCategoryService,
+        service::category::FleetCategoryService,
         state::AppState,
     },
 };
