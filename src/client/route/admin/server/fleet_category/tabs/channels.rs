@@ -17,13 +17,17 @@ pub fn ChannelsTab(
     let mut available_channels = use_signal(|| Vec::<DiscordGuildChannelDto>::new());
     let mut channel_search_query = use_signal(|| String::new());
     let mut channel_dropdown_open = use_signal(|| false);
+    let mut should_fetch_channels = use_signal(|| false);
 
-    // Fetch channels when component mounts
+    // Fetch channels only when dropdown is focused
     #[cfg(feature = "web")]
-    let channels_future =
-        use_resource(
-            move || async move { get_discord_guild_channels(guild_id, 0, 1000).await.ok() },
-        );
+    let channels_future = use_resource(move || async move {
+        if should_fetch_channels() {
+            get_discord_guild_channels(guild_id, 0, 1000).await.ok()
+        } else {
+            None
+        }
+    });
 
     #[cfg(feature = "web")]
     use_effect(move || {
@@ -31,6 +35,13 @@ pub fn ChannelsTab(
             available_channels.set(result.channels.clone());
         }
     });
+
+    // Handler for when dropdown is focused
+    let on_dropdown_focus = move |_| {
+        if available_channels().is_empty() {
+            should_fetch_channels.set(true);
+        }
+    };
 
     // Filter available channels by search query and exclude already added channels
     let filtered_channels = use_memo(move || {
@@ -84,6 +95,7 @@ pub fn ChannelsTab(
                     disabled: is_submitting,
                     has_items: !filtered_channels().is_empty(),
                     show_dropdown_signal: Some(channel_dropdown_open),
+                    on_focus: on_dropdown_focus,
                     for channel in filtered_channels() {
                         {
                             let channel_name = channel.name.clone();

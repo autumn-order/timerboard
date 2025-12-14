@@ -17,11 +17,17 @@ pub fn AccessRolesTab(
     let mut available_roles = use_signal(|| Vec::<DiscordGuildRoleDto>::new());
     let mut role_search_query = use_signal(|| String::new());
     let mut role_dropdown_open = use_signal(|| false);
+    let mut should_fetch_roles = use_signal(|| false);
 
-    // Fetch roles when component mounts
+    // Fetch roles only when dropdown is focused
     #[cfg(feature = "web")]
-    let roles_future =
-        use_resource(move || async move { get_discord_guild_roles(guild_id, 0, 1000).await.ok() });
+    let roles_future = use_resource(move || async move {
+        if should_fetch_roles() {
+            get_discord_guild_roles(guild_id, 0, 1000).await.ok()
+        } else {
+            None
+        }
+    });
 
     #[cfg(feature = "web")]
     use_effect(move || {
@@ -29,6 +35,13 @@ pub fn AccessRolesTab(
             available_roles.set(result.roles.clone());
         }
     });
+
+    // Handler for when dropdown is focused
+    let on_dropdown_focus = move |_| {
+        if available_roles().is_empty() {
+            should_fetch_roles.set(true);
+        }
+    };
 
     // Filter available roles by search query and exclude already added roles
     let filtered_roles = use_memo(move || {
@@ -88,6 +101,7 @@ pub fn AccessRolesTab(
                     disabled: is_submitting,
                     has_items: !filtered_roles().is_empty(),
                     show_dropdown_signal: Some(role_dropdown_open),
+                    on_focus: on_dropdown_focus,
                     for role in filtered_roles() {
                         {
                             let role_name = role.name.clone();

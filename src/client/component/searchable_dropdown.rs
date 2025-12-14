@@ -26,6 +26,9 @@ pub fn SearchableDropdown(
     /// Optional signal to control dropdown visibility from parent
     #[props(default = None)]
     show_dropdown_signal: Option<Signal<bool>>,
+    /// Optional callback when input is focused
+    #[props(default = None)]
+    on_focus: Option<EventHandler<()>>,
     /// Dropdown content (rendered items)
     children: Element,
 ) -> Element {
@@ -49,6 +52,9 @@ pub fn SearchableDropdown(
                 onfocus: move |_| {
                     show_dropdown.set(true);
                     search_query.set(String::new());
+                    if let Some(handler) = on_focus {
+                        handler.call(());
+                    }
                 },
                 onclick: move |_| {
                     show_dropdown.set(true);
