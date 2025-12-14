@@ -3,6 +3,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
     PaginatorTrait, QueryFilter, QueryOrder,
 };
+use std::collections::HashMap;
 
 pub struct FleetCategoryRepository<'a> {
     db: &'a DatabaseConnection,
@@ -22,6 +23,9 @@ impl<'a> FleetCategoryRepository<'a> {
         ping_lead_time: Option<Duration>,
         ping_reminder: Option<Duration>,
         max_pre_ping: Option<Duration>,
+        access_roles: Vec<(i64, bool, bool, bool)>, // (role_id, can_view, can_create, can_manage)
+        ping_roles: Vec<i64>,
+        channels: Vec<i64>,
     ) -> Result<
         (
             entity::fleet_category::Model,
@@ -41,6 +45,42 @@ impl<'a> FleetCategoryRepository<'a> {
         .insert(self.db)
         .await?;
 
+        // Insert access roles
+        for (role_id, can_view, can_create, can_manage) in access_roles {
+            entity::fleet_category_access_role::ActiveModel {
+                fleet_category_id: ActiveValue::Set(category.id),
+                role_id: ActiveValue::Set(role_id),
+                can_view: ActiveValue::Set(can_view),
+                can_create: ActiveValue::Set(can_create),
+                can_manage: ActiveValue::Set(can_manage),
+                ..Default::default()
+            }
+            .insert(self.db)
+            .await?;
+        }
+
+        // Insert ping roles
+        for role_id in ping_roles {
+            entity::fleet_category_ping_role::ActiveModel {
+                fleet_category_id: ActiveValue::Set(category.id),
+                role_id: ActiveValue::Set(role_id),
+                ..Default::default()
+            }
+            .insert(self.db)
+            .await?;
+        }
+
+        // Insert channels
+        for channel_id in channels {
+            entity::fleet_category_channel::ActiveModel {
+                fleet_category_id: ActiveValue::Set(category.id),
+                channel_id: ActiveValue::Set(channel_id),
+                ..Default::default()
+            }
+            .insert(self.db)
+            .await?;
+        }
+
         // Fetch with related ping format
         let result = entity::prelude::FleetCategory::find_by_id(category.id)
             .find_also_related(entity::prelude::PingFormat)
@@ -54,7 +94,7 @@ impl<'a> FleetCategoryRepository<'a> {
         Ok(result)
     }
 
-    /// Gets a fleet category by ID with related ping format
+    /// Gets a fleet category by ID with related ping format and all related entities with enriched data
     pub async fn get_by_id(
         &self,
         id: i32,
@@ -62,16 +102,129 @@ impl<'a> FleetCategoryRepository<'a> {
         Option<(
             entity::fleet_category::Model,
             Option<entity::ping_format::Model>,
+            Vec<(
+                entity::fleet_category_access_role::Model,
+                Option<entity::discord_guild_role::Model>,
+            )>,
+            Vec<(
+                entity::fleet_category_ping_role::Model,
+                Option<entity::discord_guild_role::Model>,
+            )>,
+            Vec<(
+                entity::fleet_category_channel::Model,
+                Option<entity::discord_guild_channel::Model>,
+            )>,
         )>,
         DbErr,
     > {
-        entity::prelude::FleetCategory::find_by_id(id)
+        let category_result = entity::prelude::FleetCategory::find_by_id(id)
             .find_also_related(entity::prelude::PingFormat)
             .one(self.db)
-            .await
+            .await?;
+
+        if let Some((category, ping_format)) = category_result {
+            // Fetch access roles
+            let access_roles = entity::prelude::FleetCategoryAccessRole::find()
+                .filter(entity::fleet_category_access_role::Column::FleetCategoryId.eq(id))
+                .all(self.db)
+                .await?;
+
+            // Fetch ping roles
+            let ping_roles = entity::prelude::FleetCategoryPingRole::find()
+                .filter(entity::fleet_category_ping_role::Column::FleetCategoryId.eq(id))
+                .all(self.db)
+                .await?;
+
+            // Fetch channels
+            let channels = entity::prelude::FleetCategoryChannel::find()
+                .filter(entity::fleet_category_channel::Column::FleetCategoryId.eq(id))
+                .all(self.db)
+                .await?;
+
+            // Collect all role IDs
+            let mut role_ids: Vec<i64> = Vec::new();
+            role_ids.extend(access_roles.iter().map(|ar| ar.role_id));
+            role_ids.extend(ping_roles.iter().map(|pr| pr.role_id));
+
+            // Fetch all roles in one query
+            let roles_map: HashMap<i64, entity::discord_guild_role::Model> = if !role_ids.is_empty()
+            {
+                entity::prelude::DiscordGuildRole::find()
+                    .filter(entity::discord_guild_role::Column::RoleId.is_in(role_ids))
+                    .filter(entity::discord_guild_role::Column::GuildId.eq(category.guild_id))
+                    .all(self.db)
+                    .await?
+                    .into_iter()
+                    .map(|r| (r.role_id, r))
+                    .collect()
+            } else {
+                HashMap::new()
+            };
+
+            // Fetch all channels in one query
+            let channel_ids: Vec<i64> = channels.iter().map(|c| c.channel_id).collect();
+            let channels_map: HashMap<i64, entity::discord_guild_channel::Model> = if !channel_ids
+                .is_empty()
+            {
+                entity::prelude::DiscordGuildChannel::find()
+                    .filter(entity::discord_guild_channel::Column::ChannelId.is_in(channel_ids))
+                    .filter(entity::discord_guild_channel::Column::GuildId.eq(category.guild_id))
+                    .all(self.db)
+                    .await?
+                    .into_iter()
+                    .map(|c| (c.channel_id, c))
+                    .collect()
+            } else {
+                HashMap::new()
+            };
+
+            // Build enriched results
+            let enriched_access_roles: Vec<(
+                entity::fleet_category_access_role::Model,
+                Option<entity::discord_guild_role::Model>,
+            )> = access_roles
+                .into_iter()
+                .map(|ar| {
+                    let role = roles_map.get(&ar.role_id).cloned();
+                    (ar, role)
+                })
+                .collect();
+
+            let enriched_ping_roles: Vec<(
+                entity::fleet_category_ping_role::Model,
+                Option<entity::discord_guild_role::Model>,
+            )> = ping_roles
+                .into_iter()
+                .map(|pr| {
+                    let role = roles_map.get(&pr.role_id).cloned();
+                    (pr, role)
+                })
+                .collect();
+
+            let enriched_channels: Vec<(
+                entity::fleet_category_channel::Model,
+                Option<entity::discord_guild_channel::Model>,
+            )> = channels
+                .into_iter()
+                .map(|c| {
+                    let channel = channels_map.get(&c.channel_id).cloned();
+                    (c, channel)
+                })
+                .collect();
+
+            Ok(Some((
+                category,
+                ping_format,
+                enriched_access_roles,
+                enriched_ping_roles,
+                enriched_channels,
+            )))
+        } else {
+            Ok(None)
+        }
     }
 
-    /// Gets paginated fleet categories for a guild with related ping format
+    /// Gets paginated fleet categories for a guild with related ping format and counts
     pub async fn get_by_guild_id_paginated(
         &self,
         guild_id: i64,
@@ -82,6 +235,9 @@ impl<'a> FleetCategoryRepository<'a> {
             Vec<(
                 entity::fleet_category::Model,
                 Option<entity::ping_format::Model>,
+                usize, // access_roles_count
+                usize, // ping_roles_count
+                usize, // channels_count
             )>,
             u64,
         ),
@@ -96,7 +252,34 @@ impl<'a> FleetCategoryRepository<'a> {
         let total = paginator.num_items().await?;
         let categories = paginator.fetch_page(page).await?;
 
-        Ok((categories, total))
+        // Fetch counts for each category
+        let mut results = Vec::new();
+        for (category, ping_format) in categories {
+            let access_roles_count = entity::prelude::FleetCategoryAccessRole::find()
+                .filter(entity::fleet_category_access_role::Column::FleetCategoryId.eq(category.id))
+                .count(self.db)
+                .await? as usize;
+
+            let ping_roles_count = entity::prelude::FleetCategoryPingRole::find()
+                .filter(entity::fleet_category_ping_role::Column::FleetCategoryId.eq(category.id))
+                .count(self.db)
+                .await? as usize;
+
+            let channels_count = entity::prelude::FleetCategoryChannel::find()
+                .filter(entity::fleet_category_channel::Column::FleetCategoryId.eq(category.id))
+                .count(self.db)
+                .await? as usize;
+
+            results.push((
+                category,
+                ping_format,
+                access_roles_count,
+                ping_roles_count,
+                channels_count,
+            ));
+        }
+
+        Ok((results, total))
     }
 
     /// Updates a fleet category's name and duration fields and returns it with related ping format
@@ -108,6 +291,9 @@ impl<'a> FleetCategoryRepository<'a> {
         ping_lead_time: Option<Duration>,
         ping_reminder: Option<Duration>,
         max_pre_ping: Option<Duration>,
+        access_roles: Vec<(i64, bool, bool, bool)>,
+        ping_roles: Vec<i64>,
+        channels: Vec<i64>,
     ) -> Result<
         (
             entity::fleet_category::Model,
@@ -133,6 +319,58 @@ impl<'a> FleetCategoryRepository<'a> {
         active_model.max_pre_ping = ActiveValue::Set(max_pre_ping.map(|d| d.num_seconds() as i32));
 
         active_model.update(self.db).await?;
+
+        // Delete existing related entities
+        entity::prelude::FleetCategoryAccessRole::delete_many()
+            .filter(entity::fleet_category_access_role::Column::FleetCategoryId.eq(id))
+            .exec(self.db)
+            .await?;
+
+        entity::prelude::FleetCategoryPingRole::delete_many()
+            .filter(entity::fleet_category_ping_role::Column::FleetCategoryId.eq(id))
+            .exec(self.db)
+            .await?;
+
+        entity::prelude::FleetCategoryChannel::delete_many()
+            .filter(entity::fleet_category_channel::Column::FleetCategoryId.eq(id))
+            .exec(self.db)
+            .await?;
+
+        // Insert new access roles
+        for (role_id, can_view, can_create, can_manage) in access_roles {
+            entity::fleet_category_access_role::ActiveModel {
+                fleet_category_id: ActiveValue::Set(id),
+                role_id: ActiveValue::Set(role_id),
+                can_view: ActiveValue::Set(can_view),
+                can_create: ActiveValue::Set(can_create),
+                can_manage: ActiveValue::Set(can_manage),
+                ..Default::default()
+            }
+            .insert(self.db)
+            .await?;
+        }
+
+        // Insert new ping roles
+        for role_id in ping_roles {
+            entity::fleet_category_ping_role::ActiveModel {
+                fleet_category_id: ActiveValue::Set(id),
+                role_id: ActiveValue::Set(role_id),
+                ..Default::default()
+            }
+            .insert(self.db)
+            .await?;
+        }
+
+        // Insert new channels
+        for channel_id in channels {
+            entity::fleet_category_channel::ActiveModel {
+                fleet_category_id: ActiveValue::Set(id),
+                channel_id: ActiveValue::Set(channel_id),
+                ..Default::default()
+            }
+            .insert(self.db)
+            .await?;
+        }
 
         // Fetch with related ping format
         let result = entity::prelude::FleetCategory::find_by_id(id)

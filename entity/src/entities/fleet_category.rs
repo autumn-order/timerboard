@@ -24,6 +24,12 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     DiscordGuild,
+    #[sea_orm(has_many = "super::fleet_category_access_role::Entity")]
+    FleetCategoryAccessRole,
+    #[sea_orm(has_many = "super::fleet_category_channel::Entity")]
+    FleetCategoryChannel,
+    #[sea_orm(has_many = "super::fleet_category_ping_role::Entity")]
+    FleetCategoryPingRole,
     #[sea_orm(
         belongs_to = "super::ping_format::Entity",
         from = "Column::PingFormatId",
@@ -37,6 +43,24 @@ pub enum Relation {
 impl Related<super::discord_guild::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::DiscordGuild.def()
+    }
+}
+
+impl Related<super::fleet_category_access_role::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::FleetCategoryAccessRole.def()
+    }
+}
+
+impl Related<super::fleet_category_channel::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::FleetCategoryChannel.def()
+    }
+}
+
+impl Related<super::fleet_category_ping_role::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::FleetCategoryPingRole.def()
     }
 }
 

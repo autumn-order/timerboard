@@ -29,7 +29,7 @@ pub fn FleetCategoriesTable(
     let mut is_deleting = use_signal(|| false);
 
     let mut show_edit_modal = use_signal(|| false);
-    let mut category_to_edit = use_signal(|| None::<crate::model::fleet::FleetCategoryDto>);
+    let mut category_id_to_edit = use_signal(|| None::<i32>);
 
     // Handle deletion with use_resource
     #[cfg(feature = "web")]
@@ -87,7 +87,6 @@ pub fn FleetCategoriesTable(
                         {
                             let category_id = category.id;
                             let category_name = category.name.clone();
-                            let category_clone_for_edit = category.clone();
                             let category_name_for_delete = category_name.clone();
                             rsx! {
                                 tr {
@@ -102,7 +101,7 @@ pub fn FleetCategoriesTable(
                                             button {
                                                 class: "btn btn-sm btn-primary",
                                                 onclick: move |_| {
-                                                    category_to_edit.set(Some(category_clone_for_edit.clone()));
+                                                    category_id_to_edit.set(Some(category_id));
                                                     show_edit_modal.set(true);
                                                 },
                                                 "Edit"
@@ -152,7 +151,7 @@ pub fn FleetCategoriesTable(
         EditCategoryModal {
             guild_id,
             show: show_edit_modal,
-            category_to_edit,
+            category_id: category_id_to_edit,
             refetch_trigger
         }
     )

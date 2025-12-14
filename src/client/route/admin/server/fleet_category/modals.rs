@@ -11,9 +11,12 @@ use super::{
 };
 
 #[cfg(feature = "web")]
-use crate::client::api::{
-    fleet_category::{create_fleet_category, update_fleet_category},
-    ping_format::get_ping_formats,
+use crate::{
+    client::api::{
+        fleet_category::{create_fleet_category, get_fleet_category_by_id, update_fleet_category},
+        ping_format::get_ping_formats,
+    },
+    model::fleet::{FleetCategoryAccessRoleDto, FleetCategoryChannelDto, FleetCategoryPingRoleDto},
 };
 
 /// Duration field values for submission
@@ -77,7 +80,41 @@ pub fn CreateCategoryModal(
     let future = use_resource(move || async move {
         if should_submit() {
             let (name, durations) = submit_data();
+            let fields = form_fields();
             if let Some(ping_format_id) = durations.ping_format_id {
+                // Convert form fields to DTOs (server will enrich with names/colors)
+                let access_roles: Vec<FleetCategoryAccessRoleDto> = fields
+                    .access_roles
+                    .iter()
+                    .map(|ar| FleetCategoryAccessRoleDto {
+                        role_id: ar.role.id,
+                        role_name: String::new(),  // Server will populate
+                        role_color: String::new(), // Server will populate
+                        can_view: ar.can_view,
+                        can_create: ar.can_create,
+                        can_manage: ar.can_manage,
+                    })
+                    .collect();
+
+                let ping_roles: Vec<FleetCategoryPingRoleDto> = fields
+                    .ping_roles
+                    .iter()
+                    .map(|pr| FleetCategoryPingRoleDto {
+                        role_id: pr.id,
+                        role_name: String::new(),  // Server will populate
+                        role_color: String::new(), // Server will populate
+                    })
+                    .collect();
+
+                let channels: Vec<FleetCategoryChannelDto> = fields
+                    .channels
+                    .iter()
+                    .map(|c| FleetCategoryChannelDto {
+                        channel_id: c.id,
+                        channel_name: String::new(), // Server will populate
+                    })
+                    .collect();
+
                 Some(
                     create_fleet_category(
                         guild_id,
@@ -86,6 +123,9 @@ pub fn CreateCategoryModal(
                         durations.ping_cooldown,
                         durations.ping_reminder,
                         durations.max_pre_ping,
+                        access_roles,
+                        ping_roles,
+                        channels,
                     )
                     .await,
                 )
@@ -216,7 +256,7 @@ pub fn CreateCategoryModal(
 pub fn EditCategoryModal(
     guild_id: u64,
     mut show: Signal<bool>,
-    category_to_edit: Signal<Option<crate::model::fleet::FleetCategoryDto>>,
+    category_id: Signal<Option<i32>>,
     mut refetch_trigger: Signal<u32>,
 ) -> Element {
     let mut form_fields = use_signal(FormFieldsData::default);
@@ -243,41 +283,95 @@ pub fn EditCategoryModal(
         }
     });
 
-    // Initialize form when modal opens with new data
+    // Fetch full category details - refreshes when refetch is true
+    #[cfg(feature = "web")]
+    let category_future = use_resource(move || async move {
+        if let Some(cat_id) = category_id() {
+            get_fleet_category_by_id(guild_id, cat_id).await.ok()
+        } else {
+            None
+        }
+    });
+
+    #[cfg(feature = "web")]
+    use_effect(move || {
+        if let Some(Some(category)) = category_future.read_unchecked().as_ref() {
+            use super::types::{AccessRoleData, ChannelData, RoleData};
+
+            form_fields.set(FormFieldsData {
+                category_name: category.name.clone(),
+                ping_format_id: Some(category.ping_format_id),
+                search_query: String::new(),
+                ping_cooldown_str: category
+                    .ping_lead_time
+                    .as_ref()
+                    .map(|d| format_duration(d))
+                    .unwrap_or_default(),
+                ping_reminder_str: category
+                    .ping_reminder
+                    .as_ref()
+                    .map(|d| format_duration(d))
+                    .unwrap_or_default(),
+                max_pre_ping_str: category
+                    .max_pre_ping
+                    .as_ref()
+                    .map(|d| format_duration(d))
+                    .unwrap_or_default(),
+                active_tab: Default::default(),
+                role_search_query: String::new(),
+                channel_search_query: String::new(),
+                access_roles: category
+                    .access_roles
+                    .iter()
+                    .map(|ar| AccessRoleData {
+                        role: RoleData {
+                            id: ar.role_id,
+                            name: ar.role_name.clone(),
+                            color: ar.role_color.clone(),
+                        },
+                        can_view: ar.can_view,
+                        can_create: ar.can_create,
+                        can_manage: ar.can_manage,
+                    })
+                    .collect(),
+                ping_roles: category
+                    .ping_roles
+                    .iter()
+                    .map(|pr| RoleData {
+                        id: pr.role_id,
+                        name: pr.role_name.clone(),
+                        color: pr.role_color.clone(),
+                    })
+                    .collect(),
+                channels: category
+                    .channels
+                    .iter()
+                    .map(|c| ChannelData {
+                        id: c.channel_id,
+                        name: c.channel_name.clone(),
+                    })
+                    .collect(),
+            });
+            submit_data.write().0 = category.id;
+            validation_errors.set(ValidationErrorsData::default());
+            error.set(None);
+        }
+    });
+
+    // Reset form when modal opens and trigger fresh fetch
     use_effect(move || {
         if show() {
-            if let Some(category) = category_to_edit() {
-                form_fields.set(FormFieldsData {
-                    category_name: category.name.clone(),
-                    ping_format_id: Some(category.ping_format_id),
-                    search_query: String::new(),
-                    ping_cooldown_str: category
-                        .ping_lead_time
-                        .as_ref()
-                        .map(|d| format_duration(d))
-                        .unwrap_or_default(),
-                    ping_reminder_str: category
-                        .ping_reminder
-                        .as_ref()
-                        .map(|d| format_duration(d))
-                        .unwrap_or_default(),
-                    max_pre_ping_str: category
-                        .max_pre_ping
-                        .as_ref()
-                        .map(|d| format_duration(d))
-                        .unwrap_or_default(),
-                    active_tab: Default::default(),
-                    role_search_query: String::new(),
-                    channel_search_query: String::new(),
-                    access_roles: Vec::new(),
-                    ping_roles: Vec::new(),
-                    channels: Vec::new(),
-                });
-                submit_data.write().0 = category.id;
-                validation_errors.set(ValidationErrorsData::default());
-                error.set(None);
-                should_submit.set(false);
+            // Reset submission state and errors
+            should_submit.set(false);
+            error.set(None);
+            validation_errors.set(ValidationErrorsData::default());
+
+            // If there's no category_id, reset form fields (shouldn't happen in edit modal)
+            if category_id().is_none() {
+                form_fields.set(FormFieldsData::default());
+                submit_data.set((0i32, String::new(), DurationFields::default()));
             }
+            // The category_future resource will populate the form fields
         }
     });
 
@@ -286,7 +380,41 @@ pub fn EditCategoryModal(
     let future = use_resource(move || async move {
         if should_submit() {
             let (id, name, durations) = submit_data();
+            let fields = form_fields();
             if let Some(ping_format_id) = durations.ping_format_id {
+                // Convert form fields to DTOs (server will enrich with names/colors)
+                let access_roles: Vec<FleetCategoryAccessRoleDto> = fields
+                    .access_roles
+                    .iter()
+                    .map(|ar| FleetCategoryAccessRoleDto {
+                        role_id: ar.role.id,
+                        role_name: String::new(),  // Server will populate
+                        role_color: String::new(), // Server will populate
+                        can_view: ar.can_view,
+                        can_create: ar.can_create,
+                        can_manage: ar.can_manage,
+                    })
+                    .collect();
+
+                let ping_roles: Vec<FleetCategoryPingRoleDto> = fields
+                    .ping_roles
+                    .iter()
+                    .map(|pr| FleetCategoryPingRoleDto {
+                        role_id: pr.id,
+                        role_name: String::new(),  // Server will populate
+                        role_color: String::new(), // Server will populate
+                    })
+                    .collect();
+
+                let channels: Vec<FleetCategoryChannelDto> = fields
+                    .channels
+                    .iter()
+                    .map(|c| FleetCategoryChannelDto {
+                        channel_id: c.id,
+                        channel_name: String::new(), // Server will populate
+                    })
+                    .collect();
+
                 Some(
                     update_fleet_category(
                         guild_id,
@@ -296,6 +424,9 @@ pub fn EditCategoryModal(
                         durations.ping_cooldown,
                         durations.ping_reminder,
                         durations.max_pre_ping,
+                        access_roles,
+                        ping_roles,
+                        channels,
                     )
                     .await,
                 )

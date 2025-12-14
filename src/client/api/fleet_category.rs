@@ -3,7 +3,8 @@ use chrono::Duration;
 use crate::{
     client::model::error::ApiError,
     model::fleet::{
-        CreateFleetCategoryDto, FleetCategoryDto, PaginatedFleetCategoriesDto,
+        CreateFleetCategoryDto, FleetCategoryAccessRoleDto, FleetCategoryChannelDto,
+        FleetCategoryDto, FleetCategoryPingRoleDto, PaginatedFleetCategoriesDto,
         UpdateFleetCategoryDto,
     },
 };
@@ -27,6 +28,20 @@ pub async fn get_fleet_categories(
     parse_response(response).await
 }
 
+/// Get a specific fleet category by ID
+pub async fn get_fleet_category_by_id(
+    guild_id: u64,
+    category_id: i32,
+) -> Result<FleetCategoryDto, ApiError> {
+    let url = format!(
+        "/api/timerboard/{}/fleet/category/{}",
+        guild_id, category_id
+    );
+
+    let response = send_request(get(&url)).await?;
+    parse_response(response).await
+}
+
 /// Create a new fleet category
 pub async fn create_fleet_category(
     guild_id: u64,
@@ -35,6 +50,9 @@ pub async fn create_fleet_category(
     ping_cooldown: Option<Duration>,
     ping_reminder: Option<Duration>,
     max_pre_ping: Option<Duration>,
+    access_roles: Vec<FleetCategoryAccessRoleDto>,
+    ping_roles: Vec<FleetCategoryPingRoleDto>,
+    channels: Vec<FleetCategoryChannelDto>,
 ) -> Result<(), ApiError> {
     let url = format!("/api/timerboard/{}/fleet/category", guild_id);
     let payload = CreateFleetCategoryDto {
@@ -43,6 +61,9 @@ pub async fn create_fleet_category(
         ping_lead_time: ping_cooldown,
         ping_reminder,
         max_pre_ping,
+        access_roles,
+        ping_roles,
+        channels,
     };
     let body = serialize_json(&payload)?;
 
@@ -59,6 +80,9 @@ pub async fn update_fleet_category(
     ping_cooldown: Option<Duration>,
     ping_reminder: Option<Duration>,
     max_pre_ping: Option<Duration>,
+    access_roles: Vec<FleetCategoryAccessRoleDto>,
+    ping_roles: Vec<FleetCategoryPingRoleDto>,
+    channels: Vec<FleetCategoryChannelDto>,
 ) -> Result<(), ApiError> {
     let url = format!(
         "/api/timerboard/{}/fleet/category/{}",
@@ -70,6 +94,9 @@ pub async fn update_fleet_category(
         ping_lead_time: ping_cooldown,
         ping_reminder,
         max_pre_ping,
+        access_roles,
+        ping_roles,
+        channels,
     };
     let body = serialize_json(&payload)?;
 

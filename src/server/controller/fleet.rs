@@ -8,7 +8,9 @@ use serde::Deserialize;
 use tower_sessions::Session;
 
 use crate::{
-    model::fleet::{CreateFleetCategoryDto, FleetCategoryDto, UpdateFleetCategoryDto},
+    model::fleet::{
+        CreateFleetCategoryDto, FleetCategoryDto, FleetCategoryListItemDto, UpdateFleetCategoryDto,
+    },
     server::{
         error::AppError,
         middleware::auth::{AuthGuard, Permission},
@@ -51,6 +53,9 @@ pub async fn create_fleet_category(
             payload.ping_lead_time,
             payload.ping_reminder,
             payload.max_pre_ping,
+            payload.access_roles,
+            payload.ping_roles,
+            payload.channels,
         )
         .await?;
 
@@ -78,8 +83,66 @@ pub async fn get_fleet_categories(
     Ok((StatusCode::OK, Json(categories)))
 }
 
+/// GET /api/timerboard/{guild_id}/fleet/category/{fleet_id}
+/// Get a specific fleet category by ID
+pub async fn get_fleet_category_by_id(
+    State(state): State<AppState>,
+    session: Session,
+    Path((guild_id, fleet_id)): Path<(i64, i32)>,
+) -> Result<impl IntoResponse, AppError> {
+    let _ = AuthGuard::new(&state.db, &session)
+        .require(&[Permission::Admin])
+        .await?;
+
+    let service = FleetCategoryService::new(&state.db);
+
+    let category = service.get_by_id(fleet_id).await?;
+
+    match category {
+        Some(cat) => {
+            // Verify it belongs to the guild
+            if cat.guild_id == guild_id {
+                Ok((StatusCode::OK, Json(cat)))
+            } else {
+                Ok((
+                    StatusCode::NOT_FOUND,
+                    Json(FleetCategoryDto {
+                        id: 0,
+                        guild_id: 0,
+                        ping_format_id: 0,
+                        ping_format_name: String::new(),
+                        name: String::new(),
+                        ping_lead_time: None,
+                        ping_reminder: None,
+                        max_pre_ping: None,
+                        access_roles: Vec::new(),
+                        ping_roles: Vec::new(),
+                        channels: Vec::new(),
+                    }),
+                ))
+            }
+        }
+        None => Ok((
+            StatusCode::NOT_FOUND,
+            Json(FleetCategoryDto {
+                id: 0,
+                guild_id: 0,
+                ping_format_id: 0,
+                ping_format_name: String::new(),
+                name: String::new(),
+                ping_lead_time: None,
+                ping_reminder: None,
+                max_pre_ping: None,
+                access_roles: Vec::new(),
+                ping_roles: Vec::new(),
+                channels: Vec::new(),
+            }),
+        )),
+    }
+}
+
 /// PUT /api/timerboard/{guild_id}/fleet/category/{fleet_id}
-/// Update a fleet category's name
+/// Update a fleet category
 pub async fn update_fleet_category(
     State(state): State<AppState>,
     session: Session,
@@ -101,6 +164,9 @@ pub async fn update_fleet_category(
             payload.ping_lead_time,
             payload.ping_reminder,
             payload.max_pre_ping,
+            payload.access_roles,
+            payload.ping_roles,
+            payload.channels,
         )
         .await?;
 
@@ -117,6 +183,9 @@ pub async fn update_fleet_category(
                 ping_lead_time: None,
                 ping_reminder: None,
                 max_pre_ping: None,
+                access_roles: Vec::new(),
+                ping_roles: Vec::new(),
+                channels: Vec::new(),
             }),
         )),
     }
@@ -135,7 +204,8 @@ pub async fn get_fleet_categories_by_ping_format(
 
     let service = FleetCategoryService::new(&state.db);
 
-    let categories = service.get_by_ping_format_id(ping_format_id).await?;
+    let categories: Vec<FleetCategoryListItemDto> =
+        service.get_by_ping_format_id(ping_format_id).await?;
 
     Ok((StatusCode::OK, Json(categories)))
 }

@@ -9,6 +9,9 @@ mod m20251211_000006_create_discord_guild_channel_table;
 mod m20251212_000007_create_ping_format_table;
 mod m20251212_000008_create_ping_format_fields_table;
 mod m20251212_000009_create_fleet_category_table;
+mod m20251212_000010_create_fleet_category_access_role_table;
+mod m20251212_000011_create_fleet_category_ping_role_table;
+mod m20251212_000012_create_fleet_category_channel_table;
 
 pub struct Migrator;
 
@@ -25,6 +28,9 @@ impl MigratorTrait for Migrator {
             Box::new(m20251212_000007_create_ping_format_table::Migration),
             Box::new(m20251212_000008_create_ping_format_fields_table::Migration),
             Box::new(m20251212_000009_create_fleet_category_table::Migration),
+            Box::new(m20251212_000010_create_fleet_category_access_role_table::Migration),
+            Box::new(m20251212_000011_create_fleet_category_ping_role_table::Migration),
+            Box::new(m20251212_000012_create_fleet_category_channel_table::Migration),
         ]
     }
 }

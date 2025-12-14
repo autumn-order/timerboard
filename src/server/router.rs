@@ -13,7 +13,7 @@ use crate::server::{
         },
         fleet::{
             create_fleet_category, delete_fleet_category, get_fleet_categories,
-            get_fleet_categories_by_ping_format, update_fleet_category,
+            get_fleet_categories_by_ping_format, get_fleet_category_by_id, update_fleet_category,
         },
         ping_format::{
             create_ping_format, delete_ping_format, get_ping_formats, update_ping_format,
@@ -37,7 +37,9 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/api/timerboard/{guild_id}/fleet/category/{fleet_id}",
-            put(update_fleet_category).delete(delete_fleet_category),
+            get(get_fleet_category_by_id)
+                .put(update_fleet_category)
+                .delete(delete_fleet_category),
         )
         .route(
             "/api/timerboard/{guild_id}/fleet/category/by-ping-format/{ping_format_id}",
