@@ -8,12 +8,11 @@ use serde::Deserialize;
 use tower_sessions::Session;
 
 use crate::{
-    model::fleet::{
-        CreateFleetCategoryDto, FleetCategoryDto, FleetCategoryListItemDto, UpdateFleetCategoryDto,
-    },
+    model::fleet::{CreateFleetCategoryDto, UpdateFleetCategoryDto},
     server::{
         error::AppError,
         middleware::auth::{AuthGuard, Permission},
+        model::category::{CreateFleetCategoryParams, UpdateFleetCategoryParams},
         service::category::FleetCategoryService,
         state::AppState,
     },
@@ -45,21 +44,12 @@ pub async fn create_fleet_category(
 
     let service = FleetCategoryService::new(&state.db);
 
-    let category = service
-        .create(
-            guild_id,
-            payload.ping_format_id,
-            payload.name,
-            payload.ping_lead_time,
-            payload.ping_reminder,
-            payload.max_pre_ping,
-            payload.access_roles,
-            payload.ping_roles,
-            payload.channels,
-        )
-        .await?;
+    // Convert DTO to server model
+    let params = CreateFleetCategoryParams::from_dto(guild_id, payload);
 
-    Ok((StatusCode::CREATED, Json(category)))
+    let category = service.create(params).await?;
+
+    Ok((StatusCode::CREATED, Json(category.to_dto())))
 }
 
 /// GET /api/timerboard/{guild_id}/fleet/category
@@ -80,7 +70,7 @@ pub async fn get_fleet_categories(
         .get_paginated(guild_id, params.page, params.entries)
         .await?;
 
-    Ok((StatusCode::OK, Json(categories)))
+    Ok((StatusCode::OK, Json(categories.to_dto())))
 }
 
 /// GET /api/timerboard/{guild_id}/fleet/category/{fleet_id}
@@ -102,42 +92,12 @@ pub async fn get_fleet_category_by_id(
         Some(cat) => {
             // Verify it belongs to the guild
             if cat.guild_id == guild_id {
-                Ok((StatusCode::OK, Json(cat)))
+                Ok((StatusCode::OK, Json(cat.to_dto())))
             } else {
-                Ok((
-                    StatusCode::NOT_FOUND,
-                    Json(FleetCategoryDto {
-                        id: 0,
-                        guild_id: 0,
-                        ping_format_id: 0,
-                        ping_format_name: String::new(),
-                        name: String::new(),
-                        ping_lead_time: None,
-                        ping_reminder: None,
-                        max_pre_ping: None,
-                        access_roles: Vec::new(),
-                        ping_roles: Vec::new(),
-                        channels: Vec::new(),
-                    }),
-                ))
+                Err(AppError::NotFound("Category not found".to_string()))
             }
         }
-        None => Ok((
-            StatusCode::NOT_FOUND,
-            Json(FleetCategoryDto {
-                id: 0,
-                guild_id: 0,
-                ping_format_id: 0,
-                ping_format_name: String::new(),
-                name: String::new(),
-                ping_lead_time: None,
-                ping_reminder: None,
-                max_pre_ping: None,
-                access_roles: Vec::new(),
-                ping_roles: Vec::new(),
-                channels: Vec::new(),
-            }),
-        )),
+        None => Err(AppError::NotFound("Category not found".to_string())),
     }
 }
 
@@ -155,39 +115,14 @@ pub async fn update_fleet_category(
 
     let service = FleetCategoryService::new(&state.db);
 
-    let category = service
-        .update(
-            fleet_id,
-            guild_id,
-            payload.ping_format_id,
-            payload.name,
-            payload.ping_lead_time,
-            payload.ping_reminder,
-            payload.max_pre_ping,
-            payload.access_roles,
-            payload.ping_roles,
-            payload.channels,
-        )
-        .await?;
+    // Convert DTO to server model
+    let params = UpdateFleetCategoryParams::from_dto(fleet_id, guild_id, payload);
+
+    let category = service.update(params).await?;
 
     match category {
-        Some(cat) => Ok((StatusCode::OK, Json(cat))),
-        None => Ok((
-            StatusCode::NOT_FOUND,
-            Json(FleetCategoryDto {
-                id: 0,
-                guild_id: 0,
-                ping_format_id: 0,
-                ping_format_name: String::new(),
-                name: String::new(),
-                ping_lead_time: None,
-                ping_reminder: None,
-                max_pre_ping: None,
-                access_roles: Vec::new(),
-                ping_roles: Vec::new(),
-                channels: Vec::new(),
-            }),
-        )),
+        Some(cat) => Ok((StatusCode::OK, Json(cat.to_dto()))),
+        None => Err(AppError::NotFound("Category not found".to_string())),
     }
 }
 
@@ -204,10 +139,17 @@ pub async fn get_fleet_categories_by_ping_format(
 
     let service = FleetCategoryService::new(&state.db);
 
-    let categories: Vec<FleetCategoryListItemDto> =
-        service.get_by_ping_format_id(ping_format_id).await?;
+    let categories = service.get_by_ping_format_id(ping_format_id).await?;
 
-    Ok((StatusCode::OK, Json(categories)))
+    Ok((
+        StatusCode::OK,
+        Json(
+            categories
+                .into_iter()
+                .map(|c| c.to_dto())
+                .collect::<Vec<_>>(),
+        ),
+    ))
 }
 
 /// DELETE /api/timerboard/{guild_id}/fleet/category/{fleet_id}

@@ -1,9 +1,13 @@
-use chrono::Duration;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
     PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::collections::HashMap;
+
+use crate::server::model::category::{
+    CreateFleetCategoryParams, FleetCategoryWithCounts, FleetCategoryWithFormat,
+    FleetCategoryWithRelations, UpdateFleetCategoryParams,
+};
 
 pub struct FleetCategoryRepository<'a> {
     db: &'a DatabaseConnection,
@@ -17,42 +21,28 @@ impl<'a> FleetCategoryRepository<'a> {
     /// Creates a new fleet category and returns it with related ping format
     pub async fn create(
         &self,
-        guild_id: i64,
-        ping_format_id: i32,
-        name: String,
-        ping_lead_time: Option<Duration>,
-        ping_reminder: Option<Duration>,
-        max_pre_ping: Option<Duration>,
-        access_roles: Vec<(i64, bool, bool, bool)>, // (role_id, can_view, can_create, can_manage)
-        ping_roles: Vec<i64>,
-        channels: Vec<i64>,
-    ) -> Result<
-        (
-            entity::fleet_category::Model,
-            Option<entity::ping_format::Model>,
-        ),
-        DbErr,
-    > {
+        params: CreateFleetCategoryParams,
+    ) -> Result<FleetCategoryWithFormat, DbErr> {
         let category = entity::fleet_category::ActiveModel {
-            guild_id: ActiveValue::Set(guild_id),
-            ping_format_id: ActiveValue::Set(ping_format_id),
-            name: ActiveValue::Set(name),
-            ping_cooldown: ActiveValue::Set(ping_lead_time.map(|d| d.num_seconds() as i32)),
-            ping_reminder: ActiveValue::Set(ping_reminder.map(|d| d.num_seconds() as i32)),
-            max_pre_ping: ActiveValue::Set(max_pre_ping.map(|d| d.num_seconds() as i32)),
+            guild_id: ActiveValue::Set(params.guild_id),
+            ping_format_id: ActiveValue::Set(params.ping_format_id),
+            name: ActiveValue::Set(params.name),
+            ping_cooldown: ActiveValue::Set(params.ping_lead_time.map(|d| d.num_seconds() as i32)),
+            ping_reminder: ActiveValue::Set(params.ping_reminder.map(|d| d.num_seconds() as i32)),
+            max_pre_ping: ActiveValue::Set(params.max_pre_ping.map(|d| d.num_seconds() as i32)),
             ..Default::default()
         }
         .insert(self.db)
         .await?;
 
         // Insert access roles
-        for (role_id, can_view, can_create, can_manage) in access_roles {
+        for access_role in params.access_roles {
             entity::fleet_category_access_role::ActiveModel {
                 fleet_category_id: ActiveValue::Set(category.id),
-                role_id: ActiveValue::Set(role_id),
-                can_view: ActiveValue::Set(can_view),
-                can_create: ActiveValue::Set(can_create),
-                can_manage: ActiveValue::Set(can_manage),
+                role_id: ActiveValue::Set(access_role.role_id),
+                can_view: ActiveValue::Set(access_role.can_view),
+                can_create: ActiveValue::Set(access_role.can_create),
+                can_manage: ActiveValue::Set(access_role.can_manage),
                 ..Default::default()
             }
             .insert(self.db)
@@ -60,7 +50,7 @@ impl<'a> FleetCategoryRepository<'a> {
         }
 
         // Insert ping roles
-        for role_id in ping_roles {
+        for role_id in params.ping_roles {
             entity::fleet_category_ping_role::ActiveModel {
                 fleet_category_id: ActiveValue::Set(category.id),
                 role_id: ActiveValue::Set(role_id),
@@ -71,7 +61,7 @@ impl<'a> FleetCategoryRepository<'a> {
         }
 
         // Insert channels
-        for channel_id in channels {
+        for channel_id in params.channels {
             entity::fleet_category_channel::ActiveModel {
                 fleet_category_id: ActiveValue::Set(category.id),
                 channel_id: ActiveValue::Set(channel_id),
@@ -91,32 +81,14 @@ impl<'a> FleetCategoryRepository<'a> {
                 category.id
             )))?;
 
-        Ok(result)
+        Ok(FleetCategoryWithFormat {
+            category: result.0,
+            ping_format: result.1,
+        })
     }
 
     /// Gets a fleet category by ID with related ping format and all related entities with enriched data
-    pub async fn get_by_id(
-        &self,
-        id: i32,
-    ) -> Result<
-        Option<(
-            entity::fleet_category::Model,
-            Option<entity::ping_format::Model>,
-            Vec<(
-                entity::fleet_category_access_role::Model,
-                Option<entity::discord_guild_role::Model>,
-            )>,
-            Vec<(
-                entity::fleet_category_ping_role::Model,
-                Option<entity::discord_guild_role::Model>,
-            )>,
-            Vec<(
-                entity::fleet_category_channel::Model,
-                Option<entity::discord_guild_channel::Model>,
-            )>,
-        )>,
-        DbErr,
-    > {
+    pub async fn get_by_id(&self, id: i32) -> Result<Option<FleetCategoryWithRelations>, DbErr> {
         let category_result = entity::prelude::FleetCategory::find_by_id(id)
             .find_also_related(entity::prelude::PingFormat)
             .one(self.db)
@@ -212,13 +184,13 @@ impl<'a> FleetCategoryRepository<'a> {
                 })
                 .collect();
 
-            Ok(Some((
+            Ok(Some(FleetCategoryWithRelations {
                 category,
                 ping_format,
-                enriched_access_roles,
-                enriched_ping_roles,
-                enriched_channels,
-            )))
+                access_roles: enriched_access_roles,
+                ping_roles: enriched_ping_roles,
+                channels: enriched_channels,
+            }))
         } else {
             Ok(None)
         }
@@ -230,19 +202,7 @@ impl<'a> FleetCategoryRepository<'a> {
         guild_id: i64,
         page: u64,
         per_page: u64,
-    ) -> Result<
-        (
-            Vec<(
-                entity::fleet_category::Model,
-                Option<entity::ping_format::Model>,
-                usize, // access_roles_count
-                usize, // ping_roles_count
-                usize, // channels_count
-            )>,
-            u64,
-        ),
-        DbErr,
-    > {
+    ) -> Result<(Vec<FleetCategoryWithCounts>, u64), DbErr> {
         let paginator = entity::prelude::FleetCategory::find()
             .find_also_related(entity::prelude::PingFormat)
             .filter(entity::fleet_category::Column::GuildId.eq(guild_id))
@@ -270,13 +230,13 @@ impl<'a> FleetCategoryRepository<'a> {
                 .count(self.db)
                 .await? as usize;
 
-            results.push((
+            results.push(FleetCategoryWithCounts {
                 category,
                 ping_format,
                 access_roles_count,
                 ping_roles_count,
                 channels_count,
-            ));
+            });
         }
 
         Ok((results, total))
@@ -285,65 +245,52 @@ impl<'a> FleetCategoryRepository<'a> {
     /// Updates a fleet category's name and duration fields and returns it with related ping format
     pub async fn update(
         &self,
-        id: i32,
-        ping_format_id: i32,
-        name: String,
-        ping_lead_time: Option<Duration>,
-        ping_reminder: Option<Duration>,
-        max_pre_ping: Option<Duration>,
-        access_roles: Vec<(i64, bool, bool, bool)>,
-        ping_roles: Vec<i64>,
-        channels: Vec<i64>,
-    ) -> Result<
-        (
-            entity::fleet_category::Model,
-            Option<entity::ping_format::Model>,
-        ),
-        DbErr,
-    > {
-        let category = entity::prelude::FleetCategory::find_by_id(id)
+        params: UpdateFleetCategoryParams,
+    ) -> Result<FleetCategoryWithFormat, DbErr> {
+        let category = entity::prelude::FleetCategory::find_by_id(params.id)
             .one(self.db)
             .await?
             .ok_or(DbErr::RecordNotFound(format!(
                 "Fleet category with id {} not found",
-                id
+                params.id
             )))?;
 
         let mut active_model: entity::fleet_category::ActiveModel = category.into();
-        active_model.ping_format_id = ActiveValue::Set(ping_format_id);
-        active_model.name = ActiveValue::Set(name);
+        active_model.ping_format_id = ActiveValue::Set(params.ping_format_id);
+        active_model.name = ActiveValue::Set(params.name);
         active_model.ping_cooldown =
-            ActiveValue::Set(ping_lead_time.map(|d| d.num_seconds() as i32));
+            ActiveValue::Set(params.ping_lead_time.map(|d| d.num_seconds() as i32));
         active_model.ping_reminder =
-            ActiveValue::Set(ping_reminder.map(|d| d.num_seconds() as i32));
-        active_model.max_pre_ping = ActiveValue::Set(max_pre_ping.map(|d| d.num_seconds() as i32));
+            ActiveValue::Set(params.ping_reminder.map(|d| d.num_seconds() as i32));
+        active_model.max_pre_ping =
+            ActiveValue::Set(params.max_pre_ping.map(|d| d.num_seconds() as i32));
 
         active_model.update(self.db).await?;
 
         // Delete existing related entities
         entity::prelude::FleetCategoryAccessRole::delete_many()
-            .filter(entity::fleet_category_access_role::Column::FleetCategoryId.eq(id))
+            .filter(entity::fleet_category_access_role::Column::FleetCategoryId.eq(params.id))
             .exec(self.db)
             .await?;
 
         entity::prelude::FleetCategoryPingRole::delete_many()
-            .filter(entity::fleet_category_ping_role::Column::FleetCategoryId.eq(id))
+            .filter(entity::fleet_category_ping_role::Column::FleetCategoryId.eq(params.id))
             .exec(self.db)
             .await?;
 
         entity::prelude::FleetCategoryChannel::delete_many()
-            .filter(entity::fleet_category_channel::Column::FleetCategoryId.eq(id))
+            .filter(entity::fleet_category_channel::Column::FleetCategoryId.eq(params.id))
             .exec(self.db)
             .await?;
 
         // Insert new access roles
-        for (role_id, can_view, can_create, can_manage) in access_roles {
+        for access_role in params.access_roles {
             entity::fleet_category_access_role::ActiveModel {
-                fleet_category_id: ActiveValue::Set(id),
-                role_id: ActiveValue::Set(role_id),
-                can_view: ActiveValue::Set(can_view),
-                can_create: ActiveValue::Set(can_create),
-                can_manage: ActiveValue::Set(can_manage),
+                fleet_category_id: ActiveValue::Set(params.id),
+                role_id: ActiveValue::Set(access_role.role_id),
+                can_view: ActiveValue::Set(access_role.can_view),
+                can_create: ActiveValue::Set(access_role.can_create),
+                can_manage: ActiveValue::Set(access_role.can_manage),
                 ..Default::default()
             }
             .insert(self.db)
@@ -351,9 +298,9 @@ impl<'a> FleetCategoryRepository<'a> {
         }
 
         // Insert new ping roles
-        for role_id in ping_roles {
+        for role_id in params.ping_roles {
             entity::fleet_category_ping_role::ActiveModel {
-                fleet_category_id: ActiveValue::Set(id),
+                fleet_category_id: ActiveValue::Set(params.id),
                 role_id: ActiveValue::Set(role_id),
                 ..Default::default()
             }
@@ -362,9 +309,9 @@ impl<'a> FleetCategoryRepository<'a> {
         }
 
         // Insert new channels
-        for channel_id in channels {
+        for channel_id in params.channels {
             entity::fleet_category_channel::ActiveModel {
-                fleet_category_id: ActiveValue::Set(id),
+                fleet_category_id: ActiveValue::Set(params.id),
                 channel_id: ActiveValue::Set(channel_id),
                 ..Default::default()
             }
@@ -373,16 +320,19 @@ impl<'a> FleetCategoryRepository<'a> {
         }
 
         // Fetch with related ping format
-        let result = entity::prelude::FleetCategory::find_by_id(id)
+        let result = entity::prelude::FleetCategory::find_by_id(params.id)
             .find_also_related(entity::prelude::PingFormat)
             .one(self.db)
             .await?
             .ok_or(DbErr::RecordNotFound(format!(
                 "Fleet category with id {} not found after update",
-                id
+                params.id
             )))?;
 
-        Ok(result)
+        Ok(FleetCategoryWithFormat {
+            category: result.0,
+            ping_format: result.1,
+        })
     }
 
     /// Deletes a fleet category
