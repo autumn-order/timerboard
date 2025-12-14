@@ -47,7 +47,7 @@ pub fn ChannelsTab(
     let filtered_channels = use_memo(move || {
         let channels = available_channels();
         let query = channel_search_query().to_lowercase();
-        let channel_ids: Vec<i64> = form_fields().channels.iter().map(|c| c.id).collect();
+        let channel_ids: Vec<u64> = form_fields().channels.iter().map(|c| c.id).collect();
 
         let mut filtered: Vec<_> = channels
             .into_iter()

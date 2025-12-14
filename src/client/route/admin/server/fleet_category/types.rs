@@ -15,7 +15,7 @@ impl Default for ConfigTab {
 /// Role data
 #[derive(Clone, PartialEq)]
 pub struct RoleData {
-    pub id: i64,
+    pub id: u64,
     pub name: String,
     pub color: String,
     pub position: i16,
@@ -24,7 +24,7 @@ pub struct RoleData {
 /// Channel data
 #[derive(Clone, PartialEq)]
 pub struct ChannelData {
-    pub id: i64,
+    pub id: u64,
     pub name: String,
     pub position: i32,
 }

@@ -34,7 +34,7 @@ fn default_entries() -> u64 {
 pub async fn create_ping_format(
     State(state): State<AppState>,
     session: Session,
-    Path(guild_id): Path<i64>,
+    Path(guild_id): Path<u64>,
     Json(payload): Json<CreatePingFormatDto>,
 ) -> Result<impl IntoResponse, AppError> {
     let _ = AuthGuard::new(&state.db, &session)
@@ -59,7 +59,7 @@ pub async fn create_ping_format(
 pub async fn get_ping_formats(
     State(state): State<AppState>,
     session: Session,
-    Path(guild_id): Path<i64>,
+    Path(guild_id): Path<u64>,
     Query(params): Query<PaginationParams>,
 ) -> Result<impl IntoResponse, AppError> {
     let _ = AuthGuard::new(&state.db, &session)
@@ -80,7 +80,7 @@ pub async fn get_ping_formats(
 pub async fn update_ping_format(
     State(state): State<AppState>,
     session: Session,
-    Path((guild_id, format_id)): Path<(i64, i32)>,
+    Path((guild_id, format_id)): Path<(u64, i32)>,
     Json(payload): Json<UpdatePingFormatDto>,
 ) -> Result<impl IntoResponse, AppError> {
     let _ = AuthGuard::new(&state.db, &session)
@@ -119,7 +119,7 @@ pub async fn update_ping_format(
 pub async fn delete_ping_format(
     State(state): State<AppState>,
     session: Session,
-    Path((guild_id, format_id)): Path<(i64, i32)>,
+    Path((guild_id, format_id)): Path<(u64, i32)>,
 ) -> Result<impl IntoResponse, AppError> {
     let _ = AuthGuard::new(&state.db, &session)
         .require(&[Permission::Admin])

@@ -24,7 +24,7 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
     pub async fn create(
         &self,
         user_id: i32,
-        role_id: i64,
+        role_id: u64,
     ) -> Result<entity::user_discord_guild_role::Model, DbErr> {
         entity::prelude::UserDiscordGuildRole::insert(
             entity::user_discord_guild_role::ActiveModel {
@@ -52,7 +52,7 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
     pub async fn create_many(
         &self,
         user_id: i32,
-        role_ids: &[i64],
+        role_ids: &[u64],
     ) -> Result<Vec<entity::user_discord_guild_role::Model>, DbErr> {
         let mut results = Vec::new();
 
@@ -105,7 +105,7 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
     /// # Returns
     /// - `Ok(())`: Relationship successfully deleted
     /// - `Err(DbErr)`: Database error during deletion
-    pub async fn delete(&self, user_id: i32, role_id: i64) -> Result<(), DbErr> {
+    pub async fn delete(&self, user_id: i32, role_id: u64) -> Result<(), DbErr> {
         let role_id_str = role_id.to_string();
         entity::prelude::UserDiscordGuildRole::delete_many()
             .filter(entity::user_discord_guild_role::Column::UserId.eq(user_id))
@@ -113,49 +113,6 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
             .exec(self.db)
             .await?;
         Ok(())
-    }
-
-    /// Gets all guild roles for a specific user
-    ///
-    /// Retrieves all user-guild-role relationships for a given user. Used to determine
-    /// which roles a logged-in user has across all guilds.
-    ///
-    /// # Arguments
-    /// - `user_id`: Database ID of the user
-    ///
-    /// # Returns
-    /// - `Ok(Vec<Model>)`: Vector of user-guild-role relationships for the user
-    /// - `Err(DbErr)`: Database error during query
-    pub async fn get_roles_by_user(
-        &self,
-        user_id: i32,
-    ) -> Result<Vec<entity::user_discord_guild_role::Model>, DbErr> {
-        entity::prelude::UserDiscordGuildRole::find()
-            .filter(entity::user_discord_guild_role::Column::UserId.eq(user_id))
-            .all(self.db)
-            .await
-    }
-
-    /// Gets all users for a specific guild role
-    ///
-    /// Retrieves all user-guild-role relationships for a given guild role. Used to determine
-    /// which logged-in users have a particular role.
-    ///
-    /// # Arguments
-    /// - `role_id`: Discord role ID
-    ///
-    /// # Returns
-    /// - `Ok(Vec<Model>)`: Vector of user-guild-role relationships for the role
-    /// - `Err(DbErr)`: Database error during query
-    pub async fn get_users_by_role(
-        &self,
-        role_id: i64,
-    ) -> Result<Vec<entity::user_discord_guild_role::Model>, DbErr> {
-        let role_id_str = role_id.to_string();
-        entity::prelude::UserDiscordGuildRole::find()
-            .filter(entity::user_discord_guild_role::Column::RoleId.eq(role_id_str.as_str()))
-            .all(self.db)
-            .await
     }
 
     /// Syncs user's guild role memberships by removing old ones and adding new ones
@@ -170,7 +127,7 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
     /// # Returns
     /// - `Ok(())`: Sync completed successfully
     /// - `Err(DbErr)`: Database error during deletion or creation
-    pub async fn sync_user_roles(&self, user_id: i32, role_ids: &[i64]) -> Result<(), DbErr> {
+    pub async fn sync_user_roles(&self, user_id: i32, role_ids: &[u64]) -> Result<(), DbErr> {
         // Delete all existing role relationships for this user
         self.delete_by_user(user_id).await?;
 

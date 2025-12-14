@@ -87,17 +87,4 @@ impl<'a> DiscordGuildChannelRepository<'a> {
             .all(self.db)
             .await
     }
-
-    /// Retrieves all channels across all guilds
-    ///
-    /// Fetches all channel records in the database.
-    ///
-    /// # Returns
-    /// - `Ok(Vec<Model>)`: List of all channels
-    /// - `Err(DbErr)`: Database error during query
-    pub async fn get_all(&self) -> Result<Vec<entity::discord_guild_channel::Model>, DbErr> {
-        entity::prelude::DiscordGuildChannel::find()
-            .all(self.db)
-            .await
-    }
 }

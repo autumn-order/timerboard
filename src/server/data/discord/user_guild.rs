@@ -24,7 +24,7 @@ impl<'a> UserDiscordGuildRepository<'a> {
     pub async fn create(
         &self,
         user_id: i32,
-        guild_id: i64,
+        guild_id: u64,
     ) -> Result<entity::user_discord_guild::Model, DbErr> {
         entity::prelude::UserDiscordGuild::insert(entity::user_discord_guild::ActiveModel {
             user_id: ActiveValue::Set(user_id),
@@ -50,7 +50,7 @@ impl<'a> UserDiscordGuildRepository<'a> {
     pub async fn create_many(
         &self,
         user_id: i32,
-        guild_ids: &[i64],
+        guild_ids: &[u64],
     ) -> Result<Vec<entity::user_discord_guild::Model>, DbErr> {
         let mut results = Vec::new();
 
@@ -103,7 +103,7 @@ impl<'a> UserDiscordGuildRepository<'a> {
     /// # Returns
     /// - `Ok(())`: Relationship successfully deleted
     /// - `Err(DbErr)`: Database error during deletion
-    pub async fn delete(&self, user_id: i32, guild_id: i64) -> Result<(), DbErr> {
+    pub async fn delete(&self, user_id: i32, guild_id: u64) -> Result<(), DbErr> {
         let guild_id_str = guild_id.to_string();
         entity::prelude::UserDiscordGuild::delete_many()
             .filter(entity::user_discord_guild::Column::UserId.eq(user_id))
@@ -126,7 +126,7 @@ impl<'a> UserDiscordGuildRepository<'a> {
     /// - `Err(DbErr)`: Database error during query
     pub async fn get_users_by_guild(
         &self,
-        guild_id: i64,
+        guild_id: u64,
     ) -> Result<Vec<entity::user_discord_guild::Model>, DbErr> {
         let guild_id_str = guild_id.to_string();
         entity::prelude::UserDiscordGuild::find()
@@ -147,7 +147,7 @@ impl<'a> UserDiscordGuildRepository<'a> {
     /// # Returns
     /// - `Ok(())`: Sync completed successfully
     /// - `Err(DbErr)`: Database error during deletion or creation
-    pub async fn sync_user_guilds(&self, user_id: i32, guild_ids: &[i64]) -> Result<(), DbErr> {
+    pub async fn sync_user_guilds(&self, user_id: i32, guild_ids: &[u64]) -> Result<(), DbErr> {
         // Delete all existing relationships for this user
         self.delete_by_user(user_id).await?;
 

@@ -47,7 +47,7 @@ pub fn AccessRolesTab(
     let filtered_roles = use_memo(move || {
         let roles = available_roles();
         let query = role_search_query().to_lowercase();
-        let access_role_ids: Vec<i64> = form_fields()
+        let access_role_ids: Vec<u64> = form_fields()
             .access_roles
             .iter()
             .map(|ar| ar.role.id)

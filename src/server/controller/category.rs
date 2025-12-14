@@ -35,7 +35,7 @@ fn default_entries() -> u64 {
 pub async fn create_fleet_category(
     State(state): State<AppState>,
     session: Session,
-    Path(guild_id): Path<i64>,
+    Path(guild_id): Path<u64>,
     Json(payload): Json<CreateFleetCategoryDto>,
 ) -> Result<impl IntoResponse, AppError> {
     let _ = AuthGuard::new(&state.db, &session)
@@ -57,7 +57,7 @@ pub async fn create_fleet_category(
 pub async fn get_fleet_categories(
     State(state): State<AppState>,
     session: Session,
-    Path(guild_id): Path<i64>,
+    Path(guild_id): Path<u64>,
     Query(params): Query<PaginationParams>,
 ) -> Result<impl IntoResponse, AppError> {
     let _ = AuthGuard::new(&state.db, &session)
@@ -78,7 +78,7 @@ pub async fn get_fleet_categories(
 pub async fn get_fleet_category_by_id(
     State(state): State<AppState>,
     session: Session,
-    Path((guild_id, category_id)): Path<(i64, i32)>,
+    Path((guild_id, category_id)): Path<(u64, i32)>,
 ) -> Result<impl IntoResponse, AppError> {
     let _ = AuthGuard::new(&state.db, &session)
         .require(&[Permission::Admin])
@@ -106,7 +106,7 @@ pub async fn get_fleet_category_by_id(
 pub async fn update_fleet_category(
     State(state): State<AppState>,
     session: Session,
-    Path((guild_id, category_id)): Path<(i64, i32)>,
+    Path((guild_id, category_id)): Path<(u64, i32)>,
     Json(payload): Json<UpdateFleetCategoryDto>,
 ) -> Result<impl IntoResponse, AppError> {
     let _ = AuthGuard::new(&state.db, &session)
@@ -131,7 +131,7 @@ pub async fn update_fleet_category(
 pub async fn get_fleet_categories_by_ping_format(
     State(state): State<AppState>,
     session: Session,
-    Path((_guild_id, ping_format_id)): Path<(i64, i32)>,
+    Path((_guild_id, ping_format_id)): Path<(u64, i32)>,
 ) -> Result<impl IntoResponse, AppError> {
     let _ = AuthGuard::new(&state.db, &session)
         .require(&[Permission::Admin])
@@ -157,7 +157,7 @@ pub async fn get_fleet_categories_by_ping_format(
 pub async fn delete_fleet_category(
     State(state): State<AppState>,
     session: Session,
-    Path((guild_id, category_id)): Path<(i64, i32)>,
+    Path((guild_id, category_id)): Path<(u64, i32)>,
 ) -> Result<impl IntoResponse, AppError> {
     let _ = AuthGuard::new(&state.db, &session)
         .require(&[Permission::Admin])

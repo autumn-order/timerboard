@@ -33,7 +33,7 @@ impl<'a> FleetCategoryService<'a> {
             .await?
             .ok_or_else(|| AppError::NotFound("Category not found after creation".to_string()))?;
 
-        Ok(FleetCategory::from_with_relations(full_result))
+        Ok(FleetCategory::from_with_relations(full_result)?)
     }
 
     /// Gets a specific fleet category by ID with all related data
@@ -42,13 +42,16 @@ impl<'a> FleetCategoryService<'a> {
 
         let result = repo.get_by_id(id).await?;
 
-        Ok(result.map(FleetCategory::from_with_relations))
+        result
+            .map(FleetCategory::from_with_relations)
+            .transpose()
+            .map_err(Into::into)
     }
 
     /// Gets paginated fleet categories for a guild with counts
     pub async fn get_paginated(
         &self,
-        guild_id: i64,
+        guild_id: u64,
         page: u64,
         per_page: u64,
     ) -> Result<PaginatedFleetCategories, AppError> {
@@ -64,11 +67,13 @@ impl<'a> FleetCategoryService<'a> {
             0
         };
 
+        let categories: Result<Vec<_>, _> = categories
+            .into_iter()
+            .map(FleetCategoryListItem::from_with_counts)
+            .collect();
+
         Ok(PaginatedFleetCategories {
-            categories: categories
-                .into_iter()
-                .map(FleetCategoryListItem::from_with_counts)
-                .collect(),
+            categories: categories?,
             total,
             page,
             per_page,
@@ -94,12 +99,15 @@ impl<'a> FleetCategoryService<'a> {
         // Fetch full category with relations
         let full_result = repo.get_by_id(params.id).await?;
 
-        Ok(full_result.map(FleetCategory::from_with_relations))
+        full_result
+            .map(FleetCategory::from_with_relations)
+            .transpose()
+            .map_err(Into::into)
     }
 
     /// Deletes a fleet category
     /// Returns true if deleted, false if not found or doesn't belong to guild
-    pub async fn delete(&self, id: i32, guild_id: i64) -> Result<bool, AppError> {
+    pub async fn delete(&self, id: i32, guild_id: u64) -> Result<bool, AppError> {
         let repo = FleetCategoryRepository::new(self.db);
 
         // Check if category exists and belongs to the guild
@@ -121,9 +129,11 @@ impl<'a> FleetCategoryService<'a> {
 
         let categories = repo.get_by_ping_format_id(ping_format_id).await?;
 
-        Ok(categories
+        let categories: Result<Vec<_>, _> = categories
             .into_iter()
             .map(FleetCategoryListItem::from_entity)
-            .collect())
+            .collect();
+
+        Ok(categories?)
     }
 }

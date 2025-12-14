@@ -24,7 +24,7 @@ impl<'a> FleetCategoryRepository<'a> {
         params: CreateFleetCategoryParams,
     ) -> Result<FleetCategoryWithFormat, DbErr> {
         let category = entity::fleet_category::ActiveModel {
-            guild_id: ActiveValue::Set(params.guild_id),
+            guild_id: ActiveValue::Set(params.guild_id.to_string()),
             ping_format_id: ActiveValue::Set(params.ping_format_id),
             name: ActiveValue::Set(params.name),
             ping_cooldown: ActiveValue::Set(params.ping_lead_time.map(|d| d.num_seconds() as i32)),
@@ -39,7 +39,7 @@ impl<'a> FleetCategoryRepository<'a> {
         for access_role in params.access_roles {
             entity::fleet_category_access_role::ActiveModel {
                 fleet_category_id: ActiveValue::Set(category.id),
-                role_id: ActiveValue::Set(access_role.role_id),
+                role_id: ActiveValue::Set(access_role.role_id.to_string()),
                 can_view: ActiveValue::Set(access_role.can_view),
                 can_create: ActiveValue::Set(access_role.can_create),
                 can_manage: ActiveValue::Set(access_role.can_manage),
@@ -53,7 +53,7 @@ impl<'a> FleetCategoryRepository<'a> {
         for role_id in params.ping_roles {
             entity::fleet_category_ping_role::ActiveModel {
                 fleet_category_id: ActiveValue::Set(category.id),
-                role_id: ActiveValue::Set(role_id),
+                role_id: ActiveValue::Set(role_id.to_string()),
                 ..Default::default()
             }
             .insert(self.db)
@@ -64,7 +64,7 @@ impl<'a> FleetCategoryRepository<'a> {
         for channel_id in params.channels {
             entity::fleet_category_channel::ActiveModel {
                 fleet_category_id: ActiveValue::Set(category.id),
-                channel_id: ActiveValue::Set(channel_id),
+                channel_id: ActiveValue::Set(channel_id.to_string()),
                 ..Default::default()
             }
             .insert(self.db)
@@ -114,41 +114,42 @@ impl<'a> FleetCategoryRepository<'a> {
                 .await?;
 
             // Collect all role IDs
-            let mut role_ids: Vec<i64> = Vec::new();
-            role_ids.extend(access_roles.iter().map(|ar| ar.role_id));
-            role_ids.extend(ping_roles.iter().map(|pr| pr.role_id));
+            let mut role_ids: Vec<String> = Vec::new();
+            role_ids.extend(access_roles.iter().map(|ar| ar.role_id.clone()));
+            role_ids.extend(ping_roles.iter().map(|pr| pr.role_id.clone()));
 
             // Fetch all roles in one query
-            let roles_map: HashMap<i64, entity::discord_guild_role::Model> = if !role_ids.is_empty()
-            {
-                entity::prelude::DiscordGuildRole::find()
-                    .filter(entity::discord_guild_role::Column::RoleId.is_in(role_ids))
-                    .filter(entity::discord_guild_role::Column::GuildId.eq(category.guild_id))
-                    .all(self.db)
-                    .await?
-                    .into_iter()
-                    .map(|r| (r.role_id, r))
-                    .collect()
-            } else {
-                HashMap::new()
-            };
+            let roles_map: HashMap<String, entity::discord_guild_role::Model> =
+                if !role_ids.is_empty() {
+                    entity::prelude::DiscordGuildRole::find()
+                        .filter(entity::discord_guild_role::Column::RoleId.is_in(role_ids))
+                        .filter(entity::discord_guild_role::Column::GuildId.eq(&category.guild_id))
+                        .all(self.db)
+                        .await?
+                        .into_iter()
+                        .map(|r| (r.role_id.clone(), r))
+                        .collect()
+                } else {
+                    HashMap::new()
+                };
 
             // Fetch all channels in one query
-            let channel_ids: Vec<i64> = channels.iter().map(|c| c.channel_id).collect();
-            let channels_map: HashMap<i64, entity::discord_guild_channel::Model> = if !channel_ids
-                .is_empty()
-            {
-                entity::prelude::DiscordGuildChannel::find()
-                    .filter(entity::discord_guild_channel::Column::ChannelId.is_in(channel_ids))
-                    .filter(entity::discord_guild_channel::Column::GuildId.eq(category.guild_id))
-                    .all(self.db)
-                    .await?
-                    .into_iter()
-                    .map(|c| (c.channel_id, c))
-                    .collect()
-            } else {
-                HashMap::new()
-            };
+            let channel_ids: Vec<String> = channels.iter().map(|c| c.channel_id.clone()).collect();
+            let channels_map: HashMap<String, entity::discord_guild_channel::Model> =
+                if !channel_ids.is_empty() {
+                    entity::prelude::DiscordGuildChannel::find()
+                        .filter(entity::discord_guild_channel::Column::ChannelId.is_in(channel_ids))
+                        .filter(
+                            entity::discord_guild_channel::Column::GuildId.eq(&category.guild_id),
+                        )
+                        .all(self.db)
+                        .await?
+                        .into_iter()
+                        .map(|c| (c.channel_id.clone(), c))
+                        .collect()
+                } else {
+                    HashMap::new()
+                };
 
             // Build enriched results and sort by position
             let mut enriched_access_roles: Vec<(
@@ -217,13 +218,13 @@ impl<'a> FleetCategoryRepository<'a> {
     /// Gets paginated fleet categories for a guild with related ping format and counts
     pub async fn get_by_guild_id_paginated(
         &self,
-        guild_id: i64,
+        guild_id: u64,
         page: u64,
         per_page: u64,
     ) -> Result<(Vec<FleetCategoryWithCounts>, u64), DbErr> {
         let paginator = entity::prelude::FleetCategory::find()
             .find_also_related(entity::prelude::PingFormat)
-            .filter(entity::fleet_category::Column::GuildId.eq(guild_id))
+            .filter(entity::fleet_category::Column::GuildId.eq(guild_id.to_string()))
             .order_by_asc(entity::fleet_category::Column::Name)
             .paginate(self.db, per_page);
 
@@ -305,7 +306,7 @@ impl<'a> FleetCategoryRepository<'a> {
         for access_role in params.access_roles {
             entity::fleet_category_access_role::ActiveModel {
                 fleet_category_id: ActiveValue::Set(params.id),
-                role_id: ActiveValue::Set(access_role.role_id),
+                role_id: ActiveValue::Set(access_role.role_id.to_string()),
                 can_view: ActiveValue::Set(access_role.can_view),
                 can_create: ActiveValue::Set(access_role.can_create),
                 can_manage: ActiveValue::Set(access_role.can_manage),
@@ -319,7 +320,7 @@ impl<'a> FleetCategoryRepository<'a> {
         for role_id in params.ping_roles {
             entity::fleet_category_ping_role::ActiveModel {
                 fleet_category_id: ActiveValue::Set(params.id),
-                role_id: ActiveValue::Set(role_id),
+                role_id: ActiveValue::Set(role_id.to_string()),
                 ..Default::default()
             }
             .insert(self.db)
@@ -330,7 +331,7 @@ impl<'a> FleetCategoryRepository<'a> {
         for channel_id in params.channels {
             entity::fleet_category_channel::ActiveModel {
                 fleet_category_id: ActiveValue::Set(params.id),
-                channel_id: ActiveValue::Set(channel_id),
+                channel_id: ActiveValue::Set(channel_id.to_string()),
                 ..Default::default()
             }
             .insert(self.db)
@@ -363,10 +364,10 @@ impl<'a> FleetCategoryRepository<'a> {
     }
 
     /// Checks if a fleet category exists and belongs to the specified guild
-    pub async fn exists_in_guild(&self, id: i32, guild_id: i64) -> Result<bool, DbErr> {
+    pub async fn exists_in_guild(&self, id: i32, guild_id: u64) -> Result<bool, DbErr> {
         let count = entity::prelude::FleetCategory::find()
             .filter(entity::fleet_category::Column::Id.eq(id))
-            .filter(entity::fleet_category::Column::GuildId.eq(guild_id))
+            .filter(entity::fleet_category::Column::GuildId.eq(guild_id.to_string()))
             .count(self.db)
             .await?;
 

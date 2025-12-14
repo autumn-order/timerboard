@@ -49,7 +49,9 @@ impl<'a> DiscordGuildChannelService<'a> {
 
         // Find channels that no longer exist in Discord and delete them
         for existing_channel in existing_channels {
-            let channel_id = existing_channel.channel_id as u64;
+            let channel_id = existing_channel.channel_id.parse::<u64>().map_err(|e| {
+                AppError::InternalError(format!("Failed to parse channel_id: {}", e))
+            })?;
             if !text_channels.contains_key(&ChannelId::new(channel_id)) {
                 channel_repo.delete(channel_id).await?;
                 tracing::info!("Deleted channel {} from guild {}", channel_id, guild_id);
@@ -82,26 +84,34 @@ impl<'a> DiscordGuildChannelService<'a> {
         use sea_orm::QueryFilter;
 
         let paginator = DiscordGuildChannel::find()
-            .filter(entity::discord_guild_channel::Column::GuildId.eq(guild_id as i64))
+            .filter(entity::discord_guild_channel::Column::GuildId.eq(guild_id.to_string()))
             .order_by_asc(entity::discord_guild_channel::Column::Position)
             .paginate(self.db, entries);
 
         let total = paginator.num_pages().await?;
         let channels = paginator.fetch_page(page).await?;
 
-        let channel_dtos: Vec<DiscordGuildChannelDto> = channels
+        let channel_dtos: Result<Vec<DiscordGuildChannelDto>, AppError> = channels
             .into_iter()
-            .map(|channel| DiscordGuildChannelDto {
-                id: channel.id,
-                guild_id: channel.guild_id,
-                channel_id: channel.channel_id,
-                name: channel.name,
-                position: channel.position,
+            .map(|channel| {
+                let guild_id = channel.guild_id.parse::<u64>().map_err(|e| {
+                    AppError::InternalError(format!("Failed to parse guild_id: {}", e))
+                })?;
+                let channel_id = channel.channel_id.parse::<u64>().map_err(|e| {
+                    AppError::InternalError(format!("Failed to parse channel_id: {}", e))
+                })?;
+                Ok(DiscordGuildChannelDto {
+                    id: channel.id,
+                    guild_id,
+                    channel_id,
+                    name: channel.name,
+                    position: channel.position,
+                })
             })
             .collect();
 
         Ok(PaginatedDiscordGuildChannelsDto {
-            channels: channel_dtos,
+            channels: channel_dtos?,
             total: total * entries,
             page,
             entries,

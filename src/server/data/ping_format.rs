@@ -15,11 +15,11 @@ impl<'a> PingFormatRepository<'a> {
     /// Creates a new ping format
     pub async fn create(
         &self,
-        guild_id: i64,
+        guild_id: u64,
         name: String,
     ) -> Result<entity::ping_format::Model, DbErr> {
         entity::ping_format::ActiveModel {
-            guild_id: ActiveValue::Set(guild_id),
+            guild_id: ActiveValue::Set(guild_id.to_string()),
             name: ActiveValue::Set(name),
             ..Default::default()
         }
@@ -27,22 +27,15 @@ impl<'a> PingFormatRepository<'a> {
         .await
     }
 
-    /// Gets a ping format by ID
-    pub async fn get_by_id(&self, id: i32) -> Result<Option<entity::ping_format::Model>, DbErr> {
-        entity::prelude::PingFormat::find_by_id(id)
-            .one(self.db)
-            .await
-    }
-
     /// Gets paginated ping formats for a guild
     pub async fn get_by_guild_id_paginated(
         &self,
-        guild_id: i64,
+        guild_id: u64,
         page: u64,
         per_page: u64,
     ) -> Result<(Vec<entity::ping_format::Model>, u64), DbErr> {
         let paginator = entity::prelude::PingFormat::find()
-            .filter(entity::ping_format::Column::GuildId.eq(guild_id))
+            .filter(entity::ping_format::Column::GuildId.eq(guild_id.to_string()))
             .order_by_asc(entity::ping_format::Column::Name)
             .paginate(self.db, per_page);
 
@@ -78,10 +71,10 @@ impl<'a> PingFormatRepository<'a> {
     }
 
     /// Checks if a ping format exists and belongs to the specified guild
-    pub async fn exists_in_guild(&self, id: i32, guild_id: i64) -> Result<bool, DbErr> {
+    pub async fn exists_in_guild(&self, id: i32, guild_id: u64) -> Result<bool, DbErr> {
         let count = entity::prelude::PingFormat::find()
             .filter(entity::ping_format::Column::Id.eq(id))
-            .filter(entity::ping_format::Column::GuildId.eq(guild_id))
+            .filter(entity::ping_format::Column::GuildId.eq(guild_id.to_string()))
             .count(self.db)
             .await?;
 
@@ -109,7 +102,7 @@ impl<'a> PingFormatFieldRepository<'a> {
     /// Creates a new ping format field
     pub async fn create(
         &self,
-        ping_format_id: i64,
+        ping_format_id: i32,
         name: String,
         priority: i32,
     ) -> Result<entity::ping_format_field::Model, DbErr> {
@@ -126,7 +119,7 @@ impl<'a> PingFormatFieldRepository<'a> {
     /// Gets all fields for a ping format, ordered by priority
     pub async fn get_by_ping_format_id(
         &self,
-        ping_format_id: i64,
+        ping_format_id: i32,
     ) -> Result<Vec<entity::ping_format_field::Model>, DbErr> {
         entity::prelude::PingFormatField::find()
             .filter(entity::ping_format_field::Column::PingFormatId.eq(ping_format_id))
@@ -164,26 +157,5 @@ impl<'a> PingFormatFieldRepository<'a> {
             .await?;
 
         Ok(())
-    }
-
-    /// Deletes all fields for a ping format
-    pub async fn delete_by_ping_format_id(&self, ping_format_id: i64) -> Result<(), DbErr> {
-        entity::prelude::PingFormatField::delete_many()
-            .filter(entity::ping_format_field::Column::PingFormatId.eq(ping_format_id))
-            .exec(self.db)
-            .await?;
-
-        Ok(())
-    }
-
-    /// Checks if a field belongs to a specific ping format
-    pub async fn exists_in_ping_format(&self, id: i32, ping_format_id: i64) -> Result<bool, DbErr> {
-        let count = entity::prelude::PingFormatField::find()
-            .filter(entity::ping_format_field::Column::Id.eq(id))
-            .filter(entity::ping_format_field::Column::PingFormatId.eq(ping_format_id))
-            .count(self.db)
-            .await?;
-
-        Ok(count > 0)
     }
 }

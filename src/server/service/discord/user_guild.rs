@@ -49,24 +49,30 @@ impl<'a> UserDiscordGuildService<'a> {
         let matching_guilds: Vec<_> = bot_guilds
             .iter()
             .filter(|bot_guild| {
-                user_guild_ids
-                    .iter()
-                    .any(|user_guild_id| user_guild_id.get() == bot_guild.guild_id as u64)
+                // Parse guild_id from String to u64 for comparison
+                if let Ok(guild_id_u64) = bot_guild.guild_id.parse::<u64>() {
+                    user_guild_ids
+                        .iter()
+                        .any(|user_guild_id| user_guild_id.get() == guild_id_u64)
+                } else {
+                    false
+                }
             })
             .collect();
 
-        let matching_guild_ids: Vec<i32> = matching_guilds.iter().map(|g| g.id).collect();
-        let matching_discord_guild_ids: Vec<u64> =
-            matching_guilds.iter().map(|g| g.guild_id as u64).collect();
+        let matching_discord_guild_ids: Vec<u64> = matching_guilds
+            .iter()
+            .filter_map(|g| g.guild_id.parse::<u64>().ok())
+            .collect();
 
         // Sync the user's guild memberships
         user_guild_repo
-            .sync_user_guilds(user_id, &matching_guild_ids)
+            .sync_user_guilds(user_id, &matching_discord_guild_ids)
             .await?;
 
         tracing::debug!(
             "Synced {} guild memberships for user {} (guilds: {:?})",
-            matching_guild_ids.len(),
+            matching_discord_guild_ids.len(),
             discord_user_id,
             matching_discord_guild_ids
         );
@@ -134,7 +140,11 @@ impl<'a> UserDiscordGuildService<'a> {
         }
 
         // Get existing relationships for this guild
-        let existing_relationships = user_guild_repo.get_users_by_guild(guild.id).await?;
+        let guild_id_u64 = guild
+            .guild_id
+            .parse::<u64>()
+            .map_err(|e| AppError::InternalError(format!("Failed to parse guild_id: {}", e)))?;
+        let existing_relationships = user_guild_repo.get_users_by_guild(guild_id_u64).await?;
         let existing_user_ids: std::collections::HashSet<i32> =
             existing_relationships.iter().map(|r| r.user_id).collect();
 
@@ -148,7 +158,7 @@ impl<'a> UserDiscordGuildService<'a> {
         for relationship in existing_relationships {
             if !logged_in_user_ids.contains(&relationship.user_id) {
                 user_guild_repo
-                    .delete(relationship.user_id, guild.id)
+                    .delete(relationship.user_id, guild_id_u64)
                     .await?;
             }
         }
@@ -156,7 +166,7 @@ impl<'a> UserDiscordGuildService<'a> {
         // Add relationships for users who are in the guild but not in our database
         for user in logged_in_members {
             if !existing_user_ids.contains(&user.id) {
-                user_guild_repo.create(user.id, guild.id).await?;
+                user_guild_repo.create(user.id, guild_id_u64).await?;
             }
         }
 

@@ -30,7 +30,10 @@ impl<'a> DiscordGuildRoleService<'a> {
 
         // Find roles that no longer exist in Discord and delete them
         for existing_role in existing_roles {
-            let role_id = existing_role.role_id as u64;
+            let role_id = existing_role
+                .role_id
+                .parse::<u64>()
+                .map_err(|e| AppError::InternalError(format!("Failed to parse role_id: {}", e)))?;
             if !guild_roles.contains_key(&RoleId::new(role_id)) {
                 role_repo.delete(role_id).await?;
                 tracing::info!("Deleted role {} from guild {}", role_id, guild_id);
@@ -57,27 +60,35 @@ impl<'a> DiscordGuildRoleService<'a> {
         use sea_orm::QueryFilter;
 
         let paginator = DiscordGuildRole::find()
-            .filter(entity::discord_guild_role::Column::GuildId.eq(guild_id as i64))
+            .filter(entity::discord_guild_role::Column::GuildId.eq(guild_id.to_string()))
             .order_by_asc(entity::discord_guild_role::Column::Position)
             .paginate(self.db, entries);
 
         let total = paginator.num_pages().await?;
         let roles = paginator.fetch_page(page).await?;
 
-        let role_dtos: Vec<DiscordGuildRoleDto> = roles
+        let role_dtos: Result<Vec<DiscordGuildRoleDto>, AppError> = roles
             .into_iter()
-            .map(|role| DiscordGuildRoleDto {
-                id: role.id,
-                guild_id: role.guild_id,
-                role_id: role.role_id,
-                name: role.name,
-                color: role.color,
-                position: role.position,
+            .map(|role| {
+                let guild_id = role.guild_id.parse::<u64>().map_err(|e| {
+                    AppError::InternalError(format!("Failed to parse guild_id: {}", e))
+                })?;
+                let role_id = role.role_id.parse::<u64>().map_err(|e| {
+                    AppError::InternalError(format!("Failed to parse role_id: {}", e))
+                })?;
+                Ok(DiscordGuildRoleDto {
+                    id: role.id,
+                    guild_id,
+                    role_id,
+                    name: role.name,
+                    color: role.color,
+                    position: role.position,
+                })
             })
             .collect();
 
         Ok(PaginatedDiscordGuildRolesDto {
-            roles: role_dtos,
+            roles: role_dtos?,
             total: total * entries,
             page,
             entries,

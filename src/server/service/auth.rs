@@ -94,11 +94,12 @@ impl<'a> AuthService<'a> {
         user: &entity::user::Model,
         token: &StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
     ) -> Result<(), AppError> {
-        let now = Utc::now().naive_utc();
+        let now = Utc::now();
         let sync_threshold = Duration::minutes(30);
 
-        let needs_guild_sync = now - user.last_guild_sync_at > sync_threshold;
-        let needs_role_sync = now - user.last_role_sync_at > sync_threshold;
+        // DateTimeUtc is already DateTime<Utc>
+        let needs_guild_sync = now.signed_duration_since(user.last_guild_sync_at) > sync_threshold;
+        let needs_role_sync = now.signed_duration_since(user.last_role_sync_at) > sync_threshold;
 
         // If neither sync is needed, return early
         if !needs_guild_sync && !needs_role_sync {
@@ -173,10 +174,13 @@ impl<'a> AuthService<'a> {
 
         let user_role_service = UserDiscordGuildRoleService::new(self.db);
         for guild in user_guilds {
-            if bot_guilds
-                .iter()
-                .any(|bot_guild| bot_guild.guild_id as u64 == guild.id.get())
-            {
+            if bot_guilds.iter().any(|bot_guild| {
+                bot_guild
+                    .guild_id
+                    .parse::<u64>()
+                    .map(|id| id == guild.id.get())
+                    .unwrap_or(false)
+            }) {
                 if let Ok(member) = self.fetch_guild_member(token, guild.id).await {
                     if let Err(e) = user_role_service.sync_user_roles(user.id, &member).await {
                         tracing::warn!(

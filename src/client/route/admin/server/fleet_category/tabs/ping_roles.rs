@@ -47,7 +47,7 @@ pub fn PingRolesTab(
     let filtered_roles = use_memo(move || {
         let roles = available_roles();
         let query = role_search_query().to_lowercase();
-        let ping_role_ids: Vec<i64> = form_fields().ping_roles.iter().map(|r| r.id).collect();
+        let ping_role_ids: Vec<u64> = form_fields().ping_roles.iter().map(|r| r.id).collect();
 
         let mut filtered: Vec<_> = roles
             .into_iter()

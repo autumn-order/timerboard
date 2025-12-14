@@ -44,20 +44,25 @@ impl<'a> UserDiscordGuildRoleService<'a> {
         // Find matching role IDs (roles the user has that are in our database)
         let user_role_ids: Vec<u64> = member.roles.iter().map(|r| r.get()).collect();
 
-        let matching_guild_role_ids: Vec<i32> = db_roles
+        let matching_discord_role_ids: Vec<u64> = db_roles
             .iter()
-            .filter(|db_role| user_role_ids.contains(&(db_role.role_id as u64)))
-            .map(|role| role.id)
+            .filter_map(|db_role| {
+                db_role
+                    .role_id
+                    .parse::<u64>()
+                    .ok()
+                    .filter(|id| user_role_ids.contains(id))
+            })
             .collect();
 
         // Sync the user's role memberships
         user_role_repo
-            .sync_user_guild_roles(user_id, &matching_guild_role_ids)
+            .sync_user_roles(user_id, &matching_discord_role_ids)
             .await?;
 
         tracing::debug!(
             "Synced {} role memberships for user {} in guild {}",
-            matching_guild_role_ids.len(),
+            matching_discord_role_ids.len(),
             discord_user_id,
             guild_id
         );
@@ -165,12 +170,12 @@ impl<'a> UserDiscordGuildRoleService<'a> {
         // Find by role_id across all guilds
         use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
         let guild_role = entity::prelude::DiscordGuildRole::find()
-            .filter(entity::discord_guild_role::Column::RoleId.eq(role_id as i64))
+            .filter(entity::discord_guild_role::Column::RoleId.eq(role_id.to_string()))
             .one(self.db)
             .await?;
 
-        if let Some(guild_role) = guild_role {
-            user_role_repo.create(user_id, guild_role.id).await?;
+        if guild_role.is_some() {
+            user_role_repo.create(user_id, role_id).await?;
             tracing::info!("Added role {} to user {}", role_id, user_id);
         } else {
             tracing::warn!(
@@ -202,12 +207,12 @@ impl<'a> UserDiscordGuildRoleService<'a> {
         // Find the guild role in database
         use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
         let guild_role = entity::prelude::DiscordGuildRole::find()
-            .filter(entity::discord_guild_role::Column::RoleId.eq(role_id as i64))
+            .filter(entity::discord_guild_role::Column::RoleId.eq(role_id.to_string()))
             .one(self.db)
             .await?;
 
-        if let Some(guild_role) = guild_role {
-            user_role_repo.delete(user_id, guild_role.id).await?;
+        if guild_role.is_some() {
+            user_role_repo.delete(user_id, role_id).await?;
             tracing::info!("Removed role {} from user {}", role_id, user_id);
         } else {
             tracing::debug!(
