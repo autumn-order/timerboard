@@ -92,6 +92,7 @@ pub fn CreateCategoryModal(
                         role_id: ar.role.id,
                         role_name: String::new(),  // Server will populate
                         role_color: String::new(), // Server will populate
+                        position: 0,               // Server will populate
                         can_view: ar.can_view,
                         can_create: ar.can_create,
                         can_manage: ar.can_manage,
@@ -105,6 +106,7 @@ pub fn CreateCategoryModal(
                         role_id: pr.id,
                         role_name: String::new(),  // Server will populate
                         role_color: String::new(), // Server will populate
+                        position: 0,               // Server will populate
                     })
                     .collect();
 
@@ -114,6 +116,7 @@ pub fn CreateCategoryModal(
                     .map(|c| FleetCategoryChannelDto {
                         channel_id: c.id,
                         channel_name: String::new(), // Server will populate
+                        position: 0,                 // Server will populate
                     })
                     .collect();
 
@@ -392,6 +395,7 @@ pub fn EditCategoryModal(
                         role_id: ar.role.id,
                         role_name: String::new(),  // Server will populate
                         role_color: String::new(), // Server will populate
+                        position: 0,               // Server will populate
                         can_view: ar.can_view,
                         can_create: ar.can_create,
                         can_manage: ar.can_manage,
@@ -405,6 +409,7 @@ pub fn EditCategoryModal(
                         role_id: pr.id,
                         role_name: String::new(),  // Server will populate
                         role_color: String::new(), // Server will populate
+                        position: 0,               // Server will populate
                     })
                     .collect();
 
@@ -414,6 +419,7 @@ pub fn EditCategoryModal(
                     .map(|c| FleetCategoryChannelDto {
                         channel_id: c.id,
                         channel_name: String::new(), // Server will populate
+                        position: 0,                 // Server will populate
                     })
                     .collect();
 

@@ -10,6 +10,7 @@ pub struct FleetCategoryAccessRoleDto {
     pub role_id: i64,
     pub role_name: String,
     pub role_color: String,
+    pub position: i16,
     pub can_view: bool,
     pub can_create: bool,
     pub can_manage: bool,
@@ -24,6 +25,7 @@ pub struct FleetCategoryPingRoleDto {
     pub role_id: i64,
     pub role_name: String,
     pub role_color: String,
+    pub position: i16,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -34,6 +36,7 @@ pub struct FleetCategoryChannelDto {
     )]
     pub channel_id: i64,
     pub channel_name: String,
+    pub position: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

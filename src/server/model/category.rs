@@ -15,6 +15,7 @@ pub struct AccessRole {
     pub role_id: i64,
     pub role_name: String,
     pub role_color: String,
+    pub position: i16,
     pub can_view: bool,
     pub can_create: bool,
     pub can_manage: bool,
@@ -35,6 +36,7 @@ impl AccessRole {
                 .as_ref()
                 .map(|r| r.color.clone())
                 .unwrap_or_else(|| "#99aab5".to_string()),
+            position: role_model.as_ref().map(|r| r.position).unwrap_or(0),
             can_view: entity.can_view,
             can_create: entity.can_create,
             can_manage: entity.can_manage,
@@ -46,6 +48,7 @@ impl AccessRole {
             role_id: self.role_id,
             role_name: self.role_name.clone(),
             role_color: self.role_color.clone(),
+            position: self.position,
             can_view: self.can_view,
             can_create: self.can_create,
             can_manage: self.can_manage,
@@ -70,6 +73,7 @@ pub struct PingRole {
     pub role_id: i64,
     pub role_name: String,
     pub role_color: String,
+    pub position: i16,
 }
 
 impl PingRole {
@@ -87,6 +91,7 @@ impl PingRole {
                 .as_ref()
                 .map(|r| r.color.clone())
                 .unwrap_or_else(|| "#99aab5".to_string()),
+            position: role_model.as_ref().map(|r| r.position).unwrap_or(0),
         }
     }
 
@@ -95,6 +100,7 @@ impl PingRole {
             role_id: self.role_id,
             role_name: self.role_name.clone(),
             role_color: self.role_color.clone(),
+            position: self.position,
         }
     }
 }
@@ -104,6 +110,7 @@ impl PingRole {
 pub struct Channel {
     pub channel_id: i64,
     pub channel_name: String,
+    pub position: i32,
 }
 
 impl Channel {
@@ -117,6 +124,7 @@ impl Channel {
                 .as_ref()
                 .map(|ch| ch.name.clone())
                 .unwrap_or_else(|| format!("Unknown Channel ({})", entity.channel_id)),
+            position: channel_model.as_ref().map(|ch| ch.position).unwrap_or(0),
         }
     }
 
@@ -124,6 +132,7 @@ impl Channel {
         crate::model::category::FleetCategoryChannelDto {
             channel_id: self.channel_id,
             channel_name: self.channel_name.clone(),
+            position: self.position,
         }
     }
 }

@@ -150,8 +150,8 @@ impl<'a> FleetCategoryRepository<'a> {
                 HashMap::new()
             };
 
-            // Build enriched results
-            let enriched_access_roles: Vec<(
+            // Build enriched results and sort by position
+            let mut enriched_access_roles: Vec<(
                 entity::fleet_category_access_role::Model,
                 Option<entity::discord_guild_role::Model>,
             )> = access_roles
@@ -161,8 +161,14 @@ impl<'a> FleetCategoryRepository<'a> {
                     (ar, role)
                 })
                 .collect();
+            // Sort roles by position descending (higher position = higher in Discord UI)
+            enriched_access_roles.sort_by(|a, b| {
+                let pos_a = a.1.as_ref().map(|r| r.position).unwrap_or(0);
+                let pos_b = b.1.as_ref().map(|r| r.position).unwrap_or(0);
+                pos_b.cmp(&pos_a)
+            });
 
-            let enriched_ping_roles: Vec<(
+            let mut enriched_ping_roles: Vec<(
                 entity::fleet_category_ping_role::Model,
                 Option<entity::discord_guild_role::Model>,
             )> = ping_roles
@@ -172,8 +178,14 @@ impl<'a> FleetCategoryRepository<'a> {
                     (pr, role)
                 })
                 .collect();
+            // Sort roles by position descending (higher position = higher in Discord UI)
+            enriched_ping_roles.sort_by(|a, b| {
+                let pos_a = a.1.as_ref().map(|r| r.position).unwrap_or(0);
+                let pos_b = b.1.as_ref().map(|r| r.position).unwrap_or(0);
+                pos_b.cmp(&pos_a)
+            });
 
-            let enriched_channels: Vec<(
+            let mut enriched_channels: Vec<(
                 entity::fleet_category_channel::Model,
                 Option<entity::discord_guild_channel::Model>,
             )> = channels
@@ -183,6 +195,12 @@ impl<'a> FleetCategoryRepository<'a> {
                     (c, channel)
                 })
                 .collect();
+            // Sort channels by position ascending (lower position = higher in Discord UI)
+            enriched_channels.sort_by(|a, b| {
+                let pos_a = a.1.as_ref().map(|ch| ch.position).unwrap_or(0);
+                let pos_b = b.1.as_ref().map(|ch| ch.position).unwrap_or(0);
+                pos_a.cmp(&pos_b)
+            });
 
             Ok(Some(FleetCategoryWithRelations {
                 category,

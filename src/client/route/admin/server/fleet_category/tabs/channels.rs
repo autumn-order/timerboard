@@ -38,7 +38,7 @@ pub fn ChannelsTab(
         let query = channel_search_query().to_lowercase();
         let channel_ids: Vec<i64> = form_fields().channels.iter().map(|c| c.id).collect();
 
-        channels
+        let mut filtered: Vec<_> = channels
             .into_iter()
             .filter(|c| !channel_ids.contains(&c.channel_id))
             .filter(|c| {
@@ -48,7 +48,11 @@ pub fn ChannelsTab(
                     c.name.to_lowercase().contains(&query)
                 }
             })
-            .collect::<Vec<_>>()
+            .collect();
+
+        // Sort by position ascending (lower position first)
+        filtered.sort_by_key(|c| c.position);
+        filtered
     });
 
     // Sort channels by position
