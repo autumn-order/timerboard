@@ -1,6 +1,7 @@
 use chrono::{Datelike, Timelike, Utc};
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
+use std::collections::HashMap;
 
 use crate::{
     client::{
@@ -11,12 +12,12 @@ use crate::{
         model::error::ApiError,
         store::user::UserState,
     },
-    model::category::FleetCategoryListItemDto,
+    model::{category::FleetCategoryListItemDto, fleet::CreateFleetDto},
 };
 
 #[cfg(feature = "web")]
 use crate::client::api::{
-    fleet::{get_category_details, get_guild_members},
+    fleet::{create_fleet, get_category_details, get_guild_members},
     user::get_user_manageable_categories,
 };
 
@@ -68,6 +69,54 @@ pub fn FleetCreationModal(guild_id: u64, category_id: i32, mut show: Signal<bool
     // Searchable dropdown state
     let mut commander_search = use_signal(|| String::new());
     let mut show_commander_dropdown = use_signal(|| false);
+
+    // Submission state
+    let mut is_submitting = use_signal(|| false);
+    let mut submission_error = use_signal(|| None::<String>);
+
+    // Handle fleet creation submission
+    #[cfg(feature = "web")]
+    let create_future = use_resource(move || async move {
+        if is_submitting() {
+            let dto = CreateFleetDto {
+                category_id: selected_category_id(),
+                name: fleet_name(),
+                commander_id: fleet_commander_id().unwrap_or(0),
+                fleet_time: fleet_datetime(),
+                description: if fleet_description().is_empty() {
+                    None
+                } else {
+                    Some(fleet_description())
+                },
+                field_values: field_values(),
+            };
+            Some(create_fleet(guild_id, dto).await)
+        } else {
+            None
+        }
+    });
+
+    #[cfg(feature = "web")]
+    use_effect(move || {
+        if let Some(Some(result)) = create_future.read_unchecked().as_ref() {
+            match result {
+                Ok(_fleet) => {
+                    tracing::info!("Fleet created successfully");
+                    // Reset form and close modal
+                    fleet_name.set(String::new());
+                    fleet_description.set(String::new());
+                    field_values.set(HashMap::new());
+                    is_submitting.set(false);
+                    show.set(false);
+                }
+                Err(err) => {
+                    tracing::error!("Failed to create fleet: {}", err);
+                    submission_error.set(Some(format!("Failed to create fleet: {}", err)));
+                    is_submitting.set(false);
+                }
+            }
+        }
+    });
 
     // Fetch manageable categories
     #[cfg(feature = "web")]
@@ -352,12 +401,36 @@ pub fn FleetCreationModal(guild_id: u64, category_id: i32, mut show: Signal<bool
                         }
                         button {
                             class: "btn btn-primary",
-                            disabled: fleet_name().is_empty() || fleet_datetime().is_empty() || fleet_commander_id().is_none(),
+                            disabled: fleet_name().is_empty() || fleet_datetime().is_empty() || fleet_commander_id().is_none() || is_submitting(),
                             onclick: move |_| {
-                                // TODO: Implement fleet creation
-                                tracing::info!("Create fleet: {} at {} UTC", fleet_name(), fleet_datetime());
+                                is_submitting.set(true);
+                                submission_error.set(None);
                             },
-                            "Create Fleet"
+                            if is_submitting() {
+                                span { class: "loading loading-spinner loading-sm" }
+                                " Creating..."
+                            } else {
+                                "Create Fleet"
+                            }
+                        }
+                    }
+                    // Submission error message
+                    if let Some(error) = submission_error() {
+                        div {
+                            class: "alert alert-error mt-4",
+                            svg {
+                                xmlns: "http://www.w3.org/2000/svg",
+                                class: "stroke-current shrink-0 h-6 w-6",
+                                fill: "none",
+                                view_box: "0 0 24 24",
+                                path {
+                                    stroke_linecap: "round",
+                                    stroke_linejoin: "round",
+                                    stroke_width: "2",
+                                    d: "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                }
+                            }
+                            span { "{error}" }
                         }
                     }
                 } else if let Some(Err(_)) = category_details() {

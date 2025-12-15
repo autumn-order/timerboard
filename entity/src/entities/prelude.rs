@@ -3,10 +3,12 @@
 pub use super::discord_guild::Entity as DiscordGuild;
 pub use super::discord_guild_channel::Entity as DiscordGuildChannel;
 pub use super::discord_guild_role::Entity as DiscordGuildRole;
+pub use super::fleet::Entity as Fleet;
 pub use super::fleet_category::Entity as FleetCategory;
 pub use super::fleet_category_access_role::Entity as FleetCategoryAccessRole;
 pub use super::fleet_category_channel::Entity as FleetCategoryChannel;
 pub use super::fleet_category_ping_role::Entity as FleetCategoryPingRole;
+pub use super::fleet_field_value::Entity as FleetFieldValue;
 pub use super::ping_format::Entity as PingFormat;
 pub use super::ping_format_field::Entity as PingFormatField;
 pub use super::user::Entity as User;

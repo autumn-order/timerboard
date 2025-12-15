@@ -1,16 +1,18 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use serde::Deserialize;
 use tower_sessions::Session;
 
 use crate::{
     model::{
         category::{FleetCategoryDetailsDto, PingFormatFieldDto},
         discord::DiscordGuildMemberDto,
+        fleet::CreateFleetDto,
     },
     server::{
         data::{
@@ -18,9 +20,22 @@ use crate::{
         },
         error::AppError,
         middleware::auth::{AuthGuard, Permission},
+        service::fleet::FleetService,
         state::AppState,
     },
 };
+
+#[derive(Deserialize)]
+pub struct PaginationQuery {
+    #[serde(default)]
+    pub page: u64,
+    #[serde(default = "default_per_page")]
+    pub per_page: u64,
+}
+
+fn default_per_page() -> u64 {
+    10
+}
 
 /// GET /api/guilds/{guild_id}/categories/{category_id}/details
 /// Get category details including ping format fields for fleet creation
@@ -145,4 +160,67 @@ pub async fn get_guild_members(
         .collect();
 
     Ok((StatusCode::OK, Json(member_dtos)))
+}
+
+/// POST /api/guilds/{guild_id}/fleets
+/// Create a new fleet
+pub async fn create_fleet(
+    State(state): State<AppState>,
+    session: Session,
+    Path(guild_id): Path<u64>,
+    Json(dto): Json<CreateFleetDto>,
+) -> Result<impl IntoResponse, AppError> {
+    let _user = AuthGuard::new(&state.db, &session)
+        .require(&[Permission::CategoryCreate(guild_id, dto.category_id)])
+        .await?;
+
+    let fleet_service = FleetService::new(&state.db);
+    let fleet = fleet_service.create(dto).await?;
+
+    Ok((StatusCode::CREATED, Json(fleet)))
+}
+
+/// GET /api/guilds/{guild_id}/fleets
+/// Get paginated fleets for a guild
+pub async fn get_fleets(
+    State(state): State<AppState>,
+    session: Session,
+    Path(guild_id): Path<u64>,
+    Query(pagination): Query<PaginationQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let _user = AuthGuard::new(&state.db, &session).require(&[]).await?;
+
+    let fleet_service = FleetService::new(&state.db);
+    let fleets = fleet_service
+        .get_paginated_by_guild(guild_id, pagination.page, pagination.per_page)
+        .await?;
+
+    Ok((StatusCode::OK, Json(fleets)))
+}
+
+/// DELETE /api/guilds/{guild_id}/fleets/{fleet_id}
+/// Delete a fleet
+pub async fn delete_fleet(
+    State(state): State<AppState>,
+    session: Session,
+    Path((guild_id, fleet_id)): Path<(u64, i32)>,
+) -> Result<impl IntoResponse, AppError> {
+    // Get the fleet to check category
+    let fleet_service = FleetService::new(&state.db);
+    let fleet = fleet_service
+        .get_by_id(fleet_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Fleet not found".to_string()))?;
+
+    let _user = AuthGuard::new(&state.db, &session)
+        .require(&[Permission::CategoryManage(guild_id, fleet.category_id)])
+        .await?;
+
+    let deleted = fleet_service.delete(fleet_id, guild_id).await?;
+
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(AppError::NotFound("Fleet not found".to_string()))
+    }
 }

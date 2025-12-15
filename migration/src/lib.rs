@@ -12,6 +12,8 @@ mod m20251212_000009_create_fleet_category_table;
 mod m20251212_000010_create_fleet_category_access_role_table;
 mod m20251212_000011_create_fleet_category_ping_role_table;
 mod m20251212_000012_create_fleet_category_channel_table;
+mod m20251212_000013_create_fleet_table;
+mod m20251212_000014_create_fleet_field_value_table;
 
 pub struct Migrator;
 
@@ -31,6 +33,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20251212_000010_create_fleet_category_access_role_table::Migration),
             Box::new(m20251212_000011_create_fleet_category_ping_role_table::Migration),
             Box::new(m20251212_000012_create_fleet_category_channel_table::Migration),
+            Box::new(m20251212_000013_create_fleet_table::Migration),
+            Box::new(m20251212_000014_create_fleet_field_value_table::Migration),
         ]
     }
 }

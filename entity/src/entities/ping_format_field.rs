@@ -14,6 +14,8 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_many = "super::fleet_field_value::Entity")]
+    FleetFieldValue,
     #[sea_orm(
         belongs_to = "super::ping_format::Entity",
         from = "Column::PingFormatId",
@@ -24,9 +26,28 @@ pub enum Relation {
     PingFormat,
 }
 
+impl Related<super::fleet_field_value::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::FleetFieldValue.def()
+    }
+}
+
 impl Related<super::ping_format::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::PingFormat.def()
+    }
+}
+
+impl Related<super::fleet::Entity> for Entity {
+    fn to() -> RelationDef {
+        super::fleet_field_value::Relation::Fleet.def()
+    }
+    fn via() -> Option<RelationDef> {
+        Some(
+            super::fleet_field_value::Relation::PingFormatField
+                .def()
+                .rev(),
+        )
     }
 }
 

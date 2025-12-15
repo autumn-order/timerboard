@@ -25,6 +25,8 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     DiscordGuild,
+    #[sea_orm(has_many = "super::fleet::Entity")]
+    Fleet,
     #[sea_orm(has_many = "super::fleet_category_access_role::Entity")]
     FleetCategoryAccessRole,
     #[sea_orm(has_many = "super::fleet_category_channel::Entity")]
@@ -44,6 +46,12 @@ pub enum Relation {
 impl Related<super::discord_guild::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::DiscordGuild.def()
+    }
+}
+
+impl Related<super::fleet::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Fleet.def()
     }
 }
 
