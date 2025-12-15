@@ -25,6 +25,7 @@ use crate::client::api::{
 pub fn FleetCreationModal(guild_id: u64, category_id: i32, mut show: Signal<bool>) -> Element {
     let user_store = use_context::<Store<UserState>>();
     let current_user = user_store.read().user.clone();
+    let current_user_id = current_user.as_ref().map(|user| user.discord_id);
 
     // Track selected category (can be changed via dropdown)
     let mut selected_category_id = use_signal(move || category_id);
@@ -59,8 +60,7 @@ pub fn FleetCreationModal(guild_id: u64, category_id: i32, mut show: Signal<bool
     let fleet_datetime = use_signal(move || current_datetime.clone());
 
     // Pre-fill fleet commander with current user's discord_id
-    let mut fleet_commander_id =
-        use_signal(move || current_user.as_ref().map(|user| user.discord_id));
+    let mut fleet_commander_id = use_signal(move || current_user_id);
 
     let mut fleet_description = use_signal(|| String::new());
     let mut field_values = use_signal(|| std::collections::HashMap::<i32, String>::new());
@@ -225,13 +225,24 @@ pub fn FleetCreationModal(guild_id: u64, category_id: i32, mut show: Signal<bool
                                         let display_value = selected_member.map(|m| format!("{} (@{})", m.display_name, m.username));
 
                                         let search_lower = commander_search().to_lowercase();
-                                        let filtered_members: Vec<_> = members.iter()
+                                        let mut filtered_members: Vec<_> = members.iter()
                                             .filter(|m| {
                                                 search_lower.is_empty() ||
                                                 m.display_name.to_lowercase().contains(&search_lower) ||
                                                 m.username.to_lowercase().contains(&search_lower)
                                             })
                                             .collect();
+
+                                        // Sort to always put the logged-in user at the top
+                                        if let Some(current_id) = current_user_id {
+                                            filtered_members.sort_by_key(|m| {
+                                                if m.user_id == current_id {
+                                                    0 // Current user first
+                                                } else {
+                                                    1 // Everyone else after
+                                                }
+                                            });
+                                        }
 
                                         rsx! {
                                             SearchableDropdown {
