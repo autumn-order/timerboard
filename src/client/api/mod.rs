@@ -12,3 +12,6 @@ pub mod category;
 
 #[cfg(feature = "web")]
 pub mod ping_format;
+
+#[cfg(feature = "web")]
+pub mod user;

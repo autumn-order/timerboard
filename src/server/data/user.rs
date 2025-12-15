@@ -2,6 +2,7 @@ use chrono::Utc;
 use migration::OnConflict;
 use sea_orm::{
     ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder,
 };
 use serenity::all::User as DiscordUser;
 
@@ -164,6 +165,70 @@ impl<'a> UserRepository<'a> {
             .col_expr(
                 entity::user::Column::LastRoleSyncAt,
                 sea_orm::sea_query::Expr::value(Utc::now().naive_utc()),
+            )
+            .exec(self.db)
+            .await?;
+        Ok(())
+    }
+
+    /// Gets all users with pagination
+    ///
+    /// Returns a paginated list of all users in the application, ordered by name.
+    ///
+    /// # Arguments
+    /// - `page`: Zero-indexed page number
+    /// - `per_page`: Number of items per page
+    ///
+    /// # Returns
+    /// - `Ok((users, total))`: Tuple of user models and total count
+    /// - `Err(DbErr)`: Database error during query
+    pub async fn get_all_paginated(
+        &self,
+        page: u64,
+        per_page: u64,
+    ) -> Result<(Vec<entity::user::Model>, u64), DbErr> {
+        let paginator = entity::prelude::User::find()
+            .order_by_asc(entity::user::Column::Name)
+            .paginate(self.db, per_page);
+
+        let total = paginator.num_pages().await?;
+        let users = paginator.fetch_page(page).await?;
+
+        Ok((users, total))
+    }
+
+    /// Gets all admin users
+    ///
+    /// Returns a list of all users with admin privileges, ordered by name.
+    ///
+    /// # Returns
+    /// - `Ok(users)`: Vector of admin user models
+    /// - `Err(DbErr)`: Database error during query
+    pub async fn get_all_admins(&self) -> Result<Vec<entity::user::Model>, DbErr> {
+        entity::prelude::User::find()
+            .filter(entity::user::Column::Admin.eq(true))
+            .order_by_asc(entity::user::Column::Name)
+            .all(self.db)
+            .await
+    }
+
+    /// Sets admin status for a user
+    ///
+    /// Updates the admin column for the specified user.
+    ///
+    /// # Arguments
+    /// - `user_id`: Discord ID of the user (u64)
+    /// - `is_admin`: Whether the user should be an admin
+    ///
+    /// # Returns
+    /// - `Ok(())`: Admin status updated successfully
+    /// - `Err(DbErr)`: Database error during update
+    pub async fn set_admin(&self, user_id: u64, is_admin: bool) -> Result<(), DbErr> {
+        entity::prelude::User::update_many()
+            .filter(entity::user::Column::DiscordId.eq(user_id.to_string()))
+            .col_expr(
+                entity::user::Column::Admin,
+                sea_orm::sea_query::Expr::value(is_admin),
             )
             .exec(self.db)
             .await?;

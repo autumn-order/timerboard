@@ -67,7 +67,7 @@ pub fn ServerAdminFleetCategory(guild_id: u64) -> Element {
                 div {
                     class: "w-full max-w-6xl",
                     Link {
-                        to: Route::Admin {},
+                        to: Route::AdminServers {},
                         class: "btn btn-ghost mb-4",
                         "← Back to Servers"
                     }

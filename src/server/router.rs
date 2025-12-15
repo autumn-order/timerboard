@@ -5,7 +5,7 @@ use axum::{
 
 use crate::server::{
     controller::{
-        admin::add_bot,
+        admin::{add_admin, add_bot, get_all_admins, get_all_users, remove_admin},
         auth::{callback, get_user, login, logout},
         category::{
             create_fleet_category, delete_fleet_category, get_fleet_categories,
@@ -44,6 +44,19 @@ fn admin_router() -> Router<AppState> {
     Router::new()
         .route("/bot/add", get(add_bot))
         .nest("/servers", servers_router())
+        .nest("/users", users_router())
+        .nest("/admins", admins_router())
+}
+
+fn users_router() -> Router<AppState> {
+    Router::new().route("/", get(get_all_users))
+}
+
+fn admins_router() -> Router<AppState> {
+    Router::new().route("/", get(get_all_admins)).route(
+        "/{user_id}",
+        axum::routing::post(add_admin).delete(remove_admin),
+    )
 }
 
 fn servers_router() -> Router<AppState> {

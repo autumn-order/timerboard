@@ -45,7 +45,7 @@ pub fn Header() -> Element {
             if fetch_completed && user_logged_in {
                 if user_is_admin {
                     Link {
-                        to: Route::Admin {},
+                        to: Route::AdminServers {},
                         class: "btn btn-outline",
                         p {
                             "Admin"

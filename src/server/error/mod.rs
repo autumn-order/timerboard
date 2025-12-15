@@ -33,6 +33,8 @@ pub enum AppError {
     #[error("{0}")]
     NotFound(String),
     #[error("{0}")]
+    BadRequest(String),
+    #[error("{0}")]
     InternalError(String),
 }
 
@@ -42,6 +44,9 @@ impl IntoResponse for AppError {
             Self::AuthErr(err) => err.into_response(),
             Self::NotFound(msg) => {
                 (StatusCode::NOT_FOUND, Json(ErrorDto { error: msg })).into_response()
+            }
+            Self::BadRequest(msg) => {
+                (StatusCode::BAD_REQUEST, Json(ErrorDto { error: msg })).into_response()
             }
             Self::InternalError(msg) => {
                 tracing::error!("Internal error: {}", msg);
