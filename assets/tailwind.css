@@ -2071,10 +2071,6 @@
     border-style: var(--tw-border-style);
     border-width: 1px;
   }
-  .border-t {
-    border-top-style: var(--tw-border-style);
-    border-top-width: 1px;
-  }
   .border-base-300 {
     border-color: var(--color-base-300);
   }

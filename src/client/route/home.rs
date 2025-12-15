@@ -389,6 +389,11 @@ fn FleetCreationModal(guild_id: u64, category_id: i32, mut show: Signal<bool>) -
     // Track selected category (can be changed via dropdown)
     let mut selected_category_id = use_signal(move || category_id);
 
+    // Update selected_category_id when category_id prop changes (e.g., reopening modal with different category)
+    use_effect(use_reactive!(|category_id| {
+        selected_category_id.set(category_id);
+    }));
+
     let mut manageable_categories =
         use_signal(|| None::<Result<Vec<FleetCategoryListItemDto>, ApiError>>);
     let mut category_details =
