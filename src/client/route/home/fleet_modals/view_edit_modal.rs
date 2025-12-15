@@ -70,16 +70,21 @@ pub fn FleetViewEditModal(
     let mut show_delete_modal = use_signal(|| false);
     let mut is_deleting = use_signal(|| false);
 
-    // Permission check
+    // Permission check: user can manage if they are admin, have manage permission, or are the fleet commander
     let can_manage = use_memo(move || {
         if let Some(user) = &current_user {
             if user.admin {
                 return true;
             }
             if let Some(Ok(fleet)) = fleet_data() {
+                // Check if user is the fleet commander
+                if Some(fleet.commander_id) == current_user_id {
+                    return true;
+                }
                 // Check if user has manage permission for this category
-                // For now, simplified: user can manage if they are the fleet commander
-                return Some(fleet.commander_id) == current_user_id;
+                if let Some(Ok(categories)) = manageable_categories() {
+                    return categories.iter().any(|cat| cat.id == fleet.category_id);
+                }
             }
         }
         false
