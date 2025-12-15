@@ -3,7 +3,9 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use std::collections::HashMap;
 
 use crate::{
-    model::fleet::{CreateFleetDto, FleetDto, FleetListItemDto, PaginatedFleetsDto},
+    model::fleet::{
+        CreateFleetDto, FleetDto, FleetListItemDto, PaginatedFleetsDto, UpdateFleetDto,
+    },
     server::{
         data::{category::FleetCategoryRepository, fleet::FleetRepository},
         error::AppError,
@@ -206,6 +208,86 @@ impl<'a> FleetService<'a> {
             per_page,
             total_pages,
         })
+    }
+
+    /// Updates a fleet
+    ///
+    /// # Arguments
+    /// - `id`: Fleet ID
+    /// - `guild_id`: Guild ID (for authorization check)
+    /// - `dto`: Update data
+    ///
+    /// # Returns
+    /// - `Ok(FleetDto)`: The updated fleet with enriched data
+    /// - `Err(AppError)`: Validation, authorization, or database error
+    pub async fn update(
+        &self,
+        id: i32,
+        guild_id: u64,
+        dto: UpdateFleetDto,
+    ) -> Result<FleetDto, AppError> {
+        let repo = FleetRepository::new(self.db);
+
+        // Parse the fleet time from "YYYY-MM-DD HH:MM" format or "now"
+        let fleet_time = Self::parse_fleet_time(&dto.fleet_time)?;
+
+        // Get the current fleet to verify it belongs to the guild
+        let result = repo.get_by_id(id).await?;
+        if let Some((fleet, _)) = result {
+            // Fetch old category to verify guild
+            let old_category = entity::prelude::FleetCategory::find_by_id(fleet.category_id)
+                .one(self.db)
+                .await?;
+
+            if let Some(old_category) = old_category {
+                let category_guild_id = old_category
+                    .guild_id
+                    .parse::<u64>()
+                    .map_err(|e| AppError::InternalError(format!("Invalid guild_id: {}", e)))?;
+
+                if category_guild_id != guild_id {
+                    return Err(AppError::NotFound("Fleet not found".to_string()));
+                }
+
+                // If category is being changed, validate the new category belongs to the same guild
+                if dto.category_id != fleet.category_id {
+                    let new_category = entity::prelude::FleetCategory::find_by_id(dto.category_id)
+                        .one(self.db)
+                        .await?
+                        .ok_or_else(|| AppError::NotFound("New category not found".to_string()))?;
+
+                    let new_category_guild_id = new_category
+                        .guild_id
+                        .parse::<u64>()
+                        .map_err(|e| AppError::InternalError(format!("Invalid guild_id: {}", e)))?;
+
+                    if new_category_guild_id != guild_id {
+                        return Err(AppError::BadRequest(
+                            "New category does not belong to this guild".to_string(),
+                        ));
+                    }
+                }
+
+                // Update the fleet
+                repo.update(
+                    id,
+                    Some(dto.category_id),
+                    Some(dto.name),
+                    Some(fleet_time),
+                    Some(dto.description),
+                    Some(dto.field_values),
+                )
+                .await?;
+
+                // Fetch the updated fleet data with enriched information
+                return self
+                    .get_by_id(id)
+                    .await?
+                    .ok_or_else(|| AppError::NotFound("Fleet not found after update".to_string()));
+            }
+        }
+
+        Err(AppError::NotFound("Fleet not found".to_string()))
     }
 
     /// Deletes a fleet

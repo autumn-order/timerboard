@@ -12,7 +12,7 @@ use crate::{
     model::{
         category::{FleetCategoryDetailsDto, PingFormatFieldDto},
         discord::DiscordGuildMemberDto,
-        fleet::CreateFleetDto,
+        fleet::{CreateFleetDto, FleetDto, UpdateFleetDto},
     },
     server::{
         data::{
@@ -180,13 +180,63 @@ pub async fn create_fleet(
     Ok((StatusCode::CREATED, Json(fleet)))
 }
 
+/// GET /api/guilds/{guild_id}/fleets/{fleet_id}
+/// Get fleet details by ID
+pub async fn get_fleet(
+    State(state): State<AppState>,
+    session: Session,
+    Path((guild_id, fleet_id)): Path<(u64, i32)>,
+) -> Result<impl IntoResponse, AppError> {
+    let user = AuthGuard::new(&state.db, &session).require(&[]).await?;
+
+    let fleet_service = FleetService::new(&state.db);
+    let fleet = fleet_service
+        .get_by_id(fleet_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Fleet not found".to_string()))?;
+
+    // Verify the fleet belongs to this guild
+    let category_repo = FleetCategoryRepository::new(&state.db);
+    let category = entity::prelude::FleetCategory::find_by_id(fleet.category_id)
+        .one(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Category not found".to_string()))?;
+
+    let category_guild_id = category
+        .guild_id
+        .parse::<u64>()
+        .map_err(|e| AppError::InternalError(format!("Invalid guild_id: {}", e)))?;
+
+    if category_guild_id != guild_id {
+        return Err(AppError::NotFound("Fleet not found".to_string()));
+    }
+
+    // Check if user has view permission for this category
+    let user_id = user
+        .discord_id
+        .parse::<u64>()
+        .map_err(|e| AppError::InternalError(format!("Invalid user discord_id: {}", e)))?;
+
+    if !user.admin {
+        let has_access = category_repo
+            .user_can_view_category(user_id, guild_id, fleet.category_id)
+            .await?;
+
+        if !has_access {
+            return Err(AppError::NotFound("Fleet not found".to_string()));
+        }
+    }
+
+    Ok((StatusCode::OK, Json(fleet)))
+}
+
 /// GET /api/guilds/{guild_id}/fleets
 /// Get paginated fleets for a guild
 ///
 /// Returns fleets filtered by:
 /// - User's view permissions (categories they have access to view)
 /// - Fleets not older than 1 hour from current time
-/// - Admins bypass category filtering and can see all fleets
+/// - Admins bypass category filtering
 pub async fn get_fleets(
     State(state): State<AppState>,
     session: Session,
@@ -212,6 +262,30 @@ pub async fn get_fleets(
         .await?;
 
     Ok((StatusCode::OK, Json(fleets)))
+}
+
+/// PUT /api/guilds/{guild_id}/fleets/{fleet_id}
+/// Update a fleet
+pub async fn update_fleet(
+    State(state): State<AppState>,
+    session: Session,
+    Path((guild_id, fleet_id)): Path<(u64, i32)>,
+    Json(dto): Json<UpdateFleetDto>,
+) -> Result<impl IntoResponse, AppError> {
+    // Get the fleet to check category
+    let fleet_service = FleetService::new(&state.db);
+    let fleet = fleet_service
+        .get_by_id(fleet_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Fleet not found".to_string()))?;
+
+    let _user = AuthGuard::new(&state.db, &session)
+        .require(&[Permission::CategoryManage(guild_id, fleet.category_id)])
+        .await?;
+
+    let updated_fleet = fleet_service.update(fleet_id, guild_id, dto).await?;
+
+    Ok((StatusCode::OK, Json(updated_fleet)))
 }
 
 /// DELETE /api/guilds/{guild_id}/fleets/{fleet_id}

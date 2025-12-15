@@ -268,6 +268,7 @@ impl<'a> FleetRepository<'a> {
     pub async fn update(
         &self,
         id: i32,
+        category_id: Option<i32>,
         name: Option<String>,
         fleet_time: Option<DateTime<Utc>>,
         description: Option<Option<String>>,
@@ -280,6 +281,9 @@ impl<'a> FleetRepository<'a> {
 
         let mut active_model: entity::fleet::ActiveModel = fleet.into();
 
+        if let Some(category_id) = category_id {
+            active_model.category_id = ActiveValue::Set(category_id);
+        }
         if let Some(name) = name {
             active_model.name = ActiveValue::Set(name);
         }

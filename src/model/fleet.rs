@@ -17,6 +17,20 @@ pub struct CreateFleetDto {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct UpdateFleetDto {
+    pub category_id: i32,
+    pub name: String,
+    #[serde(
+        serialize_with = "serialize_u64_as_string",
+        deserialize_with = "deserialize_u64_from_string"
+    )]
+    pub commander_id: u64,
+    pub fleet_time: String, // Format: "YYYY-MM-DD HH:MM" in UTC or "now"
+    pub description: Option<String>,
+    pub field_values: HashMap<i32, String>, // field_id -> value
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct FleetDto {
     pub id: i32,
     pub category_id: i32,

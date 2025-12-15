@@ -1,11 +1,11 @@
 mod category_selection_modal;
 mod create_fleet_button;
-mod fleet_creation_modal;
+mod fleet_modals;
 mod fleet_table;
 
 pub use category_selection_modal::CategorySelectionModal;
 pub use create_fleet_button::CreateFleetButton;
-pub use fleet_creation_modal::FleetCreationModal;
+pub use fleet_modals::{FleetCreationModal, FleetViewEditModal, ViewEditMode};
 pub use fleet_table::FleetTable;
 
 use dioxus::prelude::*;

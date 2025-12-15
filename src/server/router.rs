@@ -15,7 +15,10 @@ use crate::server::{
             get_all_discord_guilds, get_discord_guild_by_id, get_discord_guild_channels,
             get_discord_guild_roles,
         },
-        fleet::{create_fleet, delete_fleet, get_category_details, get_fleets, get_guild_members},
+        fleet::{
+            create_fleet, delete_fleet, get_category_details, get_fleet, get_fleets,
+            get_guild_members, update_fleet,
+        },
         ping_format::{
             create_ping_format, delete_ping_format, get_ping_formats, update_ping_format,
         },
@@ -61,7 +64,7 @@ fn guilds_router() -> Router<AppState> {
         .route("/{guild_id}/fleets", get(get_fleets).post(create_fleet))
         .route(
             "/{guild_id}/fleets/{fleet_id}",
-            axum::routing::delete(delete_fleet),
+            get(get_fleet).put(update_fleet).delete(delete_fleet),
         )
 }
 

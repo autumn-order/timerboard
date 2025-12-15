@@ -4,14 +4,14 @@ use dioxus_logger::tracing;
 
 use crate::{
     client::{
-        component::{ConfirmationModal, Pagination, PaginationData},
+        component::{Pagination, PaginationData},
         model::error::ApiError,
     },
     model::fleet::PaginatedFleetsDto,
 };
 
 #[cfg(feature = "web")]
-use crate::client::api::fleet::{delete_fleet, get_fleets};
+use crate::client::api::fleet::get_fleets;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum SortField {
@@ -52,9 +52,10 @@ impl Default for FleetTableCache {
 pub fn FleetTable(guild_id: u64, mut refetch_trigger: Signal<u32>) -> Element {
     let mut cache = use_signal(FleetTableCache::default);
     let mut fleets = use_signal(|| None::<Result<PaginatedFleetsDto, ApiError>>);
-    let mut show_delete_modal = use_signal(|| false);
-    let mut fleet_to_delete = use_signal(|| None::<(i32, String)>);
-    let mut is_deleting = use_signal(|| false);
+
+    // View/Edit modal state
+    let mut fleet_id_to_view = use_signal(|| None::<i32>);
+    let mut show_view_edit_modal = use_signal(|| false);
 
     // Fetch fleets with pagination
     #[cfg(feature = "web")]
@@ -74,37 +75,6 @@ pub fn FleetTable(guild_id: u64, mut refetch_trigger: Signal<u32>) -> Element {
             fleets.set(Some(Err(err.clone())));
         }
         None => (),
-    });
-
-    // Handle deletion
-    #[cfg(feature = "web")]
-    let delete_future = use_resource(move || async move {
-        if is_deleting() {
-            if let Some((id, _)) = fleet_to_delete() {
-                Some(delete_fleet(guild_id, id).await)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    });
-
-    #[cfg(feature = "web")]
-    use_effect(move || {
-        if let Some(Some(result)) = delete_future.read_unchecked().as_ref() {
-            match result {
-                Ok(_) => {
-                    refetch_trigger.set(refetch_trigger() + 1);
-                    show_delete_modal.set(false);
-                    is_deleting.set(false);
-                }
-                Err(err) => {
-                    tracing::error!("Failed to delete fleet: {}", err);
-                    is_deleting.set(false);
-                }
-            }
-        }
     });
 
     rsx! {
@@ -266,16 +236,11 @@ pub fn FleetTable(guild_id: u64, mut refetch_trigger: Signal<u32>) -> Element {
                                                             button {
                                                                 class: "btn btn-sm btn-ghost",
                                                                 title: "View Details",
-                                                                "View"
-                                                            }
-                                                            button {
-                                                                class: "btn btn-sm btn-error",
-                                                                title: "Delete Fleet",
                                                                 onclick: move |_| {
-                                                                    fleet_to_delete.set(Some((fleet_id, fleet_name.clone())));
-                                                                    show_delete_modal.set(true);
+                                                                    fleet_id_to_view.set(Some(fleet_id));
+                                                                    show_view_edit_modal.set(true);
                                                                 },
-                                                                "Delete"
+                                                                "View"
                                                             }
                                                         }
                                                     }
@@ -307,27 +272,12 @@ pub fn FleetTable(guild_id: u64, mut refetch_trigger: Signal<u32>) -> Element {
             }
         }
 
-        // Delete Confirmation Modal
-        ConfirmationModal {
-            show: show_delete_modal,
-            title: "Delete Fleet".to_string(),
-            message: rsx!(
-                if let Some((_, name)) = fleet_to_delete() {
-                    p {
-                        class: "py-4",
-                        "Are you sure you want to delete the fleet "
-                        span { class: "font-bold", "\"{name}\"" }
-                        "? This action cannot be undone."
-                    }
-                }
-            ),
-            confirm_text: "Delete".to_string(),
-            confirm_class: "btn-error".to_string(),
-            is_processing: is_deleting(),
-            processing_text: "Deleting...".to_string(),
-            on_confirm: move |_| {
-                is_deleting.set(true);
-            },
+        // View/Edit Modal
+        super::FleetViewEditModal {
+            guild_id,
+            fleet_id: fleet_id_to_view,
+            show: show_view_edit_modal,
+            refetch_trigger,
         }
     }
 }

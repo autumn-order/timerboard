@@ -3,12 +3,12 @@ use crate::{
     model::{
         category::FleetCategoryDetailsDto,
         discord::DiscordGuildMemberDto,
-        fleet::{CreateFleetDto, FleetDto, PaginatedFleetsDto},
+        fleet::{CreateFleetDto, FleetDto, PaginatedFleetsDto, UpdateFleetDto},
     },
 };
 
 use super::helper::{
-    delete, get, parse_empty_response, parse_response, post, send_request, serialize_json,
+    delete, get, parse_empty_response, parse_response, post, put, send_request, serialize_json,
 };
 
 /// GET /api/guilds/{guild_id}/categories/{category_id}/details
@@ -57,6 +57,28 @@ pub async fn get_fleets(
     );
     let request = get(&url);
     let response = send_request(request).await?;
+    parse_response(response).await
+}
+
+/// GET /api/guilds/{guild_id}/fleets/{fleet_id}
+/// Get fleet details by ID
+pub async fn get_fleet(guild_id: u64, fleet_id: i32) -> Result<FleetDto, ApiError> {
+    let url = format!("/api/guilds/{}/fleets/{}", guild_id, fleet_id);
+    let request = get(&url);
+    let response = send_request(request).await?;
+    parse_response(response).await
+}
+
+/// PUT /api/guilds/{guild_id}/fleets/{fleet_id}
+/// Update a fleet
+pub async fn update_fleet(
+    guild_id: u64,
+    fleet_id: i32,
+    dto: UpdateFleetDto,
+) -> Result<FleetDto, ApiError> {
+    let url = format!("/api/guilds/{}/fleets/{}", guild_id, fleet_id);
+    let body = serialize_json(&dto)?;
+    let response = send_request(put(&url).body(body)).await?;
     parse_response(response).await
 }
 
