@@ -65,7 +65,7 @@ pub fn FleetFormFields(
     let mut show_commander_dropdown = use_signal(|| false);
 
     // Use provided signal or create local one
-    let mut local_datetime_error = use_signal(|| None::<String>);
+    let local_datetime_error = use_signal(|| None::<String>);
     let mut datetime_error = datetime_error_signal.unwrap_or(local_datetime_error);
 
     rsx! {

@@ -18,4 +18,3 @@ pub use page::Page;
 pub use pagination::{Pagination, PaginationData};
 pub use protected_layout::{RequiresAdmin, RequiresLoggedIn};
 pub use searchable_dropdown::{DropdownItem, SearchableDropdown, SelectedItem, SelectedItemsList};
-pub use utc_datetime_input::UtcDateTimeInput;

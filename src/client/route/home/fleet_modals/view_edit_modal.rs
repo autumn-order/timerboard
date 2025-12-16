@@ -1,4 +1,4 @@
-use chrono::{Datelike, TimeZone, Timelike, Utc};
+use chrono::{Datelike, Timelike, Utc};
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
 use pulldown_cmark::{html, Options, Parser};
@@ -10,11 +10,7 @@ use crate::{
         model::error::ApiError,
         store::user::UserState,
     },
-    model::{
-        category::{FleetCategoryDetailsDto, FleetCategoryListItemDto},
-        discord::DiscordGuildMemberDto,
-        fleet::UpdateFleetDto,
-    },
+    model::{category::FleetCategoryDetailsDto, fleet::UpdateFleetDto},
 };
 
 use super::form_fields::FleetFormFields;
@@ -24,9 +20,7 @@ use crate::client::route::home::{
 
 #[cfg(feature = "web")]
 use crate::client::api::{
-    fleet::{
-        delete_fleet, get_category_details, get_fleet, get_fleets, get_guild_members, update_fleet,
-    },
+    fleet::{delete_fleet, get_category_details, get_fleet, get_guild_members, update_fleet},
     user::get_user_manageable_categories,
 };
 
@@ -84,7 +78,7 @@ pub fn FleetViewEditModal(
     let mut is_deleting = use_signal(|| false);
 
     // Datetime validation error
-    let mut datetime_error = use_signal(|| None::<String>);
+    let datetime_error = use_signal(|| None::<String>);
 
     // Permission check: user can manage if they are admin, have manage permission, or are the fleet commander
     let can_manage = use_memo(move || {

@@ -1,4 +1,4 @@
-use chrono::{Datelike, TimeZone, Timelike, Utc};
+use chrono::{Datelike, Timelike, Utc};
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
 use std::collections::HashMap;
@@ -15,7 +15,7 @@ use crate::client::route::home::{
 
 #[cfg(feature = "web")]
 use crate::client::api::{
-    fleet::{create_fleet, get_category_details, get_fleets, get_guild_members},
+    fleet::{create_fleet, get_category_details, get_guild_members},
     user::get_user_manageable_categories,
 };
 
@@ -83,7 +83,7 @@ pub fn FleetCreationModal(
     let mut submission_error = use_signal(|| None::<String>);
 
     // Datetime validation error
-    let mut datetime_error = use_signal(|| None::<String>);
+    let datetime_error = use_signal(|| None::<String>);
 
     // Handle fleet creation submission
     #[cfg(feature = "web")]

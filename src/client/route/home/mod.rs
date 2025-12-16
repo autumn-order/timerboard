@@ -5,7 +5,7 @@ mod fleet_table;
 
 pub use category_selection_modal::CategorySelectionModal;
 pub use create_fleet_button::CreateFleetButton;
-pub use fleet_modals::{FleetCreationModal, FleetViewEditModal, ViewEditMode};
+pub use fleet_modals::{FleetCreationModal, FleetViewEditModal};
 pub use fleet_table::FleetTable;
 
 use dioxus::prelude::*;
@@ -61,11 +61,10 @@ pub fn Home() -> Element {
     let mut refetch_trigger = use_signal(|| 0u32);
 
     // Provide caches for child components
-    let mut manageable_categories_cache =
+    let _manageable_categories_cache =
         use_context_provider(|| Signal::new(ManageableCategoriesCache::default()));
-    let mut guild_members_cache =
-        use_context_provider(|| Signal::new(GuildMembersCache::default()));
-    let mut category_details_cache =
+    let _guild_members_cache = use_context_provider(|| Signal::new(GuildMembersCache::default()));
+    let _category_details_cache =
         use_context_provider(|| Signal::new(CategoryDetailsCache::default()));
 
     // Fetch user's guilds on first load

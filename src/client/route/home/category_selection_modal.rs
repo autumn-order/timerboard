@@ -1,10 +1,7 @@
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
 
-use crate::{
-    client::{component::Modal, model::error::ApiError},
-    model::category::FleetCategoryListItemDto,
-};
+use crate::client::component::Modal;
 
 use super::ManageableCategoriesCache;
 

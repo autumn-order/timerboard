@@ -1,6 +1,6 @@
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, JoinType,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder,
 };
 use std::collections::HashMap;
 
@@ -377,7 +377,7 @@ impl<'a> FleetCategoryRepository<'a> {
         user_id: u64,
         guild_id: u64,
     ) -> Result<Vec<entity::fleet_category::Model>, DbErr> {
-        use sea_orm::{sea_query::Expr, Condition};
+        use sea_orm::Condition;
 
         // First, get all role IDs that the user has in this guild
         let user_role_ids: Vec<String> = entity::prelude::UserDiscordGuildRole::find()
@@ -573,11 +573,9 @@ impl<'a> FleetCategoryRepository<'a> {
     pub async fn user_can_view_category(
         &self,
         user_id: u64,
-        guild_id: u64,
+        _guild_id: u64,
         category_id: i32,
     ) -> Result<bool, DbErr> {
-        use sea_orm::Condition;
-
         // First, get all role IDs that the user has in this guild
         let user_role_ids: Vec<String> = entity::prelude::UserDiscordGuildRole::find()
             .filter(entity::user_discord_guild_role::Column::UserId.eq(user_id.to_string()))
@@ -606,7 +604,7 @@ impl<'a> FleetCategoryRepository<'a> {
     pub async fn user_can_create_category(
         &self,
         user_id: u64,
-        guild_id: u64,
+        _guild_id: u64,
         category_id: i32,
     ) -> Result<bool, DbErr> {
         // First, get all role IDs that the user has in this guild
@@ -637,7 +635,7 @@ impl<'a> FleetCategoryRepository<'a> {
     pub async fn user_can_manage_category(
         &self,
         user_id: u64,
-        guild_id: u64,
+        _guild_id: u64,
         category_id: i32,
     ) -> Result<bool, DbErr> {
         // First, get all role IDs that the user has in this guild

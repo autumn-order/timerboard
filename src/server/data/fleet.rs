@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, JoinType,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
 };
 use std::collections::HashMap;
@@ -156,91 +156,6 @@ impl<'a> FleetRepository<'a> {
     /// - `page`: Page number (0-indexed)
     /// - `per_page`: Number of items per page
     ///
-    /// # Returns
-    /// - `Ok((fleets, total))`: Vector of fleets and total count
-    /// - `Err(DbErr)`: Database error
-    pub async fn get_paginated_by_category(
-        &self,
-        category_id: i32,
-        page: u64,
-        per_page: u64,
-    ) -> Result<(Vec<entity::fleet::Model>, u64), DbErr> {
-        let query = entity::prelude::Fleet::find()
-            .filter(entity::fleet::Column::CategoryId.eq(category_id))
-            .order_by_asc(entity::fleet::Column::FleetTime);
-
-        let paginator = query.paginate(self.db, per_page);
-        let total = paginator.num_items().await?;
-        let fleets = paginator.fetch_page(page).await?;
-
-        Ok((fleets, total))
-    }
-
-    /// Gets upcoming fleets for a guild (fleet_time >= now)
-    ///
-    /// # Arguments
-    /// - `guild_id`: Discord guild ID (u64)
-    /// - `limit`: Maximum number of fleets to return
-    ///
-    /// # Returns
-    /// - `Ok(fleets)`: Vector of upcoming fleets
-    /// - `Err(DbErr)`: Database error
-    pub async fn get_upcoming_by_guild(
-        &self,
-        guild_id: u64,
-        limit: u64,
-    ) -> Result<Vec<entity::fleet::Model>, DbErr> {
-        use entity::fleet_category;
-        use sea_orm::{JoinType, QuerySelect};
-
-        let guild_id_str = guild_id.to_string();
-        let now = Utc::now();
-
-        entity::prelude::Fleet::find()
-            .join(
-                JoinType::InnerJoin,
-                entity::fleet::Relation::FleetCategory.def(),
-            )
-            .filter(fleet_category::Column::GuildId.eq(guild_id_str.as_str()))
-            .filter(entity::fleet::Column::FleetTime.gte(now))
-            .order_by_asc(entity::fleet::Column::FleetTime)
-            .limit(limit)
-            .all(self.db)
-            .await
-    }
-
-    /// Counts upcoming fleets for a category
-    ///
-    /// # Arguments
-    /// - `category_id`: Fleet category ID
-    ///
-    /// # Returns
-    /// - `Ok(count)`: Number of upcoming fleets
-    /// - `Err(DbErr)`: Database error
-    pub async fn count_upcoming_by_category(&self, category_id: i32) -> Result<u64, DbErr> {
-        let now = Utc::now();
-
-        entity::prelude::Fleet::find()
-            .filter(entity::fleet::Column::CategoryId.eq(category_id))
-            .filter(entity::fleet::Column::FleetTime.gte(now))
-            .count(self.db)
-            .await
-    }
-
-    /// Counts all fleets for a category
-    ///
-    /// # Arguments
-    /// - `category_id`: Fleet category ID
-    ///
-    /// # Returns
-    /// - `Ok(count)`: Total number of fleets
-    /// - `Err(DbErr)`: Database error
-    pub async fn count_by_category(&self, category_id: i32) -> Result<u64, DbErr> {
-        entity::prelude::Fleet::find()
-            .filter(entity::fleet::Column::CategoryId.eq(category_id))
-            .count(self.db)
-            .await
-    }
 
     /// Deletes a fleet by ID
     ///

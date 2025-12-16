@@ -105,17 +105,3 @@ pub async fn delete_fleet_category(guild_id: u64, category_id: i32) -> Result<()
     let response = send_request(delete(&url)).await?;
     parse_empty_response(response).await
 }
-
-/// Get fleet categories by ping format ID
-pub async fn get_fleet_categories_by_ping_format(
-    guild_id: u64,
-    ping_format_id: i32,
-) -> Result<Vec<FleetCategoryDto>, ApiError> {
-    let url = format!(
-        "/api/admin/servers/{}/formats/{}/categories",
-        guild_id, ping_format_id
-    );
-
-    let response = send_request(get(&url)).await?;
-    parse_response(response).await
-}

@@ -11,7 +11,6 @@ pub enum Permission {
     Admin,
     CategoryView(u64, i32),   // guild_id, category_id
     CategoryCreate(u64, i32), // guild_id, category_id
-    CategoryManage(u64, i32), // guild_id, category_id
 }
 
 pub struct AuthGuard<'a> {
@@ -96,31 +95,6 @@ impl<'a> AuthGuard<'a> {
                             user_id,
                             format!(
                                 "User does not have create access to category {} in guild {}",
-                                category_id, guild_id
-                            ),
-                        )
-                        .into());
-                    }
-                }
-                Permission::CategoryManage(guild_id, category_id) => {
-                    // Admins bypass all permission checks
-                    if user.admin {
-                        continue;
-                    }
-
-                    // Check if user has manage access to this category
-                    use crate::server::data::category::FleetCategoryRepository;
-                    let category_repo = FleetCategoryRepository::new(self.db);
-
-                    let has_access = category_repo
-                        .user_can_manage_category(user_id, *guild_id, *category_id)
-                        .await?;
-
-                    if !has_access {
-                        return Err(AuthError::AccessDenied(
-                            user_id,
-                            format!(
-                                "User does not have manage access to category {} in guild {}",
                                 category_id, guild_id
                             ),
                         )

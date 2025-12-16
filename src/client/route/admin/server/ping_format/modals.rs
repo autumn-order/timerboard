@@ -17,7 +17,6 @@ struct FormFieldsData {
 struct FieldData {
     id: Option<i32>,
     name: String,
-    priority: i32,
     default_value: String,
 }
 
@@ -182,7 +181,6 @@ pub fn EditPingFormatModal(
                         .map(|f| FieldData {
                             id: Some(f.id),
                             name: f.name.clone(),
-                            priority: f.priority,
                             default_value: f.default_value.clone().unwrap_or_default(),
                         })
                         .collect(),
@@ -309,11 +307,7 @@ fn PingFormatFormFields(mut form_fields: Signal<FormFieldsData>, is_submitting: 
     let mut dragging_index = use_signal(|| None::<usize>);
 
     let add_field = move |_| {
-        let new_priority = form_fields.read().fields.len() as i32;
-        form_fields.write().fields.push(FieldData {
-            priority: new_priority,
-            ..Default::default()
-        });
+        form_fields.write().fields.push(FieldData::default());
     };
 
     let on_drag_start = move |index: usize| {

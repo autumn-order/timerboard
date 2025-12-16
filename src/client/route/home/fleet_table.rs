@@ -50,7 +50,7 @@ impl Default for FleetTableCache {
 
 #[component]
 pub fn FleetTable(guild_id: u64, mut refetch_trigger: Signal<u32>) -> Element {
-    let mut cache = use_signal(FleetTableCache::default);
+    let cache = use_signal(FleetTableCache::default);
     let mut fleets = use_signal(|| None::<Result<PaginatedFleetsDto, ApiError>>);
 
     // View/Edit modal state
@@ -217,7 +217,7 @@ pub fn FleetTable(guild_id: u64, mut refetch_trigger: Signal<u32>) -> Element {
                                     for fleet in sorted_fleets {
                                         {
                                             let fleet_id = fleet.id;
-                                            let fleet_name = fleet.name.clone();
+                                            let _fleet_name = fleet.name.clone();
                                             let fleet_time = fleet.fleet_time;
                                             let local_time: DateTime<Local> = fleet_time.with_timezone(&Local);
 
