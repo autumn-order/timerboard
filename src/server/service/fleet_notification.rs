@@ -10,7 +10,10 @@ use serenity::{
 use std::sync::Arc;
 
 use crate::server::{
-    data::{category::FleetCategoryRepository, fleet_message::FleetMessageRepository},
+    data::{
+        category::FleetCategoryRepository, channel_fleet_list::ChannelFleetListRepository,
+        fleet_message::FleetMessageRepository,
+    },
     error::AppError,
 };
 
@@ -308,6 +311,239 @@ impl<'a> FleetNotificationService<'a> {
         Ok(())
     }
 
+    /// Posts or updates the upcoming fleets list for a channel
+    ///
+    /// This creates/updates a single message with a list of all upcoming fleets
+    /// for all categories configured for the channel.
+    ///
+    /// # Arguments
+    /// - `channel_id_str`: Discord channel ID as string
+    pub async fn post_upcoming_fleets_list(&self, channel_id_str: &str) -> Result<(), AppError> {
+        let channel_id_u64 = channel_id_str
+            .parse::<u64>()
+            .map_err(|e| AppError::InternalError(format!("Invalid channel ID: {}", e)))?;
+
+        let channel_id = ChannelId::new(channel_id_u64);
+        let now = chrono::Utc::now();
+
+        // Get all categories that post to this channel
+        let categories = entity::prelude::FleetCategoryChannel::find()
+            .filter(entity::fleet_category_channel::Column::ChannelId.eq(channel_id_str))
+            .all(self.db)
+            .await?;
+
+        let category_ids: Vec<i32> = categories.iter().map(|c| c.fleet_category_id).collect();
+
+        if category_ids.is_empty() {
+            return Ok(());
+        }
+
+        // Get all upcoming fleets for these categories
+        let fleets = entity::prelude::Fleet::find()
+            .filter(entity::fleet::Column::CategoryId.is_in(category_ids.clone()))
+            .filter(entity::fleet::Column::FleetTime.gt(now))
+            .filter(entity::fleet::Column::Hidden.eq(false))
+            .all(self.db)
+            .await?;
+
+        if fleets.is_empty() {
+            // No upcoming fleets, optionally delete existing list message
+            return Ok(());
+        }
+
+        // Get categories data
+        let categories_data = entity::prelude::FleetCategory::find()
+            .filter(entity::fleet_category::Column::Id.is_in(category_ids))
+            .all(self.db)
+            .await?;
+
+        // Get guild_id from the first category for building message links
+        let guild_id_str = if let Some(first_category) = categories_data.first() {
+            first_category.guild_id.clone()
+        } else {
+            return Ok(());
+        };
+
+        let category_map: std::collections::HashMap<i32, String> = categories_data
+            .into_iter()
+            .map(|c| (c.id, c.name))
+            .collect();
+
+        // Sort fleets by time
+        let mut sorted_fleets = fleets;
+        sorted_fleets.sort_by_key(|f| f.fleet_time);
+
+        // Build description with bullet list of fleets
+        let mut description = String::new();
+
+        for fleet in sorted_fleets {
+            let category_name = category_map
+                .get(&fleet.category_id)
+                .map(|s| s.as_str())
+                .unwrap_or("Unknown");
+
+            // Get the most recent message for this fleet (prefer reminder over creation)
+            let messages = entity::prelude::FleetMessage::find()
+                .filter(entity::fleet_message::Column::FleetId.eq(fleet.id))
+                .filter(entity::fleet_message::Column::ChannelId.eq(channel_id_str))
+                .all(self.db)
+                .await?;
+
+            // Find reminder or creation message (not formup)
+            let message_link = messages
+                .iter()
+                .filter(|m| m.message_type == "reminder" || m.message_type == "creation")
+                .max_by_key(|m| &m.created_at)
+                .map(|m| {
+                    format!(
+                        "https://discord.com/channels/{}/{}/{}",
+                        guild_id_str, channel_id_str, m.message_id
+                    )
+                });
+
+            if let Some(link) = message_link {
+                // Format: • [Fleet Name](link) • Category • relative time
+                let line = format!(
+                    "• {} - [{}]({}) - <t:{}:R>\n",
+                    category_name,
+                    fleet.name,
+                    link,
+                    fleet.fleet_time.timestamp()
+                );
+                description.push_str(&line);
+            }
+        }
+
+        // Build embed with description containing the fleet list
+        let mut embed = CreateEmbed::new()
+            .title(".:Upcoming Fleets:.")
+            .url(&self.app_url)
+            .description(description)
+            .color(0x5865F2) // Discord blurple color
+            .timestamp(Timestamp::from_unix_timestamp(now.timestamp()).unwrap());
+
+        // Get or create the list message
+        let list_repo = ChannelFleetListRepository::new(self.db);
+        let existing_list = list_repo.get_by_channel_id(channel_id_str).await?;
+
+        // Check if we should edit or post new message
+        if let Some(existing) = existing_list {
+            let msg_id = existing
+                .message_id
+                .parse::<u64>()
+                .map_err(|e| AppError::InternalError(format!("Invalid message ID: {}", e)))?;
+
+            // Compare updated_at (when we posted the list) with last_message_at (most recent message in channel)
+            // If our list message is still the most recent, edit it. Otherwise, delete and repost.
+            let should_edit = existing.updated_at >= existing.last_message_at;
+
+            tracing::debug!(
+                "Channel {}: updated_at={}, last_message_at={}, should_edit={}",
+                channel_id_str,
+                existing.updated_at,
+                existing.last_message_at,
+                should_edit
+            );
+
+            if should_edit {
+                // Edit the existing message since it's still the most recent
+                let edit_message = EditMessage::new().embed(embed);
+
+                match self
+                    .http
+                    .edit_message(channel_id, MessageId::new(msg_id), &edit_message, vec![])
+                    .await
+                {
+                    Ok(_) => {
+                        // Update the updated_at timestamp
+                        list_repo
+                            .upsert(channel_id_str, &msg_id.to_string())
+                            .await?;
+                        tracing::info!(
+                            "Edited existing upcoming fleets list in channel {}",
+                            channel_id_str
+                        );
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to edit upcoming fleets list in channel {}: {}",
+                            channel_id_str,
+                            e
+                        );
+                    }
+                }
+            } else {
+                // Delete old message and post new one (to be most recent in channel)
+                match self
+                    .http
+                    .delete_message(channel_id, MessageId::new(msg_id), None)
+                    .await
+                {
+                    Ok(_) => {
+                        tracing::info!(
+                            "Deleted old upcoming fleets list in channel {} (not most recent)",
+                            channel_id_str
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to delete old upcoming fleets list in channel {}: {}",
+                            channel_id_str,
+                            e
+                        );
+                        // Continue anyway to post new message
+                    }
+                }
+
+                // Post new message
+                let new_message = CreateMessage::new().embed(embed);
+
+                match channel_id.send_message(&self.http, new_message).await {
+                    Ok(msg) => {
+                        list_repo
+                            .upsert(channel_id_str, &msg.id.to_string())
+                            .await?;
+                        tracing::info!(
+                            "Posted new upcoming fleets list in channel {}",
+                            channel_id_str
+                        );
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to post upcoming fleets list in channel {}: {}",
+                            channel_id_str,
+                            e
+                        );
+                    }
+                }
+            }
+        } else {
+            // No existing list, post new message
+            let new_message = CreateMessage::new().embed(embed);
+
+            match channel_id.send_message(&self.http, new_message).await {
+                Ok(msg) => {
+                    list_repo
+                        .upsert(channel_id_str, &msg.id.to_string())
+                        .await?;
+                    tracing::info!(
+                        "Posted new upcoming fleets list in channel {}",
+                        channel_id_str
+                    );
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to post upcoming fleets list in channel {}: {}",
+                        channel_id_str,
+                        e
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Core notification posting logic
     ///
     /// # Arguments
@@ -374,13 +610,13 @@ impl<'a> FleetNotificationService<'a> {
 
         // Build title based on message type and category name
         let title = match message_type {
-            "creation" => format!("**.:New Upcoming {}:.**", category_data.category.name),
+            "creation" => format!("**.:New Upcoming {} Fleet:.**", category_data.category.name),
             "reminder" => format!(
-                "**.:Reminder - Upcoming {}:.**",
+                "**.:Reminder - Upcoming {} Fleet:.**",
                 category_data.category.name
             ),
-            "formup" => format!("**.:{} Forming Now:.**", category_data.category.name),
-            _ => format!("**.:{}  Notification:.**", category_data.category.name),
+            "formup" => format!("**.:{} Fleet Forming Now:.**", category_data.category.name),
+            _ => format!("**.:{} Fleet Notification:.**", category_data.category.name),
         };
 
         // Build ping content with title

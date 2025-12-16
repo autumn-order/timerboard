@@ -8,6 +8,7 @@ use serenity::async_trait;
 pub mod channel;
 pub mod guild;
 pub mod member;
+pub mod message;
 pub mod ready;
 pub mod role;
 
@@ -114,5 +115,10 @@ impl EventHandler for Handler {
         messages: Option<Vec<Message>>,
     ) {
         channel::handle_channel_delete(&self.db, ctx, channel, messages).await;
+    }
+
+    /// Called when a message is sent in a channel
+    async fn message(&self, ctx: Context, message: Message) {
+        message::handle_message(&self.db, ctx, message).await;
     }
 }

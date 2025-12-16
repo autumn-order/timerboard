@@ -15,6 +15,7 @@ mod m20251212_000012_create_fleet_category_channel_table;
 mod m20251212_000013_create_fleet_table;
 mod m20251212_000014_create_fleet_field_value_table;
 mod m20251212_000015_create_fleet_message_table;
+mod m20251216_000016_create_channel_fleet_list;
 
 pub struct Migrator;
 
@@ -37,6 +38,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20251212_000013_create_fleet_table::Migration),
             Box::new(m20251212_000014_create_fleet_field_value_table::Migration),
             Box::new(m20251212_000015_create_fleet_message_table::Migration),
+            Box::new(m20251216_000016_create_channel_fleet_list::Migration),
         ]
     }
 }

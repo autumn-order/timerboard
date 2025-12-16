@@ -24,13 +24,13 @@ pub async fn start_scheduler(
 ) -> Result<(), AppError> {
     let scheduler = JobScheduler::new().await?;
 
-    // Clone resources for the job
+    // Clone resources for the notifications job
     let job_db = db.clone();
     let job_http = discord_http.clone();
     let job_app_url = app_url.clone();
 
-    // Schedule job to run every minute
-    let job = Job::new_async("0 * * * * *", move |_uuid, _lock| {
+    // Schedule job to run every minute for reminders and form-ups
+    let notifications_job = Job::new_async("0 * * * * *", move |_uuid, _lock| {
         let db = job_db.clone();
         let http = job_http.clone();
         let app_url = job_app_url.clone();
@@ -42,7 +42,27 @@ pub async fn start_scheduler(
         })
     })?;
 
-    scheduler.add(job).await?;
+    scheduler.add(notifications_job).await?;
+
+    // Clone resources for the list update job
+    let list_db = db.clone();
+    let list_http = discord_http.clone();
+    let list_app_url = app_url.clone();
+
+    // Schedule job to run every hour for upcoming fleets lists
+    let list_job = Job::new_async("0 0 * * * *", move |_uuid, _lock| {
+        let db = list_db.clone();
+        let http = list_http.clone();
+        let app_url = list_app_url.clone();
+
+        Box::pin(async move {
+            if let Err(e) = process_upcoming_fleets_lists(&db, http, app_url).await {
+                tracing::error!("Error processing upcoming fleets lists: {}", e);
+            }
+        })
+    })?;
+
+    scheduler.add(list_job).await?;
     scheduler.start().await?;
 
     tracing::info!("Fleet notification scheduler started");
@@ -204,6 +224,42 @@ async fn process_formups(
                     tracing::error!("Failed to send form-up for fleet {}: {}", fleet.id, e);
                 }
             }
+        }
+    }
+
+    Ok(())
+}
+
+/// Processes upcoming fleets lists for all configured channels
+async fn process_upcoming_fleets_lists(
+    db: &DatabaseConnection,
+    discord_http: Arc<Http>,
+    app_url: String,
+) -> Result<(), AppError> {
+    tracing::info!("Processing upcoming fleets lists");
+
+    // Get all unique channels that have fleet categories configured
+    let channels = entity::prelude::FleetCategoryChannel::find()
+        .all(db)
+        .await?;
+
+    // Get unique channel IDs
+    let mut channel_ids: Vec<String> = channels.into_iter().map(|c| c.channel_id).collect();
+    channel_ids.sort();
+    channel_ids.dedup();
+
+    let notification_service = FleetNotificationService::new(db, discord_http, app_url);
+
+    for channel_id in channel_ids {
+        if let Err(e) = notification_service
+            .post_upcoming_fleets_list(&channel_id)
+            .await
+        {
+            tracing::error!(
+                "Failed to update upcoming fleets list for channel {}: {}",
+                channel_id,
+                e
+            );
         }
     }
 

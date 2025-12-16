@@ -2,6 +2,7 @@
 
 pub mod prelude;
 
+pub mod channel_fleet_list;
 pub mod discord_guild;
 pub mod discord_guild_channel;
 pub mod discord_guild_role;
