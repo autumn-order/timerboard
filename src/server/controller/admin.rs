@@ -9,7 +9,7 @@ use tower_sessions::Session;
 use crate::{
     model::api::SuccessDto,
     server::{
-        controller::auth::SESSION_AUTH_CSRF_TOKEN,
+        controller::auth::{SESSION_AUTH_ADDING_BOT, SESSION_AUTH_CSRF_TOKEN},
         error::AppError,
         middleware::auth::{AuthGuard, Permission},
         service::{admin::bot::DiscordBotService, user::UserService},
@@ -31,6 +31,9 @@ pub async fn add_bot(
     session
         .insert(SESSION_AUTH_CSRF_TOKEN, csrf_token.secret())
         .await?;
+
+    // Set flag to indicate this is a bot addition flow
+    session.insert(SESSION_AUTH_ADDING_BOT, true).await?;
 
     Ok(Redirect::temporary(url.as_str()))
 }

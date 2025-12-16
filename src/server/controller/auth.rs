@@ -13,6 +13,8 @@ pub static SESSION_AUTH_CSRF_TOKEN: &str = "auth:csrf_token";
 static SESSION_AUTH_SET_ADMIN: &str = "auth:set_admin";
 /// Session key for current user ID
 pub static SESSION_AUTH_USER_ID: &str = "auth:user";
+/// Session key for bot addition flow
+pub static SESSION_AUTH_ADDING_BOT: &str = "auth:adding_bot";
 
 use crate::server::{
     error::{auth::AuthError, AppError},
@@ -78,9 +80,20 @@ pub async fn callback(
     session: Session,
     params: Query<CallbackParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let auth_service = AuthService::new(&state.db, &state.http_client, &state.oauth_client);
-
     validate_csrf(&session, &params.0.state).await?;
+
+    // Check if this is a bot addition callback
+    let adding_bot: bool = session
+        .remove(SESSION_AUTH_ADDING_BOT)
+        .await?
+        .unwrap_or(false);
+
+    if adding_bot {
+        // Bot addition doesn't return a code for OAuth, just redirect to admin
+        return Ok(Redirect::permanent("/admin"));
+    }
+
+    let auth_service = AuthService::new(&state.db, &state.http_client, &state.oauth_client);
 
     // Check if admin code was validated in the login flow
     let set_admin: bool = session
