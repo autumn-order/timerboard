@@ -1,15 +1,10 @@
 /// Tab selection for the configuration section
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Default)]
 pub enum ConfigTab {
+    #[default]
     AccessRoles,
     PingRoles,
     Channels,
-}
-
-impl Default for ConfigTab {
-    fn default() -> Self {
-        ConfigTab::AccessRoles
-    }
 }
 
 /// Role data

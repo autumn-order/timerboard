@@ -75,7 +75,7 @@ pub async fn get_user_manageable_categories(
         .get_manageable_by_user(user_id, guild_id, user.admin)
         .await?;
 
-    let categories_dto: Vec<_> = categories.iter().map(|c| c.clone().to_dto()).collect();
+    let categories_dto: Vec<_> = categories.into_iter().map(|c| c.into_dto()).collect();
 
     Ok((StatusCode::OK, Json(categories_dto)))
 }

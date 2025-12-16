@@ -1,9 +1,11 @@
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
 };
 use std::collections::HashMap;
+
+use crate::server::model::fleet::{CreateFleetParams, UpdateFleetParams};
 
 pub struct FleetRepository<'a> {
     db: &'a DatabaseConnection,
@@ -17,36 +19,21 @@ impl<'a> FleetRepository<'a> {
     /// Creates a new fleet with field values
     ///
     /// # Arguments
-    /// - `category_id`: ID of the fleet category
-    /// - `name`: Fleet name
-    /// - `commander_id`: Discord ID of the fleet commander (u64, stored as string)
-    /// - `fleet_time`: DateTime when the fleet will occur
-    /// - `description`: Optional description of the fleet
-    /// - `field_values`: HashMap of field_id -> value for ping format fields
+    /// - `params`: CreateFleetParams containing all fleet creation data
     ///
     /// # Returns
     /// - `Ok(Model)`: The created fleet
     /// - `Err(DbErr)`: Database error
-    pub async fn create(
-        &self,
-        category_id: i32,
-        name: String,
-        commander_id: u64,
-        fleet_time: DateTime<Utc>,
-        description: Option<String>,
-        field_values: HashMap<i32, String>,
-        hidden: bool,
-        disable_reminder: bool,
-    ) -> Result<entity::fleet::Model, DbErr> {
+    pub async fn create(&self, params: CreateFleetParams) -> Result<entity::fleet::Model, DbErr> {
         // Create the fleet
         let fleet = entity::fleet::ActiveModel {
-            category_id: ActiveValue::Set(category_id),
-            name: ActiveValue::Set(name),
-            commander_id: ActiveValue::Set(commander_id.to_string()),
-            fleet_time: ActiveValue::Set(fleet_time),
-            description: ActiveValue::Set(description),
-            hidden: ActiveValue::Set(hidden),
-            disable_reminder: ActiveValue::Set(disable_reminder),
+            category_id: ActiveValue::Set(params.category_id),
+            name: ActiveValue::Set(params.name),
+            commander_id: ActiveValue::Set(params.commander_id.to_string()),
+            fleet_time: ActiveValue::Set(params.fleet_time),
+            description: ActiveValue::Set(params.description),
+            hidden: ActiveValue::Set(params.hidden),
+            disable_reminder: ActiveValue::Set(params.disable_reminder),
             created_at: ActiveValue::Set(Utc::now()),
             ..Default::default()
         }
@@ -54,7 +41,7 @@ impl<'a> FleetRepository<'a> {
         .await?;
 
         // Insert field values
-        for (field_id, value) in field_values {
+        for (field_id, value) in params.field_values {
             entity::fleet_field_value::ActiveModel {
                 fleet_id: ActiveValue::Set(fleet.id),
                 field_id: ActiveValue::Set(field_id),
@@ -156,7 +143,6 @@ impl<'a> FleetRepository<'a> {
     /// - `page`: Page number (0-indexed)
     /// - `per_page`: Number of items per page
     ///
-
     /// Deletes a fleet by ID
     ///
     /// # Arguments
@@ -175,26 +161,13 @@ impl<'a> FleetRepository<'a> {
     /// Updates a fleet
     ///
     /// # Arguments
-    /// - `id`: Fleet ID
-    /// - `name`: Optional new fleet name
-    /// - `fleet_time`: Optional new fleet time
-    /// - `description`: Optional new description (None removes description)
-    /// - `field_values`: Optional new field values (replaces all existing values)
+    /// - `params`: UpdateFleetParams containing update data
     ///
     /// # Returns
     /// - `Ok(Model)`: The updated fleet
     /// - `Err(DbErr)`: Database error
-    pub async fn update(
-        &self,
-        id: i32,
-        category_id: Option<i32>,
-        name: Option<String>,
-        fleet_time: Option<DateTime<Utc>>,
-        description: Option<Option<String>>,
-        field_values: Option<HashMap<i32, String>>,
-        hidden: Option<bool>,
-        disable_reminder: Option<bool>,
-    ) -> Result<entity::fleet::Model, DbErr> {
+    pub async fn update(&self, params: UpdateFleetParams) -> Result<entity::fleet::Model, DbErr> {
+        let id = params.id;
         let fleet = entity::prelude::Fleet::find_by_id(id)
             .one(self.db)
             .await?
@@ -202,29 +175,29 @@ impl<'a> FleetRepository<'a> {
 
         let mut active_model: entity::fleet::ActiveModel = fleet.into();
 
-        if let Some(category_id) = category_id {
+        if let Some(category_id) = params.category_id {
             active_model.category_id = ActiveValue::Set(category_id);
         }
-        if let Some(name) = name {
+        if let Some(name) = params.name {
             active_model.name = ActiveValue::Set(name);
         }
-        if let Some(fleet_time) = fleet_time {
+        if let Some(fleet_time) = params.fleet_time {
             active_model.fleet_time = ActiveValue::Set(fleet_time);
         }
-        if let Some(description) = description {
+        if let Some(description) = params.description {
             active_model.description = ActiveValue::Set(description);
         }
-        if let Some(hidden) = hidden {
+        if let Some(hidden) = params.hidden {
             active_model.hidden = ActiveValue::Set(hidden);
         }
-        if let Some(disable_reminder) = disable_reminder {
+        if let Some(disable_reminder) = params.disable_reminder {
             active_model.disable_reminder = ActiveValue::Set(disable_reminder);
         }
 
         let updated_fleet = active_model.update(self.db).await?;
 
         // Update field values if provided
-        if let Some(field_values) = field_values {
+        if let Some(new_field_values) = params.field_values {
             // Delete existing field values
             entity::prelude::FleetFieldValue::delete_many()
                 .filter(entity::fleet_field_value::Column::FleetId.eq(id))
@@ -232,7 +205,7 @@ impl<'a> FleetRepository<'a> {
                 .await?;
 
             // Insert new field values
-            for (field_id, value) in field_values {
+            for (field_id, value) in new_field_values {
                 entity::fleet_field_value::ActiveModel {
                     fleet_id: ActiveValue::Set(id),
                     field_id: ActiveValue::Set(field_id),

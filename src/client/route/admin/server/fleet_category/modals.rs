@@ -17,7 +17,8 @@ use crate::{
         ping_format::get_ping_formats,
     },
     model::category::{
-        FleetCategoryAccessRoleDto, FleetCategoryChannelDto, FleetCategoryPingRoleDto,
+        CreateFleetCategoryDto, FleetCategoryAccessRoleDto, FleetCategoryChannelDto,
+        FleetCategoryPingRoleDto, UpdateFleetCategoryDto,
     },
 };
 
@@ -47,7 +48,7 @@ pub fn CreateCategoryModal(
     let mut validation_errors = use_signal(ValidationErrorsData::default);
     let mut should_submit = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    let mut ping_formats = use_signal(|| Vec::<PingFormatDto>::new());
+    let mut ping_formats = use_signal(Vec::<PingFormatDto>::new);
 
     // Fetch ping formats when modal opens
     #[cfg(feature = "web")]
@@ -82,35 +83,34 @@ pub fn CreateCategoryModal(
     let future = use_resource(move || async move {
         if should_submit() {
             let (name, durations) = submit_data();
-            let fields = form_fields();
             if let Some(ping_format_id) = durations.ping_format_id {
                 // Convert form fields to DTOs (server will enrich with names/colors)
-                let access_roles: Vec<FleetCategoryAccessRoleDto> = fields
+                let access_roles: Vec<FleetCategoryAccessRoleDto> = form_fields()
                     .access_roles
                     .iter()
-                    .map(|ar| FleetCategoryAccessRoleDto {
-                        role_id: ar.role.id,
+                    .map(|r| FleetCategoryAccessRoleDto {
+                        role_id: r.role.id,
                         role_name: String::new(),  // Server will populate
                         role_color: String::new(), // Server will populate
                         position: 0,               // Server will populate
-                        can_view: ar.can_view,
-                        can_create: ar.can_create,
-                        can_manage: ar.can_manage,
+                        can_view: r.can_view,
+                        can_create: r.can_create,
+                        can_manage: r.can_manage,
                     })
                     .collect();
 
-                let ping_roles: Vec<FleetCategoryPingRoleDto> = fields
+                let ping_roles: Vec<FleetCategoryPingRoleDto> = form_fields()
                     .ping_roles
                     .iter()
-                    .map(|pr| FleetCategoryPingRoleDto {
-                        role_id: pr.id,
+                    .map(|r| FleetCategoryPingRoleDto {
+                        role_id: r.id,
                         role_name: String::new(),  // Server will populate
                         role_color: String::new(), // Server will populate
                         position: 0,               // Server will populate
                     })
                     .collect();
 
-                let channels: Vec<FleetCategoryChannelDto> = fields
+                let channels: Vec<FleetCategoryChannelDto> = form_fields()
                     .channels
                     .iter()
                     .map(|c| FleetCategoryChannelDto {
@@ -120,20 +120,18 @@ pub fn CreateCategoryModal(
                     })
                     .collect();
 
-                Some(
-                    create_fleet_category(
-                        guild_id,
-                        ping_format_id,
-                        name,
-                        durations.ping_cooldown,
-                        durations.ping_reminder,
-                        durations.max_pre_ping,
-                        access_roles,
-                        ping_roles,
-                        channels,
-                    )
-                    .await,
-                )
+                let dto = CreateFleetCategoryDto {
+                    ping_format_id,
+                    name,
+                    ping_lead_time: durations.ping_cooldown,
+                    ping_reminder: durations.ping_reminder,
+                    max_pre_ping: durations.max_pre_ping,
+                    access_roles,
+                    ping_roles,
+                    channels,
+                };
+
+                Some(create_fleet_category(guild_id, dto).await)
             } else {
                 None
             }
@@ -269,7 +267,7 @@ pub fn EditCategoryModal(
     let mut validation_errors = use_signal(ValidationErrorsData::default);
     let mut should_submit = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
-    let mut ping_formats = use_signal(|| Vec::<PingFormatDto>::new());
+    let mut ping_formats = use_signal(Vec::<PingFormatDto>::new);
 
     // Fetch ping formats when modal opens
     #[cfg(feature = "web")]
@@ -310,17 +308,17 @@ pub fn EditCategoryModal(
                 ping_cooldown_str: category
                     .ping_lead_time
                     .as_ref()
-                    .map(|d| format_duration(d))
+                    .map(format_duration)
                     .unwrap_or_default(),
                 ping_reminder_str: category
                     .ping_reminder
                     .as_ref()
-                    .map(|d| format_duration(d))
+                    .map(format_duration)
                     .unwrap_or_default(),
                 max_pre_ping_str: category
                     .max_pre_ping
                     .as_ref()
-                    .map(|d| format_duration(d))
+                    .map(format_duration)
                     .unwrap_or_default(),
                 active_tab: Default::default(),
                 role_search_query: String::new(),
@@ -388,35 +386,34 @@ pub fn EditCategoryModal(
     let future = use_resource(move || async move {
         if should_submit() {
             let (id, name, durations) = submit_data();
-            let fields = form_fields();
             if let Some(ping_format_id) = durations.ping_format_id {
                 // Convert form fields to DTOs (server will enrich with names/colors)
-                let access_roles: Vec<FleetCategoryAccessRoleDto> = fields
+                let access_roles: Vec<FleetCategoryAccessRoleDto> = form_fields()
                     .access_roles
                     .iter()
-                    .map(|ar| FleetCategoryAccessRoleDto {
-                        role_id: ar.role.id,
+                    .map(|r| FleetCategoryAccessRoleDto {
+                        role_id: r.role.id,
                         role_name: String::new(),  // Server will populate
                         role_color: String::new(), // Server will populate
                         position: 0,               // Server will populate
-                        can_view: ar.can_view,
-                        can_create: ar.can_create,
-                        can_manage: ar.can_manage,
+                        can_view: r.can_view,
+                        can_create: r.can_create,
+                        can_manage: r.can_manage,
                     })
                     .collect();
 
-                let ping_roles: Vec<FleetCategoryPingRoleDto> = fields
+                let ping_roles: Vec<FleetCategoryPingRoleDto> = form_fields()
                     .ping_roles
                     .iter()
-                    .map(|pr| FleetCategoryPingRoleDto {
-                        role_id: pr.id,
+                    .map(|r| FleetCategoryPingRoleDto {
+                        role_id: r.id,
                         role_name: String::new(),  // Server will populate
                         role_color: String::new(), // Server will populate
                         position: 0,               // Server will populate
                     })
                     .collect();
 
-                let channels: Vec<FleetCategoryChannelDto> = fields
+                let channels: Vec<FleetCategoryChannelDto> = form_fields()
                     .channels
                     .iter()
                     .map(|c| FleetCategoryChannelDto {
@@ -426,21 +423,18 @@ pub fn EditCategoryModal(
                     })
                     .collect();
 
-                Some(
-                    update_fleet_category(
-                        guild_id,
-                        id,
-                        ping_format_id,
-                        name,
-                        durations.ping_cooldown,
-                        durations.ping_reminder,
-                        durations.max_pre_ping,
-                        access_roles,
-                        ping_roles,
-                        channels,
-                    )
-                    .await,
-                )
+                let dto = UpdateFleetCategoryDto {
+                    ping_format_id,
+                    name,
+                    ping_lead_time: durations.ping_cooldown,
+                    ping_reminder: durations.ping_reminder,
+                    max_pre_ping: durations.max_pre_ping,
+                    access_roles,
+                    ping_roles,
+                    channels,
+                };
+
+                Some(update_fleet_category(guild_id, id, dto).await)
             } else {
                 None
             }

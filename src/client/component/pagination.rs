@@ -19,7 +19,7 @@ pub fn Pagination(
     on_per_page_change: EventHandler<u64>,
 ) -> Element {
     let mut show_page_jump = use_signal(|| false);
-    let mut jump_page_input = use_signal(|| String::new());
+    let mut jump_page_input = use_signal(String::new);
 
     rsx!(
         div {

@@ -29,13 +29,20 @@ pub enum AppError {
     #[error(transparent)]
     ReqwestErr(#[from] reqwest::Error),
     #[error(transparent)]
-    DiscordErr(#[from] serenity::Error),
+    DiscordErr(#[from] Box<serenity::Error>),
     #[error("{0}")]
     NotFound(String),
     #[error("{0}")]
     BadRequest(String),
     #[error("{0}")]
     InternalError(String),
+}
+
+// Manual From implementation to box the large serenity::Error
+impl From<serenity::Error> for AppError {
+    fn from(err: serenity::Error) -> Self {
+        AppError::DiscordErr(Box::new(err))
+    }
 }
 
 impl IntoResponse for AppError {

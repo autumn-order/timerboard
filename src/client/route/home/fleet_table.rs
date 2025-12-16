@@ -58,7 +58,7 @@ pub fn FleetTable(guild_id: u64, mut refetch_trigger: Signal<u32>) -> Element {
     let mut show_view_edit_modal = use_signal(|| false);
 
     // Shared timer for all countdown components - updates once per second
-    let mut current_time = use_signal(|| Utc::now());
+    let mut current_time = use_signal(Utc::now);
 
     #[cfg(feature = "web")]
     use_future(move || async move {

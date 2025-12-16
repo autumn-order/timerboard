@@ -33,7 +33,6 @@ impl<'a> DiscordGuildChannelRepository<'a> {
             channel_id: ActiveValue::Set(channel.id.get().to_string()),
             name: ActiveValue::Set(channel.name.clone()),
             position: ActiveValue::Set(channel.position as i32),
-            ..Default::default()
         })
         .on_conflict(
             OnConflict::column(entity::discord_guild_channel::Column::ChannelId)

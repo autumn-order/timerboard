@@ -14,8 +14,8 @@ pub fn AccessRolesTab(
     mut form_fields: Signal<FormFieldsData>,
     is_submitting: bool,
 ) -> Element {
-    let mut available_roles = use_signal(|| Vec::<DiscordGuildRoleDto>::new());
-    let mut role_search_query = use_signal(|| String::new());
+    let mut available_roles = use_signal(Vec::<DiscordGuildRoleDto>::new);
+    let mut role_search_query = use_signal(String::new);
     let mut role_dropdown_open = use_signal(|| false);
     let mut should_fetch_roles = use_signal(|| false);
 

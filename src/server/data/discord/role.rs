@@ -23,7 +23,6 @@ impl<'a> DiscordGuildRoleRepository<'a> {
             name: ActiveValue::Set(role.name.clone()),
             color: ActiveValue::Set(format!("#{:06X}", role.colour.0)),
             position: ActiveValue::Set(role.position as i16),
-            ..Default::default()
         })
         .on_conflict(
             OnConflict::column(entity::discord_guild_role::Column::RoleId)
@@ -45,7 +44,7 @@ impl<'a> DiscordGuildRoleRepository<'a> {
     ) -> Result<Vec<entity::discord_guild_role::Model>, DbErr> {
         let mut results = Vec::new();
 
-        for (_, role) in roles {
+        for role in roles.values() {
             let model = self.upsert(guild_id, role).await?;
             results.push(model);
         }

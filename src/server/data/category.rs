@@ -43,7 +43,6 @@ impl<'a> FleetCategoryRepository<'a> {
                 can_view: ActiveValue::Set(access_role.can_view),
                 can_create: ActiveValue::Set(access_role.can_create),
                 can_manage: ActiveValue::Set(access_role.can_manage),
-                ..Default::default()
             }
             .insert(self.db)
             .await?;
@@ -54,7 +53,6 @@ impl<'a> FleetCategoryRepository<'a> {
             entity::fleet_category_ping_role::ActiveModel {
                 fleet_category_id: ActiveValue::Set(category.id),
                 role_id: ActiveValue::Set(role_id.to_string()),
-                ..Default::default()
             }
             .insert(self.db)
             .await?;
@@ -65,7 +63,6 @@ impl<'a> FleetCategoryRepository<'a> {
             entity::fleet_category_channel::ActiveModel {
                 fleet_category_id: ActiveValue::Set(category.id),
                 channel_id: ActiveValue::Set(channel_id.to_string()),
-                ..Default::default()
             }
             .insert(self.db)
             .await?;
@@ -297,7 +294,6 @@ impl<'a> FleetCategoryRepository<'a> {
                 can_view: ActiveValue::Set(access_role.can_view),
                 can_create: ActiveValue::Set(access_role.can_create),
                 can_manage: ActiveValue::Set(access_role.can_manage),
-                ..Default::default()
             }
             .insert(self.db)
             .await?;
@@ -308,7 +304,6 @@ impl<'a> FleetCategoryRepository<'a> {
             entity::fleet_category_ping_role::ActiveModel {
                 fleet_category_id: ActiveValue::Set(params.id),
                 role_id: ActiveValue::Set(role_id.to_string()),
-                ..Default::default()
             }
             .insert(self.db)
             .await?;
@@ -319,7 +314,6 @@ impl<'a> FleetCategoryRepository<'a> {
             entity::fleet_category_channel::ActiveModel {
                 fleet_category_id: ActiveValue::Set(params.id),
                 channel_id: ActiveValue::Set(channel_id.to_string()),
-                ..Default::default()
             }
             .insert(self.db)
             .await?;

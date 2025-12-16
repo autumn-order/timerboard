@@ -40,7 +40,7 @@ pub fn FleetCreationModal(
     }));
 
     // Fleet form state
-    let mut fleet_name = use_signal(|| String::new());
+    let mut fleet_name = use_signal(String::new);
 
     // Pre-fill fleet datetime with next 5-minute interval to give users buffer time
     // This prevents "time in the past" errors if they take a few minutes to fill out the form
@@ -48,7 +48,7 @@ pub fn FleetCreationModal(
         let now = Utc::now();
         let current_minute = now.minute();
         // Round up to next 5-minute mark (e.g., 14:32 -> 14:35, 14:35 -> 14:35)
-        let rounded_minute = ((current_minute + 4) / 5) * 5;
+        let rounded_minute = current_minute.div_ceil(5) * 5;
 
         let rounded_time = if rounded_minute >= 60 {
             // Roll over to next hour
@@ -71,8 +71,8 @@ pub fn FleetCreationModal(
     // Pre-fill fleet commander with current user's discord_id
     let fleet_commander_id = use_signal(move || current_user_id);
 
-    let mut fleet_description = use_signal(|| String::new());
-    let mut field_values = use_signal(|| std::collections::HashMap::<i32, String>::new());
+    let mut fleet_description = use_signal(String::new);
+    let mut field_values = use_signal(std::collections::HashMap::<i32, String>::new);
 
     // Fleet visibility options
     let mut hidden = use_signal(|| false);

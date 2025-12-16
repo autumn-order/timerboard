@@ -13,6 +13,9 @@ use crate::{
     },
 };
 
+/// Type alias for manageable categories signal
+type ManageableCategoriesSignal = Signal<Option<Result<Vec<FleetCategoryListItemDto>, ApiError>>>;
+
 /// Helper function to format a duration for display
 fn format_duration(duration: &chrono::Duration) -> String {
     let total_seconds = duration.num_seconds();
@@ -52,16 +55,14 @@ pub fn FleetFormFields(
     mut disable_reminder: Signal<bool>,
     // Optional props for category selection (only used in create mode)
     #[props(default = None)] selected_category_id: Option<Signal<i32>>,
-    #[props(default = None)] manageable_categories: Option<
-        Signal<Option<Result<Vec<FleetCategoryListItemDto>, ApiError>>>,
-    >,
+    #[props(default = None)] manageable_categories: Option<ManageableCategoriesSignal>,
     // Optional props for datetime validation (only used in edit mode)
     #[props(default = false)] allow_past_time: bool,
     #[props(default = None)] min_datetime: Option<chrono::DateTime<chrono::Utc>>,
     // Optional signal to expose datetime validation errors to parent
     #[props(default = None)] datetime_error_signal: Option<Signal<Option<String>>>,
 ) -> Element {
-    let mut commander_search = use_signal(|| String::new());
+    let mut commander_search = use_signal(String::new);
     let mut show_commander_dropdown = use_signal(|| false);
 
     // Use provided signal or create local one
@@ -226,7 +227,6 @@ pub fn FleetFormFields(
 
                                                         if utc_dt < min_allowed_time {
                                                             datetime_error.set(Some("Fleet time cannot be more than 2 minutes in the past".to_string()));
-                                                            return;
                                                         }
                                                     }
                                                 }

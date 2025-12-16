@@ -49,7 +49,7 @@ pub async fn create_fleet_category(
 
     let category = service.create(params).await?;
 
-    Ok((StatusCode::CREATED, Json(category.to_dto())))
+    Ok((StatusCode::CREATED, Json(category.into_dto())))
 }
 
 /// GET /api/timerboard/{guild_id}/fleet/category
@@ -70,7 +70,7 @@ pub async fn get_fleet_categories(
         .get_paginated(guild_id, params.page, params.entries)
         .await?;
 
-    Ok((StatusCode::OK, Json(categories.to_dto())))
+    Ok((StatusCode::OK, Json(categories.into_dto())))
 }
 
 /// GET /api/timerboard/{guild_id}/fleet/category/{fleet_id}
@@ -92,7 +92,7 @@ pub async fn get_fleet_category_by_id(
         Some(cat) => {
             // Verify it belongs to the guild
             if cat.guild_id == guild_id {
-                Ok((StatusCode::OK, Json(cat.to_dto())))
+                Ok((StatusCode::OK, Json(cat.into_dto())))
             } else {
                 Err(AppError::NotFound("Category not found".to_string()))
             }
@@ -121,7 +121,7 @@ pub async fn update_fleet_category(
     let category = service.update(params).await?;
 
     match category {
-        Some(cat) => Ok((StatusCode::OK, Json(cat.to_dto()))),
+        Some(cat) => Ok((StatusCode::OK, Json(cat.into_dto()))),
         None => Err(AppError::NotFound("Category not found".to_string())),
     }
 }
@@ -146,7 +146,7 @@ pub async fn get_fleet_categories_by_ping_format(
         Json(
             categories
                 .into_iter()
-                .map(|c| c.to_dto())
+                .map(|c| c.into_dto())
                 .collect::<Vec<_>>(),
         ),
     ))

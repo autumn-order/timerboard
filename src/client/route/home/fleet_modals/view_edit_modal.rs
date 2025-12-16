@@ -58,12 +58,12 @@ pub fn FleetViewEditModal(
     let mut fleet_refetch_trigger = use_signal(|| 0u32);
 
     // Form state for editing
-    let mut fleet_name = use_signal(|| String::new());
-    let mut fleet_datetime = use_signal(|| String::new());
+    let mut fleet_name = use_signal(String::new);
+    let mut fleet_datetime = use_signal(String::new);
     let mut original_fleet_time = use_signal(|| None::<chrono::DateTime<Utc>>);
     let mut fleet_commander_id = use_signal(|| None::<u64>);
-    let mut fleet_description = use_signal(|| String::new());
-    let mut field_values = use_signal(|| HashMap::<i32, String>::new());
+    let mut fleet_description = use_signal(String::new);
+    let mut field_values = use_signal(HashMap::<i32, String>::new);
 
     // Fleet visibility options
     let mut hidden = use_signal(|| false);

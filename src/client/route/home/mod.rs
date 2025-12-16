@@ -82,7 +82,7 @@ pub fn Home() -> Element {
                     let first_guild = guild_list.iter().min_by_key(|g| g.guild_id);
 
                     if let Some(guild) = first_guild {
-                        selected_guild_id.set(Some(guild.guild_id as u64));
+                        selected_guild_id.set(Some(guild.guild_id));
                     }
                 }
             }
@@ -97,8 +97,7 @@ pub fn Home() -> Element {
     // Get selected guild name for display
     let selected_guild = guilds().and_then(|result| {
         result.ok().and_then(|guild_list| {
-            selected_guild_id()
-                .and_then(|id| guild_list.into_iter().find(|g| g.guild_id as u64 == id))
+            selected_guild_id().and_then(|id| guild_list.into_iter().find(|g| g.guild_id == id))
         })
     });
 
@@ -184,7 +183,7 @@ pub fn Home() -> Element {
                                                     class: "max-h-96 overflow-y-auto",
                                                     for guild in guild_list.clone() {
                                                         {
-                                                            let guild_id = guild.guild_id as u64;
+                                                            let guild_id = guild.guild_id;
                                                             let is_selected = selected_guild_id() == Some(guild_id);
                                                             rsx! {
                                                                 button {

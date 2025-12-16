@@ -137,7 +137,7 @@ pub fn AdminServers() -> Element {
                         class: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4",
                         for guild in guild_list {
                             Link {
-                                to: Route::ServerAdminFleetCategory { guild_id: guild.guild_id as u64 },
+                                to: Route::ServerAdminFleetCategory { guild_id: guild.guild_id },
                                 class: "card bg-base-200 hover:bg-base-300 transition-colors",
                                 div {
                                     class: "card-body",

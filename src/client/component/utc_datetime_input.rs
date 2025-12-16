@@ -27,7 +27,7 @@ pub fn UtcDateTimeInput(
     min_datetime: Option<chrono::DateTime<Utc>>,
 ) -> Element {
     let mut is_valid = use_signal(|| true);
-    let mut error_message = use_signal(|| String::new());
+    let mut error_message = use_signal(String::new);
 
     // Validate datetime format and values
     let mut validate = move |input: &str| -> bool {
@@ -76,17 +76,17 @@ pub fn UtcDateTimeInput(
         let month = month.unwrap();
         let day = day.unwrap();
 
-        if year < 2000 || year > 2100 {
+        if !(2000..=2100).contains(&year) {
             error_message.set("Year must be between 2000 and 2100".to_string());
             return false;
         }
 
-        if month < 1 || month > 12 {
+        if !(1..=12).contains(&month) {
             error_message.set("Month must be between 01 and 12".to_string());
             return false;
         }
 
-        if day < 1 || day > 31 {
+        if !(1..=31).contains(&day) {
             error_message.set("Day must be between 01 and 31".to_string());
             return false;
         }

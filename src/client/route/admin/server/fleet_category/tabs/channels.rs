@@ -14,8 +14,8 @@ pub fn ChannelsTab(
     mut form_fields: Signal<FormFieldsData>,
     is_submitting: bool,
 ) -> Element {
-    let mut available_channels = use_signal(|| Vec::<DiscordGuildChannelDto>::new());
-    let mut channel_search_query = use_signal(|| String::new());
+    let mut available_channels = use_signal(Vec::<DiscordGuildChannelDto>::new);
+    let mut channel_search_query = use_signal(String::new);
     let mut channel_dropdown_open = use_signal(|| false);
     let mut should_fetch_channels = use_signal(|| false);
 

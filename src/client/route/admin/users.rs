@@ -235,7 +235,7 @@ fn AdminsList(admins: Vec<UserDto>, mut refetch_trigger: Signal<u32>) -> Element
 #[component]
 fn AddAdminModal(mut show: Signal<bool>, mut refetch_trigger: Signal<u32>) -> Element {
     let mut users_data = use_signal(|| None::<Vec<UserDto>>);
-    let mut search_query = use_signal(|| String::new());
+    let mut search_query = use_signal(String::new);
     let mut selected_user = use_signal(|| None::<u64>);
     let mut should_submit = use_signal(|| false);
     let mut error_message = use_signal(|| None::<String>);

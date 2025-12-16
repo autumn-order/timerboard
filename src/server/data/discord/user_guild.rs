@@ -31,7 +31,6 @@ impl<'a> UserDiscordGuildRepository<'a> {
             user_id: ActiveValue::Set(user_id.to_string()),
             guild_id: ActiveValue::Set(guild_id.to_string()),
             nickname: ActiveValue::Set(nickname),
-            ..Default::default()
         })
         .exec_with_returning(self.db)
         .await

@@ -54,10 +54,8 @@ pub fn ProtectedLayout(permissions: Vec<Permission>) -> Element {
 
     // Redirect based on authentication and permissions
     use_effect(use_reactive!(|(user_logged_in, fetch_completed)| {
-        if fetch_completed {
-            if !user_logged_in {
-                nav.push(Route::Login {});
-            }
+        if fetch_completed && !user_logged_in {
+            nav.push(Route::Login {});
         }
     }));
 

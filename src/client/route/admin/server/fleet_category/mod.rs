@@ -48,7 +48,7 @@ pub fn ServerAdminFleetCategory(guild_id: u64) -> Element {
             }
 
             // Only run resource if we need to fetch
-            let needs_fetch = guild.read().as_ref().map(|g| g.guild_id as u64) != Some(guild_id);
+            let needs_fetch = guild.read().as_ref().map(|g| g.guild_id) != Some(guild_id);
 
             if needs_fetch {
                 should_fetch.set(true);

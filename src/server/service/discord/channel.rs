@@ -59,7 +59,7 @@ impl<'a> DiscordGuildChannelService<'a> {
         }
 
         // Upsert all current text channels
-        for (_, channel) in &text_channels {
+        for channel in text_channels.values() {
             channel_repo.upsert(guild_id, channel).await?;
         }
 

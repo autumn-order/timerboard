@@ -30,7 +30,6 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
             entity::user_discord_guild_role::ActiveModel {
                 user_id: ActiveValue::Set(user_id.to_string()),
                 role_id: ActiveValue::Set(role_id.to_string()),
-                ..Default::default()
             },
         )
         .exec_with_returning(self.db)

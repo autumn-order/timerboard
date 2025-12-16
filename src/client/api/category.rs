@@ -1,16 +1,12 @@
-use chrono::Duration;
-
+use super::helper::{
+    delete, get, parse_empty_response, parse_response, post, put, send_request, serialize_json,
+};
 use crate::{
     client::model::error::ApiError,
     model::category::{
-        CreateFleetCategoryDto, FleetCategoryAccessRoleDto, FleetCategoryChannelDto,
-        FleetCategoryDto, FleetCategoryPingRoleDto, PaginatedFleetCategoriesDto,
+        CreateFleetCategoryDto, FleetCategoryDto, PaginatedFleetCategoriesDto,
         UpdateFleetCategoryDto,
     },
-};
-
-use super::helper::{
-    delete, get, parse_empty_response, parse_response, post, put, send_request, serialize_json,
 };
 
 /// Get paginated fleet categories for a guild
@@ -42,27 +38,10 @@ pub async fn get_fleet_category_by_id(
 /// Create a new fleet category
 pub async fn create_fleet_category(
     guild_id: u64,
-    ping_format_id: i32,
-    name: String,
-    ping_cooldown: Option<Duration>,
-    ping_reminder: Option<Duration>,
-    max_pre_ping: Option<Duration>,
-    access_roles: Vec<FleetCategoryAccessRoleDto>,
-    ping_roles: Vec<FleetCategoryPingRoleDto>,
-    channels: Vec<FleetCategoryChannelDto>,
+    dto: CreateFleetCategoryDto,
 ) -> Result<(), ApiError> {
     let url = format!("/api/admin/servers/{}/categories", guild_id);
-    let payload = CreateFleetCategoryDto {
-        ping_format_id,
-        name,
-        ping_lead_time: ping_cooldown,
-        ping_reminder,
-        max_pre_ping,
-        access_roles,
-        ping_roles,
-        channels,
-    };
-    let body = serialize_json(&payload)?;
+    let body = serialize_json(&dto)?;
 
     let response = send_request(post(&url).body(body)).await?;
     parse_empty_response(response).await
@@ -72,27 +51,10 @@ pub async fn create_fleet_category(
 pub async fn update_fleet_category(
     guild_id: u64,
     category_id: i32,
-    ping_format_id: i32,
-    name: String,
-    ping_cooldown: Option<Duration>,
-    ping_reminder: Option<Duration>,
-    max_pre_ping: Option<Duration>,
-    access_roles: Vec<FleetCategoryAccessRoleDto>,
-    ping_roles: Vec<FleetCategoryPingRoleDto>,
-    channels: Vec<FleetCategoryChannelDto>,
+    dto: UpdateFleetCategoryDto,
 ) -> Result<(), ApiError> {
     let url = format!("/api/admin/servers/{}/categories/{}", guild_id, category_id);
-    let payload = UpdateFleetCategoryDto {
-        ping_format_id,
-        name,
-        ping_lead_time: ping_cooldown,
-        ping_reminder,
-        max_pre_ping,
-        access_roles,
-        ping_roles,
-        channels,
-    };
-    let body = serialize_json(&payload)?;
+    let body = serialize_json(&dto)?;
 
     let response = send_request(put(&url).body(body)).await?;
     parse_empty_response(response).await

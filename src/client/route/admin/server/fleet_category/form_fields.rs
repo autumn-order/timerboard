@@ -21,7 +21,7 @@ pub fn FleetCategoryFormFields(
     ping_formats: Signal<Vec<PingFormatDto>>,
 ) -> Element {
     // Create mutable signal for ping format search
-    let mut ping_format_search = use_signal(|| String::new());
+    let mut ping_format_search = use_signal(String::new);
     let mut ping_format_dropdown_open = use_signal(|| false);
 
     // Filter ping formats based on search query

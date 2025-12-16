@@ -17,7 +17,7 @@ impl<'a> DiscordBotService<'a> {
     pub async fn bot_url(&self) -> Result<(Url, CsrfToken), AppError> {
         let (mut authorize_url, csrf_token) = self
             .oauth_client
-            .authorize_url(|| CsrfToken::new_random())
+            .authorize_url(CsrfToken::new_random)
             // Request scope to add bot and slash commands
             .add_scope(Scope::new("bot".to_string()))
             .add_scope(Scope::new("applications.commands".to_string()))

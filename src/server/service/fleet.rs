@@ -9,6 +9,7 @@ use crate::{
     server::{
         data::{category::FleetCategoryRepository, fleet::FleetRepository},
         error::AppError,
+        model::fleet::{CreateFleetParams, UpdateFleetParams},
     },
 };
 
@@ -43,25 +44,24 @@ impl<'a> FleetService<'a> {
         let repo = FleetRepository::new(self.db);
 
         // Parse the fleet time from "YYYY-MM-DD HH:MM" format
-        let fleet_time = Self::parse_fleet_time(&dto.fleet_time)?;
+        let fleet_time = Self::parse_fleet_time(&dto.fleet_time).map_err(|e| *e)?;
 
         // Validate fleet time doesn't conflict with existing fleets in the same category
         self.validate_fleet_time_conflict(dto.category_id, fleet_time, None)
             .await?;
 
         // Create the fleet
-        let fleet = repo
-            .create(
-                dto.category_id,
-                dto.name,
-                dto.commander_id,
-                fleet_time,
-                dto.description,
-                dto.field_values,
-                dto.hidden,
-                dto.disable_reminder,
-            )
-            .await?;
+        let params = CreateFleetParams {
+            category_id: dto.category_id,
+            name: dto.name,
+            commander_id: dto.commander_id,
+            fleet_time,
+            description: dto.description,
+            field_values: dto.field_values,
+            hidden: dto.hidden,
+            disable_reminder: dto.disable_reminder,
+        };
+        let fleet = repo.create(params).await?;
 
         // Fetch the full fleet data with enriched information
         // Get guild_id from the category
@@ -433,10 +433,12 @@ impl<'a> FleetService<'a> {
         if let Some((fleet, _)) = result {
             // Parse the fleet time with original time for validation
             let original_time = fleet.fleet_time;
-            let fleet_time = Self::parse_fleet_time_with_min(&dto.fleet_time, Some(original_time))?;
+            let new_fleet_time =
+                Self::parse_fleet_time_with_min(&dto.fleet_time, Some(original_time))
+                    .map_err(|e| *e)?;
 
             // Validate fleet time doesn't conflict with existing fleets (excluding this fleet)
-            self.validate_fleet_time_conflict(dto.category_id, fleet_time, Some(id))
+            self.validate_fleet_time_conflict(dto.category_id, new_fleet_time, Some(id))
                 .await?;
             // Fetch old category to verify guild
             let old_category = entity::prelude::FleetCategory::find_by_id(fleet.category_id)
@@ -473,17 +475,17 @@ impl<'a> FleetService<'a> {
                 }
 
                 // Update the fleet
-                repo.update(
+                let params = UpdateFleetParams {
                     id,
-                    Some(dto.category_id),
-                    Some(dto.name),
-                    Some(fleet_time),
-                    Some(dto.description),
-                    Some(dto.field_values),
-                    Some(dto.hidden),
-                    Some(dto.disable_reminder),
-                )
-                .await?;
+                    category_id: Some(dto.category_id),
+                    name: Some(dto.name),
+                    fleet_time: Some(new_fleet_time),
+                    description: Some(dto.description),
+                    field_values: Some(dto.field_values),
+                    hidden: Some(dto.hidden),
+                    disable_reminder: Some(dto.disable_reminder),
+                };
+                repo.update(params).await?;
 
                 // Fetch the updated fleet data with enriched information
                 return self
@@ -549,7 +551,7 @@ impl<'a> FleetService<'a> {
     /// Allows times up to 2 minutes in the past to handle:
     /// - Time spent filling out the form
     /// - Clock skew between client and server
-    fn parse_fleet_time(time_str: &str) -> Result<DateTime<Utc>, AppError> {
+    fn parse_fleet_time(time_str: &str) -> Result<DateTime<Utc>, Box<AppError>> {
         Self::parse_fleet_time_with_min(time_str, None)
     }
 
@@ -570,7 +572,7 @@ impl<'a> FleetService<'a> {
     fn parse_fleet_time_with_min(
         time_str: &str,
         min_time: Option<DateTime<Utc>>,
-    ) -> Result<DateTime<Utc>, AppError> {
+    ) -> Result<DateTime<Utc>, Box<AppError>> {
         let now = Utc::now();
 
         // Handle "now" shorthand (case-insensitive)
@@ -580,20 +582,20 @@ impl<'a> FleetService<'a> {
             NaiveDateTime::parse_from_str(time_str, "%Y-%m-%d %H:%M")
                 .map(|naive| naive.and_utc())
                 .map_err(|e| {
-                    AppError::BadRequest(format!(
+                    Box::new(AppError::BadRequest(format!(
                         "Invalid fleet time format. Expected 'YYYY-MM-DD HH:MM' or 'now', got '{}': {}",
                         time_str, e
-                    ))
+                    )))
                 })?
         };
 
         // If min_time is provided and is in the past, validate against min_time
         if let Some(min_time) = min_time {
             if min_time < now && fleet_time < min_time {
-                return Err(AppError::BadRequest(format!(
+                return Err(Box::new(AppError::BadRequest(format!(
                     "Fleet time cannot be set earlier than the original time ({})",
                     min_time.format("%Y-%m-%d %H:%M UTC")
-                )));
+                ))));
             }
         }
 
@@ -606,9 +608,9 @@ impl<'a> FleetService<'a> {
             let min_allowed_time = now - grace_period;
 
             if fleet_time < min_allowed_time {
-                return Err(AppError::BadRequest(
+                return Err(Box::new(AppError::BadRequest(
                     "Fleet time cannot be more than 2 minutes in the past".to_string(),
-                ));
+                )));
             }
         }
 

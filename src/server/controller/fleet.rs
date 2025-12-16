@@ -296,9 +296,7 @@ pub async fn update_fleet(
         .ok_or_else(|| AppError::NotFound("Fleet not found".to_string()))?;
 
     // Check if user is admin, has manage permission, or is the fleet commander
-    let can_manage = if user.admin {
-        true
-    } else if user_id == fleet.commander_id {
+    let can_manage = if user.admin || user_id == fleet.commander_id {
         true
     } else {
         let category_repo = FleetCategoryRepository::new(&state.db);
@@ -352,9 +350,7 @@ pub async fn delete_fleet(
         .ok_or_else(|| AppError::NotFound("Fleet not found".to_string()))?;
 
     // Check if user is admin, has manage permission, or is the fleet commander
-    let can_manage = if user.admin {
-        true
-    } else if user_id == fleet.commander_id {
+    let can_manage = if user.admin || user_id == fleet.commander_id {
         true
     } else {
         let category_repo = FleetCategoryRepository::new(&state.db);

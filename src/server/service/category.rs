@@ -162,7 +162,7 @@ impl<'a> FleetCategoryService<'a> {
             // Admins get all categories for the guild (page 0, large per_page)
             let (cats, _) = repo.get_by_guild_id_paginated(guild_id, 0, 1000).await?;
             cats.into_iter()
-                .map(|c| FleetCategoryListItem::from_with_counts(c))
+                .map(FleetCategoryListItem::from_with_counts)
                 .collect::<Result<Vec<_>, _>>()?
         } else {
             // Regular users get only categories they can manage

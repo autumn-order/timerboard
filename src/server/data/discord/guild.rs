@@ -16,7 +16,6 @@ impl<'a> DiscordGuildRepository<'a> {
             guild_id: ActiveValue::Set(guild.id.get().to_string()),
             name: ActiveValue::Set(guild.name),
             icon_hash: ActiveValue::Set(guild.icon_hash.map(|i| i.to_string())),
-            ..Default::default()
         })
         .on_conflict(
             OnConflict::column(entity::discord_guild::Column::GuildId)

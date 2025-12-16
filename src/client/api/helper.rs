@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 pub async fn parse_response<T: DeserializeOwned>(response: Response) -> Result<T, ApiError> {
     let status = response.status() as u64;
 
-    if status >= 200 && status < 300 {
+    if (200..300).contains(&status) {
         response.json::<T>().await.map_err(|e| ApiError {
             status: 500,
             message: format!("Failed to parse response: {}", e),
@@ -29,7 +29,7 @@ pub async fn parse_response<T: DeserializeOwned>(response: Response) -> Result<T
 pub async fn parse_empty_response(response: Response) -> Result<(), ApiError> {
     let status = response.status() as u64;
 
-    if status >= 200 && status < 300 {
+    if (200..300).contains(&status) {
         Ok(())
     } else {
         let message = if let Ok(error_dto) = response.json::<ErrorDto>().await {

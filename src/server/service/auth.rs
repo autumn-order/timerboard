@@ -44,7 +44,7 @@ impl<'a> AuthService<'a> {
     pub fn login_url(&self) -> (Url, CsrfToken) {
         let (authorize_url, csrf_state) = self
             .oauth_client
-            .authorize_url(|| CsrfToken::new_random())
+            .authorize_url(CsrfToken::new_random)
             // Request scope to retrieve user information, guilds, and guild member info
             .add_scope(Scope::new("identify".to_string()))
             .add_scope(Scope::new("guilds".to_string()))
@@ -59,7 +59,7 @@ impl<'a> AuthService<'a> {
         authorization_code: String,
         set_admin: bool,
     ) -> Result<entity::user::Model, AppError> {
-        let user_repo = UserRepository::new(&self.db);
+        let user_repo = UserRepository::new(self.db);
 
         let auth_code = AuthorizationCode::new(authorization_code);
 
