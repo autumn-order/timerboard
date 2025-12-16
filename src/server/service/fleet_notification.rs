@@ -416,7 +416,7 @@ impl<'a> FleetNotificationService<'a> {
 
         // Build embed with description containing the fleet list
         let embed = CreateEmbed::new()
-            .title(".:Upcoming Fleets:.")
+            .title(".:Upcoming Events:.")
             .url(&self.app_url)
             .description(description)
             .color(0x5865F2) // Discord blurple color
@@ -610,13 +610,13 @@ impl<'a> FleetNotificationService<'a> {
 
         // Build title based on message type and category name
         let title = match message_type {
-            "creation" => format!("**.:New Upcoming {} Fleet:.**", category_data.category.name),
+            "creation" => format!("**.:New Upcoming {}:.**", category_data.category.name),
             "reminder" => format!(
-                "**.:Reminder - Upcoming {} Fleet:.**",
+                "**.:Reminder - Upcoming {}:.**",
                 category_data.category.name
             ),
-            "formup" => format!("**.:{} Fleet Forming Now:.**", category_data.category.name),
-            _ => format!("**.:{} Fleet Notification:.**", category_data.category.name),
+            "formup" => format!("**.:{} Forming Now:.**", category_data.category.name),
+            _ => format!("**.:{} Notification:.**", category_data.category.name),
         };
 
         // Build ping content with title
