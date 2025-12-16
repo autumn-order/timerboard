@@ -64,24 +64,45 @@ pub fn AdminServers() -> Element {
     // Fetch guilds if not already cached
     #[cfg(feature = "web")]
     {
-        let needs_fetch = cache.read().data.is_none();
+        let mut should_fetch = use_signal(|| false);
 
-        if needs_fetch {
-            let future = use_resource(|| async move { get_all_discord_guilds().await });
-
-            match &*future.read_unchecked() {
-                Some(Ok(guild_list)) => {
-                    cache.write().data = Some(guild_list.clone());
-                    error.set(None);
-                }
-                Some(Err(err)) => {
-                    tracing::error!("Failed to fetch guilds: {}", err);
-                    cache.write().data = None;
-                    error.set(Some(err.clone()));
-                }
-                None => (),
+        // Check cache and initiate fetch if needed (runs once on mount)
+        use_hook(move || {
+            // Skip if already fetching
+            if should_fetch() {
+                return;
             }
-        }
+
+            let needs_fetch = cache.read().data.is_none();
+
+            if needs_fetch {
+                should_fetch.set(true);
+            }
+        });
+
+        let future = use_resource(move || async move {
+            if should_fetch() {
+                Some(get_all_discord_guilds().await)
+            } else {
+                None
+            }
+        });
+
+        use_effect(move || {
+            if let Some(Some(result)) = future.read_unchecked().as_ref() {
+                match result {
+                    Ok(guild_list) => {
+                        cache.write().data = Some(guild_list.clone());
+                        error.set(None);
+                    }
+                    Err(err) => {
+                        tracing::error!("Failed to fetch guilds: {}", err);
+                        cache.write().data = None;
+                        error.set(Some(err.clone()));
+                    }
+                }
+            }
+        });
     }
 
     rsx! {

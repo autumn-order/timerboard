@@ -10,6 +10,7 @@ pub use fleet_table::FleetTable;
 
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
+use std::collections::HashMap;
 
 use crate::{
     client::{
@@ -17,8 +18,33 @@ use crate::{
         constant::SITE_NAME,
         model::error::ApiError,
     },
-    model::discord::DiscordGuildDto,
+    model::{
+        category::{FleetCategoryDetailsDto, FleetCategoryListItemDto},
+        discord::{DiscordGuildDto, DiscordGuildMemberDto},
+    },
 };
+
+// Cache for manageable categories per guild
+#[derive(Clone, Default)]
+pub struct ManageableCategoriesCache {
+    pub guild_id: Option<u64>,
+    pub data: Option<Result<Vec<FleetCategoryListItemDto>, ApiError>>,
+    pub is_fetching: bool,
+}
+
+// Cache for guild members per guild
+#[derive(Clone, Default)]
+pub struct GuildMembersCache {
+    pub guild_id: Option<u64>,
+    pub data: Option<Result<Vec<DiscordGuildMemberDto>, ApiError>>,
+    pub is_fetching: bool,
+}
+
+// Cache for category details per category
+#[derive(Clone, Default)]
+pub struct CategoryDetailsCache {
+    pub data: HashMap<i32, Result<FleetCategoryDetailsDto, ApiError>>,
+}
 
 #[cfg(feature = "web")]
 use crate::client::api::user::get_user_guilds;
@@ -32,6 +58,14 @@ pub fn Home() -> Element {
     let mut show_fleet_creation = use_signal(|| false);
     let mut selected_category_id = use_signal(|| None::<i32>);
     let mut refetch_trigger = use_signal(|| 0u32);
+
+    // Provide caches for child components
+    let mut manageable_categories_cache =
+        use_context_provider(|| Signal::new(ManageableCategoriesCache::default()));
+    let mut guild_members_cache =
+        use_context_provider(|| Signal::new(GuildMembersCache::default()));
+    let mut category_details_cache =
+        use_context_provider(|| Signal::new(CategoryDetailsCache::default()));
 
     // Fetch user's guilds on first load
     #[cfg(feature = "web")]

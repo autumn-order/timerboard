@@ -5,10 +5,13 @@ use std::collections::HashMap;
 
 use crate::{
     client::{component::FullScreenModal, model::error::ApiError, store::user::UserState},
-    model::{category::FleetCategoryListItemDto, fleet::CreateFleetDto},
+    model::fleet::CreateFleetDto,
 };
 
 use super::FleetFormFields;
+use crate::client::route::home::{
+    CategoryDetailsCache, GuildMembersCache, ManageableCategoriesCache,
+};
 
 #[cfg(feature = "web")]
 use crate::client::api::{
@@ -115,45 +118,115 @@ pub fn FleetCreationModal(
         }
     });
 
-    // Fetch manageable categories
+    // Use manageable categories cache from context
+    let mut manageable_categories_cache = use_context::<Signal<ManageableCategoriesCache>>();
+    let mut should_fetch_categories = use_signal(|| false);
+
+    // Fetch manageable categories only if not cached or guild changed
     #[cfg(feature = "web")]
-    let manageable_categories_resource =
-        use_resource(move || async move { get_user_manageable_categories(guild_id).await });
+    {
+        // Check cache and initiate fetch if needed
+        use_effect(use_reactive!(|guild_id| {
+            // Skip if already fetching
+            if should_fetch_categories() {
+                return;
+            }
 
-    #[cfg(not(feature = "web"))]
-    let manageable_categories_resource =
-        use_signal(|| None::<Result<Vec<FleetCategoryListItemDto>, ApiError>>);
+            let mut cache_state = manageable_categories_cache.write();
 
-    let mut manageable_categories =
-        use_signal(|| None::<Result<Vec<FleetCategoryListItemDto>, ApiError>>);
+            // Check if we need to fetch
+            let needs_fetch = (cache_state.guild_id != Some(guild_id)
+                || cache_state.data.is_none())
+                && !cache_state.is_fetching;
 
-    #[cfg(feature = "web")]
-    use_effect(move || {
-        if let Some(result) = manageable_categories_resource.read().as_ref() {
-            manageable_categories.set(Some(result.clone()));
-        }
-    });
-
-    // Fetch category details (re-fetches when selected_category_id changes)
-    #[cfg(feature = "web")]
-    let category_details_resource =
-        use_resource(use_reactive!(|selected_category_id| async move {
-            get_category_details(guild_id, selected_category_id()).await
+            if needs_fetch {
+                // Set fetching flag while we still hold the lock
+                cache_state.is_fetching = true;
+                drop(cache_state);
+                should_fetch_categories.set(true);
+            }
         }));
 
-    #[cfg(not(feature = "web"))]
-    let category_details_resource =
-        use_signal(|| None::<Result<crate::model::category::FleetCategoryDetailsDto, ApiError>>);
+        let manageable_categories_resource = use_resource(move || async move {
+            if should_fetch_categories() {
+                Some(get_user_manageable_categories(guild_id).await)
+            } else {
+                None
+            }
+        });
+
+        use_effect(move || {
+            if let Some(Some(result)) = manageable_categories_resource.read().as_ref() {
+                manageable_categories_cache.write().guild_id = Some(guild_id);
+                manageable_categories_cache.write().data = Some(result.clone());
+                manageable_categories_cache.write().is_fetching = false;
+                should_fetch_categories.set(false);
+            }
+        });
+    }
+
+    let manageable_categories = manageable_categories_cache.read().data.clone();
+
+    // Use category details cache from context
+    let mut category_details_cache = use_context::<Signal<CategoryDetailsCache>>();
 
     let mut category_details =
         use_signal(|| None::<Result<crate::model::category::FleetCategoryDetailsDto, ApiError>>);
 
+    // Fetch category details only if not cached
     #[cfg(feature = "web")]
-    use_effect(move || {
-        if let Some(result) = category_details_resource.read().as_ref() {
-            category_details.set(Some(result.clone()));
-        }
-    });
+    {
+        use_effect(use_reactive!(|(
+            selected_category_id,
+            category_details_cache,
+        )| {
+            let current_category_id = selected_category_id();
+            let cached_details = category_details_cache
+                .read()
+                .data
+                .get(&current_category_id)
+                .cloned();
+
+            if let Some(cached) = cached_details {
+                // Use cached data
+                if category_details().is_none()
+                    || category_details()
+                        .as_ref()
+                        .map(|d| d.as_ref().ok().map(|dto| dto.id))
+                        != Some(Some(current_category_id))
+                {
+                    category_details.set(Some(cached));
+                }
+            }
+        }));
+
+        let category_details_resource =
+            use_resource(use_reactive!(|selected_category_id| async move {
+                let current_category_id = selected_category_id();
+                let cached_details = category_details_cache
+                    .read()
+                    .data
+                    .get(&current_category_id)
+                    .cloned();
+
+                if cached_details.is_none() {
+                    Some(get_category_details(guild_id, current_category_id).await)
+                } else {
+                    None
+                }
+            }));
+
+        use_effect(move || {
+            if let Some(Some(result)) = category_details_resource.read().as_ref() {
+                let current_category_id = selected_category_id();
+                category_details.set(Some(result.clone()));
+                category_details_cache
+                    .write()
+                    .data
+                    .insert(current_category_id, result.clone());
+            }
+        });
+    }
 
     // Reset form when modal opens/closes
     use_effect(use_reactive!(|show| {
@@ -181,24 +254,54 @@ pub fn FleetCreationModal(
         }
     }));
 
-    // Fetch guild members
+    // Use guild members cache from context
+    let mut guild_members_cache = use_context::<Signal<GuildMembersCache>>();
+    let mut should_fetch_members = use_signal(|| false);
+
+    // Fetch guild members only if not cached or guild changed
     #[cfg(feature = "web")]
-    let guild_members_resource =
-        use_resource(move || async move { get_guild_members(guild_id).await });
+    {
+        // Check cache and initiate fetch if needed
+        use_effect(use_reactive!(|guild_id| {
+            // Skip if already fetching
+            if should_fetch_members() {
+                return;
+            }
 
-    #[cfg(not(feature = "web"))]
-    let guild_members_resource =
-        use_signal(|| None::<Result<Vec<crate::model::discord::DiscordGuildMemberDto>, ApiError>>);
+            let mut cache_state = guild_members_cache.write();
 
-    let mut guild_members =
-        use_signal(|| None::<Result<Vec<crate::model::discord::DiscordGuildMemberDto>, ApiError>>);
+            // Check if we need to fetch
+            let needs_fetch = (cache_state.guild_id != Some(guild_id)
+                || cache_state.data.is_none())
+                && !cache_state.is_fetching;
 
-    #[cfg(feature = "web")]
-    use_effect(move || {
-        if let Some(result) = guild_members_resource.read().as_ref() {
-            guild_members.set(Some(result.clone()));
-        }
-    });
+            if needs_fetch {
+                // Set fetching flag while we still hold the lock
+                cache_state.is_fetching = true;
+                drop(cache_state);
+                should_fetch_members.set(true);
+            }
+        }));
+
+        let guild_members_resource = use_resource(move || async move {
+            if should_fetch_members() {
+                Some(get_guild_members(guild_id).await)
+            } else {
+                None
+            }
+        });
+
+        use_effect(move || {
+            if let Some(Some(result)) = guild_members_resource.read().as_ref() {
+                guild_members_cache.write().guild_id = Some(guild_id);
+                guild_members_cache.write().data = Some(result.clone());
+                guild_members_cache.write().is_fetching = false;
+                should_fetch_members.set(false);
+            }
+        });
+    }
+
+    let guild_members = guild_members_cache.read().data.clone();
 
     // Fetch existing fleets for validation - filter to current category
     #[cfg(feature = "web")]
@@ -321,11 +424,11 @@ pub fn FleetCreationModal(
                     fleet_description,
                     field_values,
                     category_details,
-                    guild_members,
+                    guild_members: use_signal(move || guild_members.clone()),
                     is_submitting: is_submitting(),
                     current_user_id,
                     selected_category_id: Some(selected_category_id),
-                    manageable_categories: Some(manageable_categories),
+                    manageable_categories: Some(use_signal(move || manageable_categories.clone())),
                     datetime_error_signal: Some(datetime_error),
                 }
 

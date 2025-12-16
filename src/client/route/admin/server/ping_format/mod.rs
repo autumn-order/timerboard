@@ -32,26 +32,46 @@ pub fn ServerAdminPingFormat(guild_id: u64) -> Element {
     // Fetch guild data using use_resource if not already cached
     #[cfg(feature = "web")]
     {
-        // Only run resource if we need to fetch
-        let needs_fetch = guild.read().as_ref().map(|g| g.guild_id as u64) != Some(guild_id);
+        let mut should_fetch = use_signal(|| false);
 
-        if needs_fetch {
-            let future =
-                use_resource(move || async move { get_discord_guild_by_id(guild_id).await });
-
-            match &*future.read_unchecked() {
-                Some(Ok(guild_data)) => {
-                    guild.set(Some(guild_data.clone()));
-                    error.set(None);
-                }
-                Some(Err(err)) => {
-                    tracing::error!("Failed to fetch guild: {}", err);
-                    guild.set(None);
-                    error.set(Some(err.clone()));
-                }
-                None => (),
+        // Check cache and initiate fetch if needed
+        use_effect(use_reactive!(|guild_id| {
+            // Skip if already fetching
+            if should_fetch() {
+                return;
             }
-        }
+
+            // Only run resource if we need to fetch
+            let needs_fetch = guild.read().as_ref().map(|g| g.guild_id as u64) != Some(guild_id);
+
+            if needs_fetch {
+                should_fetch.set(true);
+            }
+        }));
+
+        let future = use_resource(move || async move {
+            if should_fetch() {
+                Some(get_discord_guild_by_id(guild_id).await)
+            } else {
+                None
+            }
+        });
+
+        use_effect(move || {
+            if let Some(Some(result)) = future.read_unchecked().as_ref() {
+                match result {
+                    Ok(guild_data) => {
+                        guild.set(Some(guild_data.clone()));
+                        error.set(None);
+                    }
+                    Err(err) => {
+                        tracing::error!("Failed to fetch guild: {}", err);
+                        guild.set(None);
+                        error.set(Some(err.clone()));
+                    }
+                }
+            }
+        });
     }
 
     rsx! {

@@ -18,6 +18,9 @@ use crate::{
 };
 
 use super::form_fields::FleetFormFields;
+use crate::client::route::home::{
+    CategoryDetailsCache, GuildMembersCache, ManageableCategoriesCache,
+};
 
 #[cfg(feature = "web")]
 use crate::client::api::{
@@ -48,11 +51,13 @@ pub fn FleetViewEditModal(
     let mut mode = use_signal(|| ViewEditMode::View);
     let mut fleet_data = use_signal(|| None::<Result<crate::model::fleet::FleetDto, ApiError>>);
     let mut category_details = use_signal(|| None::<Result<FleetCategoryDetailsDto, ApiError>>);
-    let mut guild_members = use_signal(|| None::<Result<Vec<DiscordGuildMemberDto>, ApiError>>);
-    let mut manageable_categories =
-        use_signal(|| None::<Result<Vec<FleetCategoryListItemDto>, ApiError>>);
     let mut existing_fleets =
         use_signal(|| None::<Result<Vec<crate::model::fleet::FleetListItemDto>, ApiError>>);
+
+    // Use caches from context
+    let mut manageable_categories_cache = use_context::<Signal<ManageableCategoriesCache>>();
+    let mut guild_members_cache = use_context::<Signal<GuildMembersCache>>();
+    let mut category_details_cache = use_context::<Signal<CategoryDetailsCache>>();
 
     // Track selected category (can be changed via dropdown in edit mode)
     let mut selected_category_id = use_signal(|| 0);
@@ -94,7 +99,7 @@ pub fn FleetViewEditModal(
                     return true;
                 }
                 // Check if user has manage permission for this category
-                if let Some(Ok(categories)) = manageable_categories() {
+                if let Some(Ok(categories)) = manageable_categories_cache.read().data.as_ref() {
                     return categories.iter().any(|cat| cat.id == fleet.category_id);
                 }
             }
@@ -121,22 +126,60 @@ pub fn FleetViewEditModal(
         }
     });
 
-    // Fetch manageable categories
+    // Fetch manageable categories only if not cached
+    let mut should_fetch_categories = use_signal(|| false);
+
     #[cfg(feature = "web")]
     {
-        let future =
-            use_resource(move || async move { get_user_manageable_categories(guild_id).await });
+        // Check cache and initiate fetch if needed
+        use_effect(use_reactive!(|guild_id| {
+            // Skip if already fetching
+            if should_fetch_categories() {
+                return;
+            }
 
-        match &*future.read_unchecked() {
-            Some(Ok(categories)) => {
-                manageable_categories.set(Some(Ok(categories.clone())));
+            let mut cache_state = manageable_categories_cache.write();
+
+            // Check if we need to fetch
+            let needs_fetch = (cache_state.guild_id != Some(guild_id)
+                || cache_state.data.is_none())
+                && !cache_state.is_fetching;
+
+            if needs_fetch {
+                // Set fetching flag while we still hold the lock
+                cache_state.is_fetching = true;
+                drop(cache_state);
+                should_fetch_categories.set(true);
             }
-            Some(Err(err)) => {
-                tracing::error!("Failed to fetch categories: {}", err);
-                manageable_categories.set(Some(Err(err.clone())));
+        }));
+
+        let future = use_resource(move || async move {
+            if should_fetch_categories() {
+                Some(get_user_manageable_categories(guild_id).await)
+            } else {
+                None
             }
-            None => (),
-        }
+        });
+
+        use_effect(move || {
+            if let Some(Some(result)) = future.read_unchecked().as_ref() {
+                match result {
+                    Ok(categories) => {
+                        manageable_categories_cache.write().guild_id = Some(guild_id);
+                        manageable_categories_cache.write().data = Some(Ok(categories.clone()));
+                        manageable_categories_cache.write().is_fetching = false;
+                        should_fetch_categories.set(false);
+                    }
+                    Err(err) => {
+                        tracing::error!("Failed to fetch categories: {}", err);
+                        manageable_categories_cache.write().guild_id = Some(guild_id);
+                        manageable_categories_cache.write().data = Some(Err(err.clone()));
+                        manageable_categories_cache.write().is_fetching = false;
+                        should_fetch_categories.set(false);
+                    }
+                }
+            }
+        });
     }
 
     // Fetch fleet data
@@ -191,26 +234,32 @@ pub fn FleetViewEditModal(
     // Fetch category details (re-fetches when selected_category_id changes in edit mode)
     #[cfg(feature = "web")]
     {
-        let fetch_category_future =
-            use_resource(use_reactive!(|selected_category_id| async move {
-                if show() && selected_category_id() != 0 {
-                    Some(get_category_details(guild_id, selected_category_id()).await)
-                } else {
-                    None
-                }
-            }));
+        use_effect(use_reactive!(|(
+            selected_category_id,
+            category_details_cache,
+            fleet_data,
+        )| {
+            let current_category_id = selected_category_id();
+            let cached_details = category_details_cache
+                .read()
+                .data
+                .get(&current_category_id)
+                .cloned();
 
-        use_effect(move || {
-            if let Some(Some(result)) = fetch_category_future.read_unchecked().as_ref() {
-                match result {
-                    Ok(details) => {
-                        category_details.set(Some(Ok(details.clone())));
+            if let Some(cached) = cached_details {
+                // Use cached data
+                if category_details().is_none()
+                    || category_details()
+                        .as_ref()
+                        .map(|d| d.as_ref().ok().map(|dto| dto.id))
+                        != Some(Some(current_category_id))
+                {
+                    category_details.set(Some(cached.clone()));
 
-                        // Only map field values if we're viewing the original fleet category
-                        // If category has been changed, leave field_values empty (user must fill new fields)
+                    // Map field values from cached details
+                    if let Ok(details) = cached {
                         if let Some(Ok(fleet)) = fleet_data() {
                             if selected_category_id() == fleet.category_id {
-                                // Convert field_values from name->value to id->value for the original category
                                 let mut id_to_value_map = HashMap::new();
                                 for field in &details.fields {
                                     if let Some(value) = fleet.field_values.get(&field.name) {
@@ -219,35 +268,127 @@ pub fn FleetViewEditModal(
                                 }
                                 field_values.set(id_to_value_map);
                             }
-                            // If category changed, field_values are already cleared by the form dropdown onchange
+                        }
+                    }
+                }
+            }
+        }));
+
+        let fetch_category_future =
+            use_resource(use_reactive!(|selected_category_id| async move {
+                let current_category_id = selected_category_id();
+                if show() && current_category_id != 0 {
+                    let cached_details = category_details_cache
+                        .read()
+                        .data
+                        .get(&current_category_id)
+                        .cloned();
+
+                    if cached_details.is_none() {
+                        Some(get_category_details(guild_id, current_category_id).await)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }));
+
+        use_effect(move || {
+            if let Some(Some(result)) = fetch_category_future.read_unchecked().as_ref() {
+                let current_category_id = selected_category_id();
+                match result {
+                    Ok(details) => {
+                        category_details.set(Some(Ok(details.clone())));
+                        category_details_cache
+                            .write()
+                            .data
+                            .insert(current_category_id, Ok(details.clone()));
+
+                        // Only map field values if we're viewing the original fleet category
+                        if let Some(Ok(fleet)) = fleet_data() {
+                            if selected_category_id() == fleet.category_id {
+                                let mut id_to_value_map = HashMap::new();
+                                for field in &details.fields {
+                                    if let Some(value) = fleet.field_values.get(&field.name) {
+                                        id_to_value_map.insert(field.id, value.clone());
+                                    }
+                                }
+                                field_values.set(id_to_value_map);
+                            }
                         }
                     }
                     Err(err) => {
                         tracing::error!("Failed to fetch category details: {}", err);
                         category_details.set(Some(Err(err.clone())));
+                        category_details_cache
+                            .write()
+                            .data
+                            .insert(current_category_id, Err(err.clone()));
                     }
                 }
             }
         });
     }
 
-    // Fetch guild members
+    // Fetch guild members only if not cached
+    let mut should_fetch_members = use_signal(|| false);
+
     #[cfg(feature = "web")]
     {
-        let fetch_members_future =
-            use_resource(move || async move { get_guild_members(guild_id).await });
+        // Check cache and initiate fetch if needed
+        use_effect(use_reactive!(|guild_id| {
+            // Skip if already fetching
+            if should_fetch_members() {
+                return;
+            }
 
-        use_effect(move || match &*fetch_members_future.read_unchecked() {
-            Some(Ok(members)) => {
-                guild_members.set(Some(Ok(members.clone())));
+            let mut cache_state = guild_members_cache.write();
+
+            // Check if we need to fetch
+            let needs_fetch = (cache_state.guild_id != Some(guild_id)
+                || cache_state.data.is_none())
+                && !cache_state.is_fetching;
+
+            if needs_fetch {
+                // Set fetching flag while we still hold the lock
+                cache_state.is_fetching = true;
+                drop(cache_state);
+                should_fetch_members.set(true);
             }
-            Some(Err(err)) => {
-                tracing::error!("Failed to fetch guild members: {}", err);
-                guild_members.set(Some(Err(err.clone())));
+        }));
+
+        let fetch_members_future = use_resource(move || async move {
+            if should_fetch_members() {
+                Some(get_guild_members(guild_id).await)
+            } else {
+                None
             }
-            None => (),
+        });
+
+        use_effect(move || {
+            if let Some(Some(result)) = fetch_members_future.read_unchecked().as_ref() {
+                match result {
+                    Ok(members) => {
+                        guild_members_cache.write().guild_id = Some(guild_id);
+                        guild_members_cache.write().data = Some(Ok(members.clone()));
+                        guild_members_cache.write().is_fetching = false;
+                        should_fetch_members.set(false);
+                    }
+                    Err(err) => {
+                        tracing::error!("Failed to fetch guild members: {}", err);
+                        guild_members_cache.write().guild_id = Some(guild_id);
+                        guild_members_cache.write().data = Some(Err(err.clone()));
+                        guild_members_cache.write().is_fetching = false;
+                        should_fetch_members.set(false);
+                    }
+                }
+            }
         });
     }
+
+    let guild_members = guild_members_cache.read().data.clone();
+    let manageable_categories = manageable_categories_cache.read().data.clone();
 
     // Fetch existing fleets for validation
     #[cfg(feature = "web")]
@@ -657,11 +798,11 @@ pub fn FleetViewEditModal(
                                     fleet_description,
                                     field_values,
                                     category_details,
-                                    guild_members,
+                                    guild_members: use_signal(move || guild_members.clone()),
                                     is_submitting: is_submitting(),
                                     current_user_id,
                                     selected_category_id: Some(selected_category_id),
-                                    manageable_categories: Some(manageable_categories),
+                                    manageable_categories: Some(use_signal(move || manageable_categories.clone())),
                                     allow_past_time: allow_past,
                                     min_datetime: min_dt,
                                     datetime_error_signal: Some(datetime_error),
