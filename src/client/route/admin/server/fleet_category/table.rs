@@ -75,7 +75,7 @@ pub fn FleetCategoriesTable(
                         th { "Ping Format" }
                         th { class: "text-center", "Cooldown" }
                         th { class: "text-center", "Reminder" }
-                        th { class: "text-center", "Max Pre-Ping" }
+                        th { class: "text-center", "Max Pre-Schedule" }
                         th {
                             class: "text-right",
                             "Actions"

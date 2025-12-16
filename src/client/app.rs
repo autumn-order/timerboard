@@ -39,6 +39,7 @@ pub fn App() -> Element {
     use_context_provider(|| user_store);
 
     rsx! {
+        Title { "Black Rose Timerboard" }
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: TAILWIND_CSS }
         Router::<Route> {}
