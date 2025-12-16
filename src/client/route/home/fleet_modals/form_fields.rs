@@ -15,6 +15,27 @@ use crate::{
     },
 };
 
+/// Helper function to format a duration for display
+fn format_duration(duration: &chrono::Duration) -> String {
+    let total_seconds = duration.num_seconds();
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+
+    if hours > 0 && minutes > 0 {
+        format!(
+            "{} hour{} {} minute{}",
+            hours,
+            if hours == 1 { "" } else { "s" },
+            minutes,
+            if minutes == 1 { "" } else { "s" }
+        )
+    } else if hours > 0 {
+        format!("{} hour{}", hours, if hours == 1 { "" } else { "s" })
+    } else {
+        format!("{} minute{}", minutes, if minutes == 1 { "" } else { "s" })
+    }
+}
+
 /// Shared form fields component for fleet creation and editing
 #[component]
 pub fn FleetFormFields(
@@ -257,6 +278,104 @@ pub fn FleetFormFields(
                         value: "{fleet_description}",
                         disabled: is_submitting,
                         oninput: move |e| fleet_description.set(e.value())
+                    }
+                }
+
+                // Category Rules Section
+                if details.ping_lead_time.is_some() || details.ping_reminder.is_some() || details.max_pre_ping.is_some() {
+                    div {
+                        class: "divider mt-6 mb-4"
+                    }
+                    div {
+                        class: "space-y-3",
+                        h3 {
+                            class: "text-lg font-bold mb-3",
+                            "{details.name} Rules"
+                        }
+                        div {
+                            class: "card bg-base-200 shadow-sm",
+                            div {
+                                class: "card-body p-4 space-y-3",
+                                if let Some(ping_lead_time) = details.ping_lead_time {
+                                    div {
+                                        class: "flex items-center gap-3",
+                                        div {
+                                            class: "badge badge-neutral badge-lg gap-2 h-auto py-2",
+                                            svg {
+                                                xmlns: "http://www.w3.org/2000/svg",
+                                                class: "h-4 w-4",
+                                                fill: "none",
+                                                view_box: "0 0 24 24",
+                                                stroke: "currentColor",
+                                                path {
+                                                    stroke_linecap: "round",
+                                                    stroke_linejoin: "round",
+                                                    stroke_width: "2",
+                                                    d: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                                }
+                                            }
+                                        }
+                                        div {
+                                            class: "flex-1",
+                                            div { class: "font-semibold text-sm", "Minimum Gap Between Fleets" }
+                                            div { class: "text-sm opacity-80", "{format_duration(&ping_lead_time)}" }
+                                        }
+                                    }
+                                }
+                                if let Some(max_pre_ping) = details.max_pre_ping {
+                                    div {
+                                        class: "flex items-center gap-3",
+                                        div {
+                                            class: "badge badge-neutral badge-lg gap-2 h-auto py-2",
+                                            svg {
+                                                xmlns: "http://www.w3.org/2000/svg",
+                                                class: "h-4 w-4",
+                                                fill: "none",
+                                                view_box: "0 0 24 24",
+                                                stroke: "currentColor",
+                                                path {
+                                                    stroke_linecap: "round",
+                                                    stroke_linejoin: "round",
+                                                    stroke_width: "2",
+                                                    d: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                                }
+                                            }
+                                        }
+                                        div {
+                                            class: "flex-1",
+                                            div { class: "font-semibold text-sm", "Maximum Advance Scheduling" }
+                                            div { class: "text-sm opacity-80", "{format_duration(&max_pre_ping)}" }
+                                        }
+                                    }
+                                }
+                                if let Some(ping_reminder) = details.ping_reminder {
+                                    div {
+                                        class: "flex items-center gap-3",
+                                        div {
+                                            class: "badge badge-neutral badge-lg gap-2 h-auto py-2",
+                                            svg {
+                                                xmlns: "http://www.w3.org/2000/svg",
+                                                class: "h-4 w-4",
+                                                fill: "none",
+                                                view_box: "0 0 24 24",
+                                                stroke: "currentColor",
+                                                path {
+                                                    stroke_linecap: "round",
+                                                    stroke_linejoin: "round",
+                                                    stroke_width: "2",
+                                                    d: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                                                }
+                                            }
+                                        }
+                                        div {
+                                            class: "flex-1",
+                                            div { class: "font-semibold text-sm", "Reminder Ping" }
+                                            div { class: "text-sm opacity-80", "{format_duration(&ping_reminder)} before fleet starts" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

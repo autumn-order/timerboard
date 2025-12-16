@@ -1,4 +1,4 @@
-use chrono::{Datelike, Timelike, Utc};
+use chrono::{Datelike, TimeZone, Timelike, Utc};
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
 use std::collections::HashMap;
@@ -20,7 +20,9 @@ use super::form_fields::FleetFormFields;
 
 #[cfg(feature = "web")]
 use crate::client::api::{
-    fleet::{delete_fleet, get_category_details, get_fleet, get_guild_members, update_fleet},
+    fleet::{
+        delete_fleet, get_category_details, get_fleet, get_fleets, get_guild_members, update_fleet,
+    },
     user::get_user_manageable_categories,
 };
 
@@ -48,6 +50,8 @@ pub fn FleetViewEditModal(
     let mut guild_members = use_signal(|| None::<Result<Vec<DiscordGuildMemberDto>, ApiError>>);
     let mut manageable_categories =
         use_signal(|| None::<Result<Vec<FleetCategoryListItemDto>, ApiError>>);
+    let mut existing_fleets =
+        use_signal(|| None::<Result<Vec<crate::model::fleet::FleetListItemDto>, ApiError>>);
 
     // Track selected category (can be changed via dropdown in edit mode)
     let mut selected_category_id = use_signal(|| 0);
@@ -69,6 +73,9 @@ pub fn FleetViewEditModal(
     // Delete modal state
     let mut show_delete_modal = use_signal(|| false);
     let mut is_deleting = use_signal(|| false);
+
+    // Validation warnings
+    let mut validation_warnings = use_signal(|| Vec::<String>::new());
 
     // Permission check: user can manage if they are admin, have manage permission, or are the fleet commander
     let can_manage = use_memo(move || {
@@ -233,6 +240,123 @@ pub fn FleetViewEditModal(
             None => (),
         });
     }
+
+    // Fetch existing fleets for validation
+    #[cfg(feature = "web")]
+    {
+        let future = use_resource(use_reactive!(|selected_category_id| async move {
+            // Fetch a large number of fleets to check for conflicts
+            get_fleets(guild_id, 0, 1000).await
+        }));
+
+        use_effect(move || match &*future.read_unchecked() {
+            Some(Ok(paginated)) => {
+                let fleets_in_category: Vec<_> = paginated
+                    .fleets
+                    .iter()
+                    .filter(|f| f.category_id == selected_category_id())
+                    .cloned()
+                    .collect();
+                existing_fleets.set(Some(Ok(fleets_in_category)));
+            }
+            Some(Err(err)) => {
+                tracing::error!("Failed to fetch fleets: {}", err);
+                existing_fleets.set(Some(Err(err.clone())));
+            }
+            None => (),
+        });
+    }
+
+    // Validate fleet datetime against category rules (only in edit mode)
+    use_effect(use_reactive!(|(
+        mode,
+        fleet_datetime,
+        category_details,
+        existing_fleets,
+        fleet_id,
+    )| {
+        let mut warnings = Vec::new();
+
+        if mode() == ViewEditMode::Edit {
+            if let Some(Ok(details)) = category_details() {
+                // Parse the fleet datetime
+                if let Ok(parsed_datetime) =
+                    chrono::NaiveDateTime::parse_from_str(&fleet_datetime(), "%Y-%m-%d %H:%M")
+                {
+                    let fleet_time = Utc.from_utc_datetime(&parsed_datetime);
+                    let now = Utc::now();
+
+                    // Check max_pre_ping (maximum advance scheduling)
+                    if let Some(max_pre_ping) = details.max_pre_ping {
+                        let max_schedule_time = now + max_pre_ping;
+                        if fleet_time > max_schedule_time {
+                            let hours = max_pre_ping.num_hours();
+                            warnings.push(format!(
+                                "Fleet is scheduled more than {} hour{} in advance",
+                                hours,
+                                if hours == 1 { "" } else { "s" }
+                            ));
+                        }
+                    }
+
+                    // Check ping_lead_time (minimum gap between fleets)
+                    if let (Some(ping_lead_time), Some(Ok(fleets)), Some(current_fleet_id)) =
+                        (details.ping_lead_time, existing_fleets(), fleet_id())
+                    {
+                        for existing_fleet in fleets {
+                            // Skip the current fleet being edited
+                            if existing_fleet.id == current_fleet_id {
+                                continue;
+                            }
+
+                            let time_diff = if fleet_time > existing_fleet.fleet_time {
+                                fleet_time - existing_fleet.fleet_time
+                            } else {
+                                existing_fleet.fleet_time - fleet_time
+                            };
+
+                            if time_diff < ping_lead_time {
+                                let hours = ping_lead_time.num_hours();
+                                let minutes = (ping_lead_time.num_minutes() % 60) as i64;
+                                let time_str = if hours > 0 {
+                                    if minutes > 0 {
+                                        format!(
+                                            "{} hour{} {} minute{}",
+                                            hours,
+                                            if hours == 1 { "" } else { "s" },
+                                            minutes,
+                                            if minutes == 1 { "" } else { "s" }
+                                        )
+                                    } else {
+                                        format!(
+                                            "{} hour{}",
+                                            hours,
+                                            if hours == 1 { "" } else { "s" }
+                                        )
+                                    }
+                                } else {
+                                    format!(
+                                        "{} minute{}",
+                                        minutes,
+                                        if minutes == 1 { "" } else { "s" }
+                                    )
+                                };
+                                warnings.push(format!(
+                                    "Fleet \"{}\" at {} is within {} of this fleet",
+                                    existing_fleet.name,
+                                    existing_fleet.fleet_time.format("%Y-%m-%d %H:%M UTC"),
+                                    time_str
+                                ));
+                                break; // Only show one warning to avoid clutter
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        validation_warnings.set(warnings);
+    }));
 
     // Handle fleet update submission
     #[cfg(feature = "web")]
@@ -502,6 +626,49 @@ pub fn FleetViewEditModal(
                             manageable_categories: Some(manageable_categories),
                         }
 
+                        // Validation warnings
+                        if !validation_warnings().is_empty() {
+                            for warning in validation_warnings() {
+                                div {
+                                    key: "{warning}",
+                                    class: "alert alert-error mt-4",
+                                    svg {
+                                        xmlns: "http://www.w3.org/2000/svg",
+                                        class: "stroke-current shrink-0 h-6 w-6",
+                                        fill: "none",
+                                        view_box: "0 0 24 24",
+                                        path {
+                                            stroke_linecap: "round",
+                                            stroke_linejoin: "round",
+                                            stroke_width: "2",
+                                            d: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                        }
+                                    }
+                                    span { "{warning}" }
+                                }
+                            }
+                        }
+
+                        // Submission error message
+                        if let Some(error) = submission_error() {
+                            div {
+                                class: "alert alert-error mt-4",
+                                svg {
+                                    xmlns: "http://www.w3.org/2000/svg",
+                                    class: "stroke-current shrink-0 h-6 w-6",
+                                    fill: "none",
+                                    view_box: "0 0 24 24",
+                                    path {
+                                        stroke_linecap: "round",
+                                        stroke_linejoin: "round",
+                                        stroke_width: "2",
+                                        d: "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                    }
+                                }
+                                span { "{error}" }
+                            }
+                        }
+
                         // Action Buttons
                         div {
                             class: "flex gap-2 justify-end pt-4",
@@ -534,7 +701,7 @@ pub fn FleetViewEditModal(
                             }
                             button {
                                 class: "btn btn-primary",
-                                disabled: fleet_name().is_empty() || fleet_datetime().is_empty() || fleet_commander_id().is_none() || is_submitting(),
+                                disabled: fleet_name().is_empty() || fleet_datetime().is_empty() || fleet_commander_id().is_none() || is_submitting() || !validation_warnings().is_empty(),
                                 onclick: move |_| {
                                     is_submitting.set(true);
                                     submission_error.set(None);
@@ -545,26 +712,6 @@ pub fn FleetViewEditModal(
                                 } else {
                                     "Save Changes"
                                 }
-                            }
-                        }
-
-                        // Submission error message
-                        if let Some(error) = submission_error() {
-                            div {
-                                class: "alert alert-error mt-4",
-                                svg {
-                                    xmlns: "http://www.w3.org/2000/svg",
-                                    class: "stroke-current shrink-0 h-6 w-6",
-                                    fill: "none",
-                                    view_box: "0 0 24 24",
-                                    path {
-                                        stroke_linecap: "round",
-                                        stroke_linejoin: "round",
-                                        stroke_width: "2",
-                                        d: "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                    }
-                                }
-                                span { "{error}" }
                             }
                         }
                     }
