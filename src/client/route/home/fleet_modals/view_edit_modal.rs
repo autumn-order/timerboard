@@ -234,12 +234,18 @@ pub fn FleetViewEditModal(
     // Fetch category details (re-fetches when selected_category_id changes in edit mode)
     #[cfg(feature = "web")]
     {
-        use_effect(use_reactive!(|(
-            selected_category_id,
-            category_details_cache,
-            fleet_data,
-        )| {
+        let mut should_fetch_details = use_signal(|| false);
+
+        // Check cache and update local state from cache, or initiate fetch
+        use_effect(use_reactive!(|selected_category_id| {
             let current_category_id = selected_category_id();
+
+            // Skip if category_id is invalid
+            if !show() || current_category_id == 0 {
+                return;
+            }
+
+            // First, check if we have cached data
             let cached_details = category_details_cache
                 .read()
                 .data
@@ -271,28 +277,40 @@ pub fn FleetViewEditModal(
                         }
                     }
                 }
+                return;
             }
+
+            // Skip if already fetching this category
+            if should_fetch_details() {
+                return;
+            }
+
+            let mut cache_state = category_details_cache.write();
+
+            // Check if another component is already fetching this category
+            if cache_state.is_fetching.contains(&current_category_id) {
+                return;
+            }
+
+            // Check again if data arrived while we were waiting for write lock
+            if cache_state.data.contains_key(&current_category_id) {
+                return;
+            }
+
+            // Claim this fetch
+            cache_state.is_fetching.insert(current_category_id);
+            drop(cache_state);
+            should_fetch_details.set(true);
         }));
 
-        let fetch_category_future =
-            use_resource(use_reactive!(|selected_category_id| async move {
+        let fetch_category_future = use_resource(move || async move {
+            if should_fetch_details() {
                 let current_category_id = selected_category_id();
-                if show() && current_category_id != 0 {
-                    let cached_details = category_details_cache
-                        .read()
-                        .data
-                        .get(&current_category_id)
-                        .cloned();
-
-                    if cached_details.is_none() {
-                        Some(get_category_details(guild_id, current_category_id).await)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }));
+                Some(get_category_details(guild_id, current_category_id).await)
+            } else {
+                None
+            }
+        });
 
         use_effect(move || {
             if let Some(Some(result)) = fetch_category_future.read_unchecked().as_ref() {
@@ -300,10 +318,15 @@ pub fn FleetViewEditModal(
                 match result {
                     Ok(details) => {
                         category_details.set(Some(Ok(details.clone())));
-                        category_details_cache
-                            .write()
+
+                        let mut cache_state = category_details_cache.write();
+                        cache_state
                             .data
                             .insert(current_category_id, Ok(details.clone()));
+                        cache_state.is_fetching.remove(&current_category_id);
+                        drop(cache_state);
+
+                        should_fetch_details.set(false);
 
                         // Only map field values if we're viewing the original fleet category
                         if let Some(Ok(fleet)) = fleet_data() {
@@ -321,10 +344,15 @@ pub fn FleetViewEditModal(
                     Err(err) => {
                         tracing::error!("Failed to fetch category details: {}", err);
                         category_details.set(Some(Err(err.clone())));
-                        category_details_cache
-                            .write()
+
+                        let mut cache_state = category_details_cache.write();
+                        cache_state
                             .data
                             .insert(current_category_id, Err(err.clone()));
+                        cache_state.is_fetching.remove(&current_category_id);
+                        drop(cache_state);
+
+                        should_fetch_details.set(false);
                     }
                 }
             }

@@ -117,10 +117,6 @@ pub fn CategorySelectionModal(
                                             class: "font-medium text-lg",
                                             "{category_name}"
                                         }
-                                        div {
-                                            class: "text-sm text-base-content/70 mt-1",
-                                            "Create a new fleet in this category"
-                                        }
                                     }
                                 }
                             }

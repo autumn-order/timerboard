@@ -10,7 +10,7 @@ pub use fleet_table::FleetTable;
 
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     client::{
@@ -44,6 +44,7 @@ pub struct GuildMembersCache {
 #[derive(Clone, Default)]
 pub struct CategoryDetailsCache {
     pub data: HashMap<i32, Result<FleetCategoryDetailsDto, ApiError>>,
+    pub is_fetching: HashSet<i32>, // Track which category IDs are currently being fetched
 }
 
 #[cfg(feature = "web")]

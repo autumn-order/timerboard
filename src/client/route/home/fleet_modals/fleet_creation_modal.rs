@@ -176,11 +176,13 @@ pub fn FleetCreationModal(
     // Fetch category details only if not cached
     #[cfg(feature = "web")]
     {
-        use_effect(use_reactive!(|(
-            selected_category_id,
-            category_details_cache,
-        )| {
+        let mut should_fetch_details = use_signal(|| false);
+
+        // Check cache and update local state from cache
+        use_effect(use_reactive!(|selected_category_id| {
             let current_category_id = selected_category_id();
+
+            // First, check if we have cached data
             let cached_details = category_details_cache
                 .read()
                 .data
@@ -197,33 +199,52 @@ pub fn FleetCreationModal(
                 {
                     category_details.set(Some(cached));
                 }
+                return;
             }
+
+            // Skip if already fetching this category
+            if should_fetch_details() {
+                return;
+            }
+
+            let mut cache_state = category_details_cache.write();
+
+            // Check if another component is already fetching this category
+            if cache_state.is_fetching.contains(&current_category_id) {
+                return;
+            }
+
+            // Check again if data arrived while we were waiting for write lock
+            if cache_state.data.contains_key(&current_category_id) {
+                return;
+            }
+
+            // Claim this fetch
+            cache_state.is_fetching.insert(current_category_id);
+            drop(cache_state);
+            should_fetch_details.set(true);
         }));
 
-        let category_details_resource =
-            use_resource(use_reactive!(|selected_category_id| async move {
+        let category_details_resource = use_resource(move || async move {
+            if should_fetch_details() {
                 let current_category_id = selected_category_id();
-                let cached_details = category_details_cache
-                    .read()
-                    .data
-                    .get(&current_category_id)
-                    .cloned();
-
-                if cached_details.is_none() {
-                    Some(get_category_details(guild_id, current_category_id).await)
-                } else {
-                    None
-                }
-            }));
+                Some(get_category_details(guild_id, current_category_id).await)
+            } else {
+                None
+            }
+        });
 
         use_effect(move || {
             if let Some(Some(result)) = category_details_resource.read().as_ref() {
                 let current_category_id = selected_category_id();
                 category_details.set(Some(result.clone()));
-                category_details_cache
-                    .write()
-                    .data
-                    .insert(current_category_id, result.clone());
+
+                let mut cache_state = category_details_cache.write();
+                cache_state.data.insert(current_category_id, result.clone());
+                cache_state.is_fetching.remove(&current_category_id);
+                drop(cache_state);
+
+                should_fetch_details.set(false);
             }
         });
     }
