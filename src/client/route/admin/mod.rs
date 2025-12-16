@@ -12,6 +12,7 @@ use crate::client::{
         page::{ErrorPage, LoadingPage},
         Page,
     },
+    constant::SITE_NAME,
     model::error::ApiError,
     router::Route,
 };
@@ -84,7 +85,7 @@ pub fn AdminServers() -> Element {
     }
 
     rsx! {
-        Title { "Admin - Servers | Black Rose Timerboard" }
+        Title { "Admin - Servers | {SITE_NAME}" }
         if let Some(guild_list) = cache.read().data.clone() {
             Page {
                 class: "flex flex-col items-center w-full h-full",

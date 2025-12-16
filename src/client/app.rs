@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
 
-use crate::client::{router::Route, store::user::UserState};
+use crate::client::{constant::SITE_NAME, router::Route, store::user::UserState};
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
@@ -39,7 +39,7 @@ pub fn App() -> Element {
     use_context_provider(|| user_store);
 
     rsx! {
-        Title { "Black Rose Timerboard" }
+        Title { "{SITE_NAME}" }
         document::Link { rel: "icon", href: FAVICON }
         document::Link { rel: "stylesheet", href: TAILWIND_CSS }
         Router::<Route> {}

@@ -10,6 +10,7 @@ use crate::{
             page::{ErrorPage, LoadingPage},
             Page,
         },
+        constant::SITE_NAME,
         model::error::ApiError,
         route::admin::server::{ActionTabs, GuildInfoHeader, PingFormatsCache, ServerAdminTab},
         router::Route,
@@ -54,7 +55,7 @@ pub fn ServerAdminPingFormat(guild_id: u64) -> Element {
     }
 
     rsx! {
-        Title { "Ping Formats | Black Rose Timerboard" }
+        Title { "Ping Formats | {SITE_NAME}" }
         if let Some(guild_data) = guild.read().clone() {
             Page {
                 class: "flex flex-col items-center w-full h-full",

@@ -27,7 +27,7 @@ pub fn Login() -> Element {
     }));
 
     rsx! {
-        Title { "Login | Black Rose Timerboard" }
+        Title { "Login | {SITE_NAME}" }
         Page {
             class: "flex flex-col gap-6 items-center justify-center w-full h-full",
             div {

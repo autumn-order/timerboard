@@ -16,6 +16,7 @@ use crate::{
             page::{ErrorPage, LoadingPage},
             Page,
         },
+        constant::SITE_NAME,
         model::error::ApiError,
         route::admin::server::{ActionTabs, FleetCategoriesCache, GuildInfoHeader, ServerAdminTab},
         router::Route,
@@ -60,7 +61,7 @@ pub fn ServerAdminFleetCategory(guild_id: u64) -> Element {
     }
 
     rsx! {
-        Title { "Fleet Categories | Black Rose Timerboard" }
+        Title { "Fleet Categories | {SITE_NAME}" }
         if let Some(guild_data) = guild.read().clone() {
             Page {
                 class: "flex flex-col items-center w-full h-full",

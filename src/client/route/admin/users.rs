@@ -7,6 +7,7 @@ use crate::{
             page::{ErrorPage, LoadingPage},
             ConfirmationModal, DropdownItem, Modal, Page, SearchableDropdown,
         },
+        constant::SITE_NAME,
         model::error::ApiError,
         route::admin::{AdminTab, AdminTabs, AdminUsersCache},
         store::user::UserState,
@@ -49,7 +50,7 @@ pub fn AdminUsers() -> Element {
     });
 
     rsx! {
-        Title { "Admin - Users | Black Rose Timerboard" }
+        Title { "Admin - Users | {SITE_NAME}" }
         if let Some(admin_list) = cache.read().data.clone() {
             Page {
                 class: "flex flex-col items-center w-full h-full",

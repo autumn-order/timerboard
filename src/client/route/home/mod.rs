@@ -14,6 +14,7 @@ use dioxus_logger::tracing;
 use crate::{
     client::{
         component::page::{ErrorPage, LoadingPage, Page},
+        constant::SITE_NAME,
         model::error::ApiError,
     },
     model::discord::DiscordGuildDto,
@@ -68,7 +69,7 @@ pub fn Home() -> Element {
     });
 
     rsx! {
-        Title { "Black Rose Timerboard" }
+        Title { "{SITE_NAME}" }
         if let Some(Ok(guild_list)) = guilds() {
             if guild_list.is_empty() {
                 // No guilds available
