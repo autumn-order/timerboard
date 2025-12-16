@@ -63,6 +63,7 @@ pub fn FleetViewEditModal(
     // Form state for editing
     let mut fleet_name = use_signal(|| String::new());
     let mut fleet_datetime = use_signal(|| String::new());
+    let mut original_fleet_time = use_signal(|| None::<chrono::DateTime<Utc>>);
     let mut fleet_commander_id = use_signal(|| None::<u64>);
     let mut fleet_description = use_signal(|| String::new());
     let mut field_values = use_signal(|| HashMap::<i32, String>::new());
@@ -98,10 +99,12 @@ pub fn FleetViewEditModal(
         false
     });
 
-    // Check if fleet time is in the past
-    let is_fleet_in_past = use_memo(move || {
+    // Check if more than 1 hour has elapsed since fleet start time
+    let is_fleet_edit_locked = use_memo(move || {
         if let Some(Ok(fleet)) = fleet_data() {
-            fleet.fleet_time < Utc::now()
+            let now = Utc::now();
+            let one_hour_after_start = fleet.fleet_time + chrono::Duration::hours(1);
+            now > one_hour_after_start
         } else {
             false
         }
@@ -164,6 +167,7 @@ pub fn FleetViewEditModal(
                             dt.hour(),
                             dt.minute()
                         ));
+                        original_fleet_time.set(Some(fleet.fleet_time));
                         fleet_commander_id.set(Some(fleet.commander_id));
                         fleet_description.set(fleet.description.clone().unwrap_or_default());
                         selected_category_id.set(fleet.category_id);
@@ -272,6 +276,7 @@ pub fn FleetViewEditModal(
     use_effect(use_reactive!(|(
         mode,
         fleet_datetime,
+        original_fleet_time,
         category_details,
         existing_fleets,
         fleet_id,
@@ -288,15 +293,18 @@ pub fn FleetViewEditModal(
                     let now = Utc::now();
 
                     // Check max_pre_ping (maximum advance scheduling)
+                    // Only validate if the new time is in the future
                     if let Some(max_pre_ping) = details.max_pre_ping {
-                        let max_schedule_time = now + max_pre_ping;
-                        if fleet_time > max_schedule_time {
-                            let hours = max_pre_ping.num_hours();
-                            warnings.push(format!(
-                                "Fleet is scheduled more than {} hour{} in advance",
-                                hours,
-                                if hours == 1 { "" } else { "s" }
-                            ));
+                        if fleet_time > now {
+                            let max_schedule_time = now + max_pre_ping;
+                            if fleet_time > max_schedule_time {
+                                let hours = max_pre_ping.num_hours();
+                                warnings.push(format!(
+                                    "Fleet is scheduled more than {} hour{} in advance",
+                                    hours,
+                                    if hours == 1 { "" } else { "s" }
+                                ));
+                            }
                         }
                     }
 
@@ -551,7 +559,7 @@ pub fn FleetViewEditModal(
                                         "Description"
                                     }
                                     div {
-                                        class: "textarea textarea-bordered h-32 w-full bg-base-200 overflow-y-auto prose prose-sm max-w-none",
+                                        class: "textarea textarea-bordered min-h-48 max-h-96 w-full bg-base-200 overflow-y-auto prose prose-sm max-w-none",
                                         if let Some(desc) = &fleet.description {
                                             if !desc.is_empty() {
                                                 // Parse markdown to HTML
@@ -591,7 +599,7 @@ pub fn FleetViewEditModal(
                                         }
                                         button {
                                             class: "btn btn-primary",
-                                            disabled: is_fleet_in_past(),
+                                            disabled: is_fleet_edit_locked(),
                                             onclick: move |_| {
                                                 mode.set(ViewEditMode::Edit);
                                                 submission_error.set(None);
@@ -623,19 +631,38 @@ pub fn FleetViewEditModal(
                     },
                     ViewEditMode::Edit => rsx! {
                         // Edit Mode - Use shared form fields with category selection
-                        FleetFormFields {
-                            guild_id,
-                            fleet_name,
-                            fleet_datetime,
-                            fleet_commander_id,
-                            fleet_description,
-                            field_values,
-                            category_details,
-                            guild_members,
-                            is_submitting: is_submitting(),
-                            current_user_id,
-                            selected_category_id: Some(selected_category_id),
-                            manageable_categories: Some(manageable_categories),
+                        {
+                            // Determine if we should allow past times and set minimum datetime
+                            let (allow_past, min_dt) = if let Some(original_time) = original_fleet_time() {
+                                // Only enforce minimum if original time is in the past
+                                if original_time < Utc::now() {
+                                    (true, Some(original_time))
+                                } else {
+                                    // Original time is in the future, so normal validation applies
+                                    (false, None)
+                                }
+                            } else {
+                                (false, None)
+                            };
+
+                            rsx! {
+                                FleetFormFields {
+                                    guild_id,
+                                    fleet_name,
+                                    fleet_datetime,
+                                    fleet_commander_id,
+                                    fleet_description,
+                                    field_values,
+                                    category_details,
+                                    guild_members,
+                                    is_submitting: is_submitting(),
+                                    current_user_id,
+                                    selected_category_id: Some(selected_category_id),
+                                    manageable_categories: Some(manageable_categories),
+                                    allow_past_time: allow_past,
+                                    min_datetime: min_dt,
+                                }
+                            }
                         }
 
                         // Validation warnings
@@ -705,6 +732,7 @@ pub fn FleetViewEditModal(
                                         fleet_commander_id.set(Some(fleet.commander_id));
                                         fleet_description.set(fleet.description.clone().unwrap_or_default());
                                         selected_category_id.set(fleet.category_id);
+                                        original_fleet_time.set(Some(fleet.fleet_time));
                                         // Reset field values (will be repopulated by category details effect)
                                         field_values.set(HashMap::new());
                                     }

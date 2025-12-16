@@ -228,12 +228,12 @@ impl<'a> FleetService<'a> {
     ) -> Result<FleetDto, AppError> {
         let repo = FleetRepository::new(self.db);
 
-        // Parse the fleet time from "YYYY-MM-DD HH:MM" format or "now"
-        let fleet_time = Self::parse_fleet_time(&dto.fleet_time)?;
-
-        // Get the current fleet to verify it belongs to the guild
+        // Get the current fleet to verify it belongs to the guild and get original time
         let result = repo.get_by_id(id).await?;
         if let Some((fleet, _)) = result {
+            // Parse the fleet time with original time for validation
+            let original_time = fleet.fleet_time;
+            let fleet_time = Self::parse_fleet_time_with_min(&dto.fleet_time, Some(original_time))?;
             // Fetch old category to verify guild
             let old_category = entity::prelude::FleetCategory::find_by_id(fleet.category_id)
                 .one(self.db)
@@ -339,6 +339,22 @@ impl<'a> FleetService<'a> {
     /// - `Ok(DateTime<Utc>)`: Parsed datetime
     /// - `Err(AppError)`: Invalid format or time is in the past
     fn parse_fleet_time(time_str: &str) -> Result<DateTime<Utc>, AppError> {
+        Self::parse_fleet_time_with_min(time_str, None)
+    }
+
+    /// Parse fleet time with optional minimum time for edit validation
+    ///
+    /// # Arguments
+    /// - `time_str`: Time string in format "YYYY-MM-DD HH:MM" or "now"
+    /// - `min_time`: Optional minimum time (for edits where original time is in the past)
+    ///
+    /// # Returns
+    /// - `Ok(DateTime<Utc>)`: Parsed fleet time
+    /// - `Err(AppError)`: Invalid format or time validation failure
+    fn parse_fleet_time_with_min(
+        time_str: &str,
+        min_time: Option<DateTime<Utc>>,
+    ) -> Result<DateTime<Utc>, AppError> {
         let now = Utc::now();
 
         // Handle "now" shorthand (case-insensitive)
@@ -355,11 +371,23 @@ impl<'a> FleetService<'a> {
                 })?
         };
 
-        // Validate fleet time is not in the past
-        if fleet_time < now {
-            return Err(AppError::BadRequest(
-                "Fleet time cannot be in the past".to_string(),
-            ));
+        // If min_time is provided and is in the past, validate against min_time
+        if let Some(min_time) = min_time {
+            if min_time < now && fleet_time < min_time {
+                return Err(AppError::BadRequest(format!(
+                    "Fleet time cannot be set earlier than the original time ({})",
+                    min_time.format("%Y-%m-%d %H:%M UTC")
+                )));
+            }
+        }
+
+        // Validate fleet time is not in the past (only if min_time is not provided or is in the future)
+        if min_time.is_none() || min_time.map(|t| t >= now).unwrap_or(true) {
+            if fleet_time < now {
+                return Err(AppError::BadRequest(
+                    "Fleet time cannot be in the past".to_string(),
+                ));
+            }
         }
 
         Ok(fleet_time)

@@ -19,6 +19,12 @@ pub fn UtcDateTimeInput(
     /// Additional CSS classes
     #[props(default = "".to_string())]
     class: String,
+    /// Allow times in the past
+    #[props(default = false)]
+    allow_past: bool,
+    /// Minimum allowed datetime (in UTC)
+    #[props(default = None)]
+    min_datetime: Option<chrono::DateTime<Utc>>,
 ) -> Element {
     let mut is_valid = use_signal(|| true);
     let mut error_message = use_signal(|| String::new());
@@ -124,13 +130,28 @@ pub fn UtcDateTimeInput(
             return false;
         }
 
-        // Validate that the datetime is not in the past
+        // Validate that the datetime is not in the past (unless allow_past is true)
         if let Ok(naive_dt) = NaiveDateTime::parse_from_str(input, "%Y-%m-%d %H:%M") {
             let input_dt = naive_dt.and_utc();
-            let now = Utc::now();
-            if input_dt < now {
-                error_message.set("Fleet time cannot be in the past".to_string());
-                return false;
+
+            // Check against minimum datetime if provided
+            if let Some(min_dt) = min_datetime {
+                if input_dt < min_dt {
+                    error_message.set(format!(
+                        "Fleet time cannot be set earlier than the original time ({})",
+                        min_dt.format("%Y-%m-%d %H:%M UTC")
+                    ));
+                    return false;
+                }
+            }
+
+            // Check against current time if not allowing past times
+            if !allow_past {
+                let now = Utc::now();
+                if input_dt < now {
+                    error_message.set("Fleet time cannot be in the past".to_string());
+                    return false;
+                }
             }
         }
 

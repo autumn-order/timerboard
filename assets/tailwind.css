@@ -2598,6 +2598,9 @@
   .max-h-none {
     max-height: none;
   }
+  .min-h-48 {
+    min-height: calc(var(--spacing) * 48);
+  }
   .min-h-60 {
     min-height: calc(var(--spacing) * 60);
   }
@@ -3333,6 +3336,11 @@
   .lg\:grid-cols-3 {
     @media (width >= 64rem) {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .\[\&\>\*\:first-child\]\:mt-0 {
+    &>*:first-child {
+      margin-top: calc(var(--spacing) * 0);
     }
   }
 }

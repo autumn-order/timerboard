@@ -54,6 +54,9 @@ pub fn FleetFormFields(
     #[props(default = None)] manageable_categories: Option<
         Signal<Option<Result<Vec<FleetCategoryListItemDto>, ApiError>>>,
     >,
+    // Optional props for datetime validation (only used in edit mode)
+    #[props(default = false)] allow_past_time: bool,
+    #[props(default = None)] min_datetime: Option<chrono::DateTime<chrono::Utc>>,
 ) -> Element {
     let mut commander_search = use_signal(|| String::new());
     let mut show_commander_dropdown = use_signal(|| false);
@@ -141,6 +144,8 @@ pub fn FleetFormFields(
                             value: fleet_datetime,
                             required: true,
                             disabled: is_submitting,
+                            allow_past: allow_past_time,
+                            min_datetime: min_datetime,
                         }
                     }
 
