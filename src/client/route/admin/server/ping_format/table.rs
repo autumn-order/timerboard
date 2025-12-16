@@ -12,9 +12,7 @@ use crate::{
 use super::modals::EditPingFormatModal;
 
 #[cfg(feature = "web")]
-use crate::client::api::{
-    category::get_fleet_categories_by_ping_format, ping_format::delete_ping_format,
-};
+use crate::client::api::ping_format::delete_ping_format;
 
 #[component]
 pub fn PingFormatsTable(
@@ -28,32 +26,10 @@ pub fn PingFormatsTable(
 
     let mut show_delete_modal = use_signal(|| false);
     let mut format_to_delete = use_signal(|| None::<(i32, String, u64)>);
-    let mut affected_categories = use_signal(|| Vec::<String>::new());
     let mut is_deleting = use_signal(|| false);
 
     let mut show_edit_modal = use_signal(|| false);
     let mut format_to_edit = use_signal(|| None::<crate::model::ping_format::PingFormatDto>);
-
-    // Fetch affected fleet categories when delete modal is shown
-    #[cfg(feature = "web")]
-    let fetch_categories_future = use_resource(move || async move {
-        if show_delete_modal() {
-            if let Some((id, _, _)) = format_to_delete() {
-                get_fleet_categories_by_ping_format(guild_id, id).await.ok()
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    });
-
-    #[cfg(feature = "web")]
-    use_effect(move || {
-        if let Some(Some(categories)) = fetch_categories_future.read_unchecked().as_ref() {
-            affected_categories.set(categories.iter().map(|c| c.name.clone()).collect());
-        }
-    });
 
     // Handle deletion with use_resource
     #[cfg(feature = "web")]
@@ -136,13 +112,27 @@ pub fn PingFormatsTable(
                                                 },
                                                 "Edit"
                                             }
-                                            button {
-                                                class: "btn btn-sm btn-error",
-                                                onclick: move |_| {
-                                                    format_to_delete.set(Some((format_id, format_name_for_delete.clone(), fleet_category_count)));
-                                                    show_delete_modal.set(true);
-                                                },
-                                                "Delete"
+                                            if fleet_category_count > 0 {
+                                                div {
+                                                    class: "tooltip tooltip-left",
+                                                    "data-tip": format!("Cannot delete: {} fleet {} using this format",
+                                                        fleet_category_count,
+                                                        if fleet_category_count == 1 { "category is" } else { "categories are" }),
+                                                    button {
+                                                        class: "btn btn-sm btn-disabled",
+                                                        disabled: true,
+                                                        "Delete"
+                                                    }
+                                                }
+                                            } else {
+                                                button {
+                                                    class: "btn btn-sm btn-error",
+                                                    onclick: move |_| {
+                                                        format_to_delete.set(Some((format_id, format_name_for_delete.clone(), fleet_category_count)));
+                                                        show_delete_modal.set(true);
+                                                    },
+                                                    "Delete"
+                                                }
                                             }
                                         }
                                     }
@@ -159,43 +149,13 @@ pub fn PingFormatsTable(
             show: show_delete_modal,
             title: "Delete Ping Format".to_string(),
             message: rsx!(
-                if let Some((_, name, count)) = format_to_delete() {
+                if let Some((_, name, _)) = format_to_delete() {
                     div {
                         class: "py-4",
                         p {
                             "Are you sure you want to delete the ping format "
                             span { class: "font-bold", "\"{name}\"" }
                             "?"
-                        }
-                        if count > 0 {
-                            div {
-                                class: "flex flex-col gap-2 mt-2",
-                                p {
-                                    class: "text-warning font-semibold",
-                                    "Warning: This will also affect "
-                                    span { class: "font-bold", "{count}" }
-                                    if count == 1 {
-                                        " fleet category"
-                                    } else {
-                                        " fleet categories"
-                                    }
-                                    " that use this ping format:"
-                                }
-                                if !affected_categories().is_empty() {
-                                    div {
-                                        class: "mt-2 max-h-48 overflow-y-auto border border-base-300 rounded-lg p-2 bg-base-200",
-                                        ul {
-                                            class: "list-disc list-inside ml-2",
-                                            for category_name in affected_categories() {
-                                                li {
-                                                    class: "text-sm py-1",
-                                                    "{category_name}"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
                         }
                         p {
                             class: "mt-4",

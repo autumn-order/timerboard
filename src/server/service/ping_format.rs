@@ -204,6 +204,17 @@ impl<'a> PingFormatService<'a> {
             return Ok(false);
         }
 
+        // Check if there are any fleet categories using this ping format
+        let fleet_category_count = format_repo.get_fleet_category_count(id).await?;
+        if fleet_category_count > 0 {
+            return Err(AppError::BadRequest(format!(
+                "Cannot delete ping format: {} fleet {} still using this format. Please delete or reassign the {} first.",
+                fleet_category_count,
+                if fleet_category_count == 1 { "category is" } else { "categories are" },
+                if fleet_category_count == 1 { "category" } else { "categories" }
+            )));
+        }
+
         // Delete the ping format (fields will be deleted by cascade)
         format_repo.delete(id).await?;
 
