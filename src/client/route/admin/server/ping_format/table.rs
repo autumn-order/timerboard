@@ -72,8 +72,8 @@ pub fn PingFormatsTable(
                 thead {
                     tr {
                         th { "Name" }
-                        th { "Fields" }
                         th { "Fleet Categories" }
+                        th { "Fields" }
                         th {
                             class: "text-right",
                             "Actions"
@@ -96,18 +96,18 @@ pub fn PingFormatsTable(
                                 tr {
                                     td { "{format.name}" }
                                     td {
-                                        if field_names.is_empty() {
-                                            span { class: "opacity-50", "No fields" }
-                                        } else {
-                                            span { "{field_display}" }
-                                        }
-                                    }
-                                    td {
                                         class: "max-w-xs break-words",
                                         if fleet_category_names.is_empty() {
                                             span { class: "opacity-50", "No categories" }
                                         } else {
                                             span { "{category_display}" }
+                                        }
+                                    }
+                                    td {
+                                        if field_names.is_empty() {
+                                            span { class: "opacity-50", "No fields" }
+                                        } else {
+                                            span { "{field_display}" }
                                         }
                                     }
                                     td {
