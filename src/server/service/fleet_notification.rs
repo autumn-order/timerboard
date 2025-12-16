@@ -40,7 +40,7 @@ impl<'a> FleetNotificationService<'a> {
         self.post_fleet_notification(
             fleet,
             field_values,
-            "**.:New Upcoming Fleet:.**",
+            None, // Title will be built using category name
             0x3498db,
             "creation",
             None,
@@ -71,7 +71,7 @@ impl<'a> FleetNotificationService<'a> {
         self.post_fleet_notification(
             fleet,
             field_values,
-            "**.:Reminder: Upcoming Fleet:.**",
+            None, // Title will be built using category name
             0xf39c12,
             if creation_messages.is_empty() {
                 "creation"
@@ -99,7 +99,7 @@ impl<'a> FleetNotificationService<'a> {
         self.post_fleet_notification(
             fleet,
             field_values,
-            "**.:Fleet Forming Now!:.**",
+            None, // Title will be built using category name
             0xe74c3c,
             "formup",
             Some(existing_messages),
@@ -248,10 +248,11 @@ impl<'a> FleetNotificationService<'a> {
             .map_err(|e| AppError::InternalError(format!("Invalid timestamp: {}", e)))?;
 
         let embed = CreateEmbed::new()
-            .title(".:Fleet Cancelled:.")
+            .title(format!(".:{}  Cancelled:.", category_data.category.name))
             .color(0x95a5a6) // Gray color for cancellation
             .description(format!(
-                "Fleet posted by <@{}>, **{}**, scheduled for **{} UTC** (<t:{}:F>) was cancelled.",
+                "{} posted by <@{}>, **{}**, scheduled for **{} UTC** (<t:{}:F>) was cancelled.",
+                category_data.category.name,
                 commander_id,
                 fleet.name,
                 fleet.fleet_time.format("%Y-%m-%d %H:%M"),
@@ -320,7 +321,7 @@ impl<'a> FleetNotificationService<'a> {
         &self,
         fleet: &entity::fleet::Model,
         field_values: &std::collections::HashMap<i32, String>,
-        title: &str,
+        _title: Option<&str>, // Deprecated - title is now built from category name and message type
         color: u32,
         message_type: &str,
         reference_messages: Option<Vec<entity::fleet_message::Model>>,
@@ -371,6 +372,14 @@ impl<'a> FleetNotificationService<'a> {
             )
             .await?;
 
+        // Build title based on message type and category name
+        let title = match message_type {
+            "creation" => format!("**.:New Upcoming {}:.**", category_data.category.name),
+            "reminder" => format!("**.:Reminder: Upcoming {}:.**", category_data.category.name),
+            "formup" => format!("**.:{}  Forming Now!:.**", category_data.category.name),
+            _ => format!("**.:{}  Notification:.**", category_data.category.name),
+        };
+
         // Build ping content with title
         let mut content = format!("{}\n\n", title);
         for (ping_role, _) in &category_data.ping_roles {
@@ -378,14 +387,18 @@ impl<'a> FleetNotificationService<'a> {
                 .role_id
                 .parse::<u64>()
                 .map_err(|e| AppError::InternalError(format!("Invalid role ID: {}", e)))?;
-            content.push_str(&format!("<@&{}> ", role_id));
+
+            // @everyone role has the same ID as the guild - use @everyone instead of <@&guild_id>
+            if role_id == guild_id {
+                content.push_str("@everyone ");
+            } else {
+                content.push_str(&format!("<@&{}> ", role_id));
+            }
         }
 
         // Discord doesn't separate space between embed as expected with "\n\n"
         // So we use "\n** **" to newline an invisible character
-        if !category_data.ping_roles.is_empty() {
-            content.push_str("\n** **");
-        }
+        content.push_str("\n** **");
 
         // Post to all configured channels
         for (channel, _) in &category_data.channels {
