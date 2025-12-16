@@ -11,6 +11,7 @@ pub mod fleet_category_access_role;
 pub mod fleet_category_channel;
 pub mod fleet_category_ping_role;
 pub mod fleet_field_value;
+pub mod fleet_message;
 pub mod ping_format;
 pub mod ping_format_field;
 pub mod user;

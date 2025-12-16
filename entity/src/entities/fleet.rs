@@ -30,6 +30,8 @@ pub enum Relation {
     FleetCategory,
     #[sea_orm(has_many = "super::fleet_field_value::Entity")]
     FleetFieldValue,
+    #[sea_orm(has_many = "super::fleet_message::Entity")]
+    FleetMessage,
     #[sea_orm(
         belongs_to = "super::user::Entity",
         from = "Column::CommanderId",
@@ -49,6 +51,12 @@ impl Related<super::fleet_category::Entity> for Entity {
 impl Related<super::fleet_field_value::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::FleetFieldValue.def()
+    }
+}
+
+impl Related<super::fleet_message::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::FleetMessage.def()
     }
 }
 

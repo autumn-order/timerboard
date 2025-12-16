@@ -9,6 +9,7 @@ pub use super::fleet_category_access_role::Entity as FleetCategoryAccessRole;
 pub use super::fleet_category_channel::Entity as FleetCategoryChannel;
 pub use super::fleet_category_ping_role::Entity as FleetCategoryPingRole;
 pub use super::fleet_field_value::Entity as FleetFieldValue;
+pub use super::fleet_message::Entity as FleetMessage;
 pub use super::ping_format::Entity as PingFormat;
 pub use super::ping_format_field::Entity as PingFormatField;
 pub use super::user::Entity as User;
