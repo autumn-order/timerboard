@@ -736,6 +736,58 @@
       mask-image: url("data:image/svg+xml,%3Csvg width='24' height='24' stroke='black' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform-origin='center'%3E%3Ccircle cx='12' cy='12' r='9.5' fill='none' stroke-width='3' stroke-linecap='round'%3E%3CanimateTransform attributeName='transform' type='rotate' from='0 12 12' to='360 12 12' dur='2s' repeatCount='indefinite'/%3E%3Canimate attributeName='stroke-dasharray' values='0,150;42,150;42,150' keyTimes='0;0.475;1' dur='1.5s' repeatCount='indefinite'/%3E%3Canimate attributeName='stroke-dashoffset' values='0;-16;-59' keyTimes='0;0.475;1' dur='1.5s' repeatCount='indefinite'/%3E%3C/circle%3E%3C/g%3E%3C/svg%3E");
     }
   }
+  .countdown {
+    &.countdown {
+      line-height: 1em;
+    }
+    @layer daisyui.l1.l2.l3 {
+      display: inline-flex;
+      & > * {
+        visibility: hidden;
+        position: relative;
+        display: inline-block;
+        overflow-y: clip;
+        transition: width 0.4s ease-out 0.2s;
+        height: 1em;
+        --value-v: calc(mod(max(0, var(--value)), 1000));
+        --value-hundreds: calc(round(to-zero, var(--value-v) / 100, 1));
+        --value-tens: calc(round(to-zero, mod(var(--value-v), 100) / 10, 1));
+        --value-ones: calc(mod(var(--value-v), 100));
+        --show-hundreds: clamp(clamp(0, var(--digits, 1) - 2, 1), var(--value-hundreds), 1);
+        --show-tens: clamp(
+        clamp(0, var(--digits, 1) - 1, 1),
+        var(--value-tens) + var(--show-hundreds),
+        1
+      );
+        --first-digits: calc(round(to-zero, var(--value-v) / 10, 1));
+        width: calc(1ch + var(--show-tens) * 1ch + var(--show-hundreds) * 1ch);
+        direction: ltr;
+        &:before, &:after {
+          visibility: visible;
+          position: absolute;
+          overflow-x: clip;
+          --tw-content: "00\A 01\A 02\A 03\A 04\A 05\A 06\A 07\A 08\A 09\A 10\A 11\A 12\A 13\A 14\A 15\A 16\A 17\A 18\A 19\A 20\A 21\A 22\A 23\A 24\A 25\A 26\A 27\A 28\A 29\A 30\A 31\A 32\A 33\A 34\A 35\A 36\A 37\A 38\A 39\A 40\A 41\A 42\A 43\A 44\A 45\A 46\A 47\A 48\A 49\A 50\A 51\A 52\A 53\A 54\A 55\A 56\A 57\A 58\A 59\A 60\A 61\A 62\A 63\A 64\A 65\A 66\A 67\A 68\A 69\A 70\A 71\A 72\A 73\A 74\A 75\A 76\A 77\A 78\A 79\A 80\A 81\A 82\A 83\A 84\A 85\A 86\A 87\A 88\A 89\A 90\A 91\A 92\A 93\A 94\A 95\A 96\A 97\A 98\A 99\A";
+          content: var(--tw-content);
+          font-variant-numeric: tabular-nums;
+          white-space: pre;
+          text-align: end;
+          direction: rtl;
+          transition: all 1s cubic-bezier(1, 0, 0, 1), width 0.2s ease-out 0.2s, opacity 0.2s ease-out 0.2s;
+        }
+        &:before {
+          width: calc(1ch + var(--show-hundreds) * 1ch);
+          top: calc(var(--first-digits) * -1em);
+          inset-inline-end: 0;
+          opacity: var(--show-tens);
+        }
+        &:after {
+          width: 1ch;
+          top: calc(var(--value-ones) * -1em);
+          inset-inline-start: 0;
+        }
+      }
+    }
+  }
   .visible {
     visibility: visible;
   }
@@ -1295,15 +1347,6 @@
       }
     }
   }
-  .stats {
-    @layer daisyui.l1.l2.l3 {
-      position: relative;
-      display: inline-grid;
-      grid-auto-flow: column;
-      overflow-x: auto;
-      border-radius: var(--radius-box);
-    }
-  }
   .absolute {
     position: absolute;
   }
@@ -1448,36 +1491,6 @@
       box-shadow: oklch(0% 0 0/ 0.25) 0px 25px 50px -12px;
       overflow-y: auto;
       overscroll-behavior: contain;
-    }
-  }
-  .stat-value {
-    @layer daisyui.l1.l2.l3 {
-      grid-column-start: 1;
-      white-space: nowrap;
-      font-size: 2rem;
-      font-weight: 800;
-    }
-  }
-  .stat-desc {
-    @layer daisyui.l1.l2.l3 {
-      grid-column-start: 1;
-      white-space: nowrap;
-      color: var(--color-base-content);
-      @supports (color: color-mix(in lab, red, red)) {
-        color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
-      }
-      font-size: 0.75rem;
-    }
-  }
-  .stat-title {
-    @layer daisyui.l1.l2.l3 {
-      grid-column-start: 1;
-      white-space: nowrap;
-      color: var(--color-base-content);
-      @supports (color: color-mix(in lab, red, red)) {
-        color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
-      }
-      font-size: 0.75rem;
     }
   }
   .container {
@@ -2337,23 +2350,6 @@
       flex-direction: var(--tabs-direction);
     }
   }
-  .stat {
-    @layer daisyui.l1.l2.l3 {
-      display: inline-grid;
-      width: 100%;
-      column-gap: calc(0.25rem * 4);
-      padding-inline: calc(0.25rem * 6);
-      padding-block: calc(0.25rem * 4);
-      grid-template-columns: repeat(1, 1fr);
-      &:not(:last-child) {
-        border-inline-end: var(--border) dashed currentColor;
-        @supports (color: color-mix(in lab, red, red)) {
-          border-inline-end: var(--border) dashed color-mix(in oklab, currentColor 10%, #0000);
-        }
-        border-block-end: none;
-      }
-    }
-  }
   .card-body {
     @layer daisyui.l1.l2.l3 {
       display: flex;
@@ -2724,19 +2720,6 @@
   }
   .list-disc {
     list-style-type: disc;
-  }
-  .stats-vertical {
-    @layer daisyui.l1.l2 {
-      grid-auto-flow: row;
-      overflow-y: auto;
-      .stat:not(:last-child) {
-        border-inline-end: none;
-        border-block-end: var(--border) dashed currentColor;
-        @supports (color: color-mix(in lab, red, red)) {
-          border-block-end: var(--border) dashed color-mix(in oklab, currentColor 10%, #0000);
-        }
-      }
-    }
   }
   .grid-cols-1 {
     grid-template-columns: repeat(1, minmax(0, 1fr));
@@ -3318,29 +3301,9 @@
       line-height: var(--tw-leading, var(--text-xl--line-height));
     }
   }
-  .lg\:stats-horizontal {
-    @media (width >= 64rem) {
-      @layer daisyui.l1.l2 {
-        grid-auto-flow: column;
-        overflow-x: auto;
-        .stat:not(:last-child) {
-          border-inline-end: var(--border) dashed currentColor;
-          @supports (color: color-mix(in lab, red, red)) {
-            border-inline-end: var(--border) dashed color-mix(in oklab, currentColor 10%, #0000);
-          }
-          border-block-end: none;
-        }
-      }
-    }
-  }
   .lg\:grid-cols-3 {
     @media (width >= 64rem) {
       grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
-  .\[\&\>\*\:first-child\]\:mt-0 {
-    &>*:first-child {
-      margin-top: calc(var(--spacing) * 0);
     }
   }
 }

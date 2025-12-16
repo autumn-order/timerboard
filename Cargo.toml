@@ -19,6 +19,7 @@ dioxus-free-icons = { version = "0.10.0", features = [
 dioxus-logger = "0.7.1"
 dotenvy = { version = "0.15.7", optional = true }
 entity = { path = "entity", optional = true }
+gloo-timers = { version = "0.3.0", features = ["futures"], optional = true }
 migration = { path = "migration", optional = true }
 oauth2 = { version = "5.0.0", optional = true }
 pulldown-cmark = "0.9.6"
@@ -62,4 +63,4 @@ server = [
   "tower-sessions-sqlx-store",
   "url"
 ]
-web = ["dioxus/web", "reqwasm", "serde_json"]
+web = ["dioxus/web", "gloo-timers", "reqwasm", "serde_json"]

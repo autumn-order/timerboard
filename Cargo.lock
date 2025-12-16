@@ -2126,6 +2126,7 @@ dependencies = [
  "dioxus-logger",
  "dotenvy",
  "entity",
+ "gloo-timers",
  "migration",
  "oauth2",
  "pulldown-cmark",

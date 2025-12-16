@@ -57,6 +57,17 @@ pub fn FleetTable(guild_id: u64, mut refetch_trigger: Signal<u32>) -> Element {
     let mut fleet_id_to_view = use_signal(|| None::<i32>);
     let mut show_view_edit_modal = use_signal(|| false);
 
+    // Shared timer for all countdown components - updates once per second
+    let mut current_time = use_signal(|| Utc::now());
+
+    #[cfg(feature = "web")]
+    use_future(move || async move {
+        loop {
+            gloo_timers::future::TimeoutFuture::new(1_000).await;
+            current_time.set(Utc::now());
+        }
+    });
+
     // Fetch fleets with pagination
     #[cfg(feature = "web")]
     let fetch_future = use_resource(move || async move {
@@ -220,7 +231,10 @@ pub fn FleetTable(guild_id: u64, mut refetch_trigger: Signal<u32>) -> Element {
                                                     }
                                                     td { "{fleet.commander_name}" }
                                                     td {
-                                                        FleetCountdown { fleet_time }
+                                                        FleetCountdown {
+                                                            fleet_time,
+                                                            current_time
+                                                        }
                                                     }
                                                     td {
                                                         class: "font-mono text-sm",
@@ -334,9 +348,8 @@ fn SortableHeader(label: String, field: SortField, mut cache: Signal<FleetTableC
 }
 
 #[component]
-fn FleetCountdown(fleet_time: DateTime<Utc>) -> Element {
-    let now = Utc::now();
-    let duration = fleet_time.signed_duration_since(now);
+fn FleetCountdown(fleet_time: DateTime<Utc>, current_time: Signal<DateTime<Utc>>) -> Element {
+    let duration = fleet_time.signed_duration_since(current_time());
     let seconds = duration.num_seconds();
 
     let (text, class) = match seconds {
@@ -363,8 +376,27 @@ fn FleetCountdown(fleet_time: DateTime<Utc>) -> Element {
                 "text-error font-bold",
             )
         }
-        // Within ±1 minute of start time (the critical window)
-        s if s < 60 => ("Starting now".to_string(), "text-error font-bold"),
+        // 1-60 seconds after start time (show seconds)
+        s if s < 0 => {
+            let secs = seconds.abs();
+            (
+                format!(
+                    "Started {} second{} ago",
+                    secs,
+                    if secs == 1 { "" } else { "s" }
+                ),
+                "text-error font-bold",
+            )
+        }
+        // 0-60 seconds before start time (show seconds countdown)
+        s if s < 60 => (
+            format!(
+                "Starting in {} second{}",
+                seconds,
+                if seconds == 1 { "" } else { "s" }
+            ),
+            "text-error font-bold",
+        ),
         // 1-60 minutes before start time (show minutes to avoid "in 0 hours")
         s if s < 3600 => {
             let minutes = duration.num_minutes();
