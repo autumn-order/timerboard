@@ -494,14 +494,24 @@ impl<'a> FleetService<'a> {
                 let params = UpdateFleetParams {
                     id,
                     category_id: Some(dto.category_id),
-                    name: Some(dto.name),
+                    name: Some(dto.name.clone()),
                     fleet_time: Some(new_fleet_time),
-                    description: Some(dto.description),
-                    field_values: Some(dto.field_values),
+                    description: Some(dto.description.clone()),
+                    field_values: Some(dto.field_values.clone()),
                     hidden: Some(dto.hidden),
                     disable_reminder: Some(dto.disable_reminder),
                 };
-                repo.update(params).await?;
+                let updated_fleet = repo.update(params).await?;
+
+                // Update Discord messages with new fleet information
+                let notification_service = FleetNotificationService::new(
+                    self.db,
+                    self.discord_http.clone(),
+                    self.app_url.clone(),
+                );
+                notification_service
+                    .update_fleet_messages(&updated_fleet, &dto.field_values)
+                    .await?;
 
                 // Fetch the updated fleet data with enriched information
                 return self
@@ -543,6 +553,14 @@ impl<'a> FleetService<'a> {
                     .map_err(|e| AppError::InternalError(format!("Invalid guild_id: {}", e)))?;
 
                 if category_guild_id == guild_id {
+                    // Cancel Discord messages before deleting
+                    let notification_service = FleetNotificationService::new(
+                        self.db,
+                        self.discord_http.clone(),
+                        self.app_url.clone(),
+                    );
+                    notification_service.cancel_fleet_messages(&fleet).await?;
+
                     repo.delete(id).await?;
                     return Ok(true);
                 }
