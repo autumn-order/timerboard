@@ -1,5 +1,8 @@
 # Autumn Timerboard
 
+[![wakatime](https://wakatime.com/badge/github/autumn-order/timerboard.svg)](https://wakatime.com/badge/github/autumn-order/timerboard)
+[![Discord](https://img.shields.io/discord/1414000815017824288?logo=Discord&color=%235865F2)](https://discord.gg/HjaGsBBtFg)
+
 A simple Discord-based fleet timerboard for EVE Online. 
 
 This timerboard was created with the goal to address the issues of accidentally overlapping fleets as well as providing an easily accessible, single source of truth as to what fleets are upcoming. 
@@ -29,11 +32,13 @@ This application is experimental and more-so a prototype than something planned 
 - Provides a list of all upcoming fleets 
 - Filters out fleets that started over an hour ago & hides fleets from categories a user doesn't have view access to
 
-**Discord fleet pings (Pending implementation)**
+**Discord fleet pings**
 - Sends pings & post upcoming fleets to configured channel(s) for fleet category
 - Sends a ping when a fleet is first created
 - Sends a reminder ping prior to form-up (if configured for fleet category)
 - Sends a ping when fleet begins form-up
+- Choose to hide fleet from those who don't have create/manage access for the category until reminder or form-up time
+- Choose to not send a reminder even if configured for category
 - Silently updates the fleet message when details are updated
 - Silently updates fleet message and posts an additional message if a fleet is cancelled or the time is changed (without a ping)
 - Periodicially provides a list of upcoming fleets with countdowns in the configured Discord channel - every 30 minutes pushes the list to most recent message for visibilty (deleting the prior posted list to not clutter the channel)
@@ -104,9 +109,88 @@ sudo docker compose logs timerboard
 
 If the link expires or you can't run it, run `sudo docker compose restart` then check logs again to get a new link.
 
+## Customization
+
+Changing the style of the website is flexible and easy to do:
+
+### Changing Icon
+- Replace `assets/logo.webp` with your own logo
+- Replace `assets/favicon.ico` with your own favicon (for browser tab icon)
+
+### Changing Site Name
+- Modify `src/client/constant.rs` and change the value of `SITE_NAME`
+
+### Changing Site Theme
+- Use <https://daisyui.com/theme-generator> to choose a theme or make your own, click `CSS` button at the top above the color options, and click `Copy to clipboard`
+- Modify `tailwind.css`, replacing the existing theme with your own, ensure you set `default: true;` within the theme for it to take effect
+
+### Applying Modifications
+You will need to rebuild the application to apply the changes, do so with:
+
+```bash
+sudo docker compose up -d --build
+```
+
 # Development
 
-Generate entities with:
+## Prerequsites
+
+- [BunJS](https://bun.sh/)
+- [Rust](https://www.rust-lang.org/tools/install)
+- [Dioxus](https://dioxuslabs.com/learn/0.7/getting_started/)
+- [Docker](https://docs.docker.com/engine/install/)
+
+Setup Discord developer application and `.env` as instructed above, similar to production steps but
+- In `.env` set the `DOMAIN=localhost:8080` and `PROTOCOL=http`
+
+## Running for Development
+
+1. Install tailwindcss dependencies with:
+
+```bash
+bun i
+```
+
+2. Run tailwindcss
+
+```bash
+bunx @tailwindcss/cli -i ./tailwind.css -o ./assets/tailwind.css --watch
+```
+
+3. Run the application
+
+```bash
+dx serve
+```
+
+## Database Migrations
+
+If you modify migrations, you will need to do the following to apply them:
+
+1. Apply migrations to the database
+
+```bash
+sea-orm-cli migrate
+```
+
+2. Generate entities based upon database tables applied by the migration
+
 ```bash
 sea-orm-cli generate entity -o ./entity/src/entities/ --date-time-crate chrono
+```
+
+### Additionally Useful DB Commands
+
+Drop all tables & reapply migrations
+- Use this if you modified migrations and need a fresh start
+
+```bash
+sea-orm-cli fresh
+```
+
+Rollback all applied migrations & reapply them
+- Use this to ensure both your up & down methods of your migrations work
+
+```bash
+sea-orm-cli migrate refresh
 ```

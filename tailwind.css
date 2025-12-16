@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 @plugin "daisyui";
+/* Replace with your own theme from https://daisyui.com/theme-generator/ */
+/* Ensure you set `default: true;` */
 @plugin "daisyui/theme" {
     name: "black";
     default: true;
