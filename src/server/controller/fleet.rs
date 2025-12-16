@@ -174,12 +174,12 @@ pub async fn create_fleet(
     Path(guild_id): Path<u64>,
     Json(dto): Json<CreateFleetDto>,
 ) -> Result<impl IntoResponse, AppError> {
-    let _user = AuthGuard::new(&state.db, &session)
+    let user = AuthGuard::new(&state.db, &session)
         .require(&[Permission::CategoryCreate(guild_id, dto.category_id)])
         .await?;
 
     let fleet_service = FleetService::new(&state.db);
-    let fleet = fleet_service.create(dto).await?;
+    let fleet = fleet_service.create(dto, user.admin).await?;
 
     Ok((StatusCode::CREATED, Json(fleet)))
 }

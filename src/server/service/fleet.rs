@@ -25,6 +25,7 @@ impl<'a> FleetService<'a> {
     ///
     /// # Arguments
     /// - `dto`: Fleet creation data
+    /// - `is_admin`: Whether the creating user is an admin (bypasses permission checks when fetching result)
     ///
     /// # Returns
     /// - `Ok(FleetDto)`: The created fleet with enriched data
@@ -36,9 +37,9 @@ impl<'a> FleetService<'a> {
     ///
     /// # Note
     /// The returned fleet is fetched using the commander's user_id, so visibility rules apply.
-    /// However, since the commander has create permission, they will always be able to see
-    /// their own newly created fleet (even if marked as hidden).
-    pub async fn create(&self, dto: CreateFleetDto) -> Result<FleetDto, AppError> {
+    /// However, since the commander has create permission (or is admin), they will always be
+    /// able to see their own newly created fleet (even if marked as hidden).
+    pub async fn create(&self, dto: CreateFleetDto, is_admin: bool) -> Result<FleetDto, AppError> {
         let repo = FleetRepository::new(self.db);
 
         // Parse the fleet time from "YYYY-MM-DD HH:MM" format
@@ -74,7 +75,7 @@ impl<'a> FleetService<'a> {
             .parse::<u64>()
             .map_err(|e| AppError::InternalError(format!("Failed to parse guild_id: {}", e)))?;
 
-        self.get_by_id(fleet.id, guild_id, dto.commander_id, false)
+        self.get_by_id(fleet.id, guild_id, dto.commander_id, is_admin)
             .await?
             .ok_or_else(|| AppError::NotFound("Fleet not found after creation".to_string()))
     }
