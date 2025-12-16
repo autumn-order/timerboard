@@ -15,7 +15,8 @@ fn main() {
         use dioxus_logger::tracing;
 
         use crate::server::{
-            bot, config::Config, service::admin::code::AdminCodeService, startup, state::AppState,
+            bot, config::Config, scheduler::fleet_notifications,
+            service::admin::code::AdminCodeService, startup, state::AppState,
         };
 
         dotenvy::dotenv().ok();
@@ -44,6 +45,22 @@ fn main() {
 
         // Check for admin users and generate login link if none exist
         startup::check_for_admin(&db, &config, &admin_code_service).await?;
+
+        // Start fleet notification scheduler
+        let scheduler_db = db.clone();
+        let scheduler_http = discord_http.clone();
+        let scheduler_app_url = config.app_url.clone();
+        tokio::spawn(async move {
+            if let Err(e) = fleet_notifications::start_scheduler(
+                scheduler_db,
+                scheduler_http,
+                scheduler_app_url,
+            )
+            .await
+            {
+                tracing::error!("Fleet notification scheduler error: {}", e);
+            }
+        });
 
         let mut router = dioxus::server::router(App);
         let server_routes = server::router::router()

@@ -375,8 +375,11 @@ impl<'a> FleetNotificationService<'a> {
         // Build title based on message type and category name
         let title = match message_type {
             "creation" => format!("**.:New Upcoming {}:.**", category_data.category.name),
-            "reminder" => format!("**.:Reminder: Upcoming {}:.**", category_data.category.name),
-            "formup" => format!("**.:{}  Forming Now!:.**", category_data.category.name),
+            "reminder" => format!(
+                "**.:Reminder - Upcoming {}:.**",
+                category_data.category.name
+            ),
+            "formup" => format!("**.:{} Forming Now:.**", category_data.category.name),
             _ => format!("**.:{}  Notification:.**", category_data.category.name),
         };
 

@@ -6,6 +6,7 @@ pub mod error;
 pub mod middleware;
 pub mod model;
 pub mod router;
+pub mod scheduler;
 pub mod service;
 pub mod startup;
 pub mod state;

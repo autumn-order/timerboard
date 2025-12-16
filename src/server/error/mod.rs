@@ -30,6 +30,8 @@ pub enum AppError {
     ReqwestErr(#[from] reqwest::Error),
     #[error(transparent)]
     DiscordErr(#[from] Box<serenity::Error>),
+    #[error(transparent)]
+    SchedulerErr(#[from] tokio_cron_scheduler::JobSchedulerError),
     #[error("{0}")]
     NotFound(String),
     #[error("{0}")]
