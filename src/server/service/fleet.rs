@@ -35,6 +35,10 @@ impl<'a> FleetService<'a> {
         // Parse the fleet time from "YYYY-MM-DD HH:MM" format
         let fleet_time = Self::parse_fleet_time(&dto.fleet_time)?;
 
+        // Validate fleet time doesn't conflict with existing fleets in the same category
+        self.validate_fleet_time_conflict(dto.category_id, fleet_time, None)
+            .await?;
+
         // Create the fleet
         let fleet = repo
             .create(
@@ -278,6 +282,10 @@ impl<'a> FleetService<'a> {
             // Parse the fleet time with original time for validation
             let original_time = fleet.fleet_time;
             let fleet_time = Self::parse_fleet_time_with_min(&dto.fleet_time, Some(original_time))?;
+
+            // Validate fleet time doesn't conflict with existing fleets (excluding this fleet)
+            self.validate_fleet_time_conflict(dto.category_id, fleet_time, Some(id))
+                .await?;
             // Fetch old category to verify guild
             let old_category = entity::prelude::FleetCategory::find_by_id(fleet.category_id)
                 .one(self.db)
@@ -435,5 +443,77 @@ impl<'a> FleetService<'a> {
         }
 
         Ok(fleet_time)
+    }
+
+    /// Validates that a fleet time doesn't conflict with existing fleets in the same category
+    ///
+    /// Checks if the category has a `ping_cooldown` setting and validates that no other
+    /// fleet in the same category is scheduled within that time window.
+    ///
+    /// # Arguments
+    /// - `category_id`: The category ID to check
+    /// - `fleet_time`: The proposed fleet time
+    /// - `exclude_fleet_id`: Optional fleet ID to exclude from check (for updates)
+    ///
+    /// # Returns
+    /// - `Ok(())`: No conflicts found
+    /// - `Err(AppError)`: Conflict found or database error
+    async fn validate_fleet_time_conflict(
+        &self,
+        category_id: i32,
+        fleet_time: DateTime<Utc>,
+        exclude_fleet_id: Option<i32>,
+    ) -> Result<(), AppError> {
+        // Get the category to check ping_cooldown setting
+        let category = entity::prelude::FleetCategory::find_by_id(category_id)
+            .one(self.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Category not found".to_string()))?;
+
+        // If no ping_cooldown is set, no validation needed
+        let Some(cooldown_seconds) = category.ping_cooldown else {
+            return Ok(());
+        };
+
+        // Calculate the time window to check
+        let cooldown_duration = chrono::Duration::seconds(cooldown_seconds as i64);
+        let time_window_start = fleet_time - cooldown_duration;
+        let time_window_end = fleet_time + cooldown_duration;
+
+        // Query for conflicting fleets in the same category
+        use sea_orm::QuerySelect;
+        let mut query = entity::prelude::Fleet::find()
+            .filter(entity::fleet::Column::CategoryId.eq(category_id))
+            .filter(entity::fleet::Column::FleetTime.gte(time_window_start))
+            .filter(entity::fleet::Column::FleetTime.lte(time_window_end));
+
+        // Exclude the current fleet if updating
+        if let Some(exclude_id) = exclude_fleet_id {
+            query = query.filter(entity::fleet::Column::Id.ne(exclude_id));
+        }
+
+        let conflicting_fleet = query.one(self.db).await?;
+
+        if let Some(conflict) = conflicting_fleet {
+            let cooldown_minutes = cooldown_seconds / 60;
+            let hours = cooldown_minutes / 60;
+            let minutes = cooldown_minutes % 60;
+
+            let cooldown_display = if hours > 0 {
+                format!("{} hour(s) {} minute(s)", hours, minutes)
+            } else {
+                format!("{} minute(s)", minutes)
+            };
+
+            return Err(AppError::BadRequest(format!(
+                "Fleet time conflicts with another fleet in this category. \
+                Category requires a minimum spacing of {} between fleets. \
+                Conflicting fleet at {}",
+                cooldown_display,
+                conflict.fleet_time.format("%Y-%m-%d %H:%M UTC")
+            )));
+        }
+
+        Ok(())
     }
 }

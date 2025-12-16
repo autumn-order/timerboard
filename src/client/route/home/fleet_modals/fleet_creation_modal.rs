@@ -66,9 +66,6 @@ pub fn FleetCreationModal(
     let mut is_submitting = use_signal(|| false);
     let mut submission_error = use_signal(|| None::<String>);
 
-    // Validation warnings
-    let mut validation_warnings = use_signal(|| Vec::<String>::new());
-
     // Datetime validation error
     let mut datetime_error = use_signal(|| None::<String>);
 
@@ -324,110 +321,6 @@ pub fn FleetCreationModal(
 
     let guild_members = guild_members_cache.read().data.clone();
 
-    // Fetch existing fleets for validation - filter to current category
-    #[cfg(feature = "web")]
-    let existing_fleets_resource = use_resource(use_reactive!(|selected_category_id| async move {
-        match get_fleets(guild_id, 0, 1000).await {
-            Ok(paginated) => {
-                let fleets_in_category: Vec<_> = paginated
-                    .fleets
-                    .into_iter()
-                    .filter(|f| f.category_id == selected_category_id())
-                    .collect();
-                Ok(fleets_in_category)
-            }
-            Err(err) => Err(err),
-        }
-    }));
-
-    #[cfg(not(feature = "web"))]
-    let existing_fleets_resource =
-        use_signal(|| None::<Result<Vec<crate::model::fleet::FleetListItemDto>, ApiError>>);
-
-    let mut existing_fleets =
-        use_signal(|| None::<Result<Vec<crate::model::fleet::FleetListItemDto>, ApiError>>);
-
-    #[cfg(feature = "web")]
-    use_effect(move || {
-        if let Some(result) = existing_fleets_resource.read().as_ref() {
-            existing_fleets.set(Some(result.clone()));
-        }
-    });
-
-    // Validate fleet datetime against category rules
-    use_effect(use_reactive!(|(
-        fleet_datetime,
-        category_details,
-        existing_fleets,
-    )| {
-        let mut warnings = Vec::new();
-
-        if let Some(Ok(details)) = category_details().as_ref() {
-            // Parse the fleet datetime
-            if let Ok(parsed_datetime) =
-                chrono::NaiveDateTime::parse_from_str(&fleet_datetime(), "%Y-%m-%d %H:%M")
-            {
-                let fleet_time = Utc.from_utc_datetime(&parsed_datetime);
-                let now = Utc::now();
-
-                // Check max_pre_ping (maximum advance scheduling)
-                if let Some(max_pre_ping) = details.max_pre_ping {
-                    let max_schedule_time = now + max_pre_ping;
-                    if fleet_time > max_schedule_time {
-                        let hours = max_pre_ping.num_hours();
-                        warnings.push(format!(
-                            "Fleet is scheduled more than {} hour{} in advance",
-                            hours,
-                            if hours == 1 { "" } else { "s" }
-                        ));
-                    }
-                }
-
-                // Check ping_lead_time (minimum gap between fleets)
-                if let (Some(ping_lead_time), Some(Ok(fleets))) =
-                    (details.ping_lead_time, existing_fleets().as_ref())
-                {
-                    for existing_fleet in fleets {
-                        let time_diff = if fleet_time > existing_fleet.fleet_time {
-                            fleet_time - existing_fleet.fleet_time
-                        } else {
-                            existing_fleet.fleet_time - fleet_time
-                        };
-
-                        if time_diff < ping_lead_time {
-                            let hours = ping_lead_time.num_hours();
-                            let minutes = (ping_lead_time.num_minutes() % 60) as i64;
-                            let time_str = if hours > 0 {
-                                if minutes > 0 {
-                                    format!(
-                                        "{} hour{} {} minute{}",
-                                        hours,
-                                        if hours == 1 { "" } else { "s" },
-                                        minutes,
-                                        if minutes == 1 { "" } else { "s" }
-                                    )
-                                } else {
-                                    format!("{} hour{}", hours, if hours == 1 { "" } else { "s" })
-                                }
-                            } else {
-                                format!("{} minute{}", minutes, if minutes == 1 { "" } else { "s" })
-                            };
-                            warnings.push(format!(
-                                "Fleet \"{}\" at {} is within {} of this fleet",
-                                existing_fleet.name,
-                                existing_fleet.fleet_time.format("%Y-%m-%d %H:%M EVE time"),
-                                time_str
-                            ));
-                            break; // Only show one warning to avoid clutter
-                        }
-                    }
-                }
-            }
-        }
-
-        validation_warnings.set(warnings);
-    }));
-
     rsx! {
         FullScreenModal {
             show,
@@ -452,30 +345,7 @@ pub fn FleetCreationModal(
                     manageable_categories: Some(use_signal(move || manageable_categories.clone())),
                     datetime_error_signal: Some(datetime_error),
                 }
-
-                // Validation warnings
-                if !validation_warnings().is_empty() {
-                    for warning in validation_warnings() {
-                        div {
-                            key: "{warning}",
-                            class: "alert alert-error mt-4",
-                            svg {
-                                xmlns: "http://www.w3.org/2000/svg",
-                                class: "stroke-current shrink-0 h-6 w-6",
-                                fill: "none",
-                                view_box: "0 0 24 24",
-                                path {
-                                    stroke_linecap: "round",
-                                    stroke_linejoin: "round",
-                                    stroke_width: "2",
-                                    d: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                                }
-                            }
-                            span { "{warning}" }
-                        }
-                    }
-                }
-
+                // Submission error
                 // Submission error message
                 if let Some(error) = submission_error() {
                     div {
@@ -506,7 +376,7 @@ pub fn FleetCreationModal(
                     }
                     button {
                         class: "btn btn-primary",
-                        disabled: fleet_name().is_empty() || fleet_datetime().is_empty() || fleet_commander_id().is_none() || is_submitting() || !validation_warnings().is_empty() || datetime_error().is_some(),
+                        disabled: fleet_name().is_empty() || fleet_datetime().is_empty() || fleet_commander_id().is_none() || is_submitting() || datetime_error().is_some(),
                         onclick: move |_| {
                             is_submitting.set(true);
                             submission_error.set(None);
