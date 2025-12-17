@@ -69,29 +69,6 @@ impl<'a> UserRepository<'a> {
         Ok(admin_count > 0)
     }
 
-    /// Updates the last guild sync timestamp to current time
-    ///
-    /// Sets the last_guild_sync_at column to the current UTC timestamp.
-    /// Used after successfully syncing a user's guild memberships.
-    ///
-    /// # Arguments
-    /// - `user_id`: Discord ID of the user (u64)
-    ///
-    /// # Returns
-    /// - `Ok(())`: Timestamp updated successfully
-    /// - `Err(DbErr)`: Database error during update
-    pub async fn update_guild_sync_timestamp(&self, user_id: u64) -> Result<(), DbErr> {
-        entity::prelude::User::update_many()
-            .filter(entity::user::Column::DiscordId.eq(user_id.to_string()))
-            .col_expr(
-                entity::user::Column::LastGuildSyncAt,
-                sea_orm::sea_query::Expr::value(Utc::now().naive_utc()),
-            )
-            .exec(self.db)
-            .await?;
-        Ok(())
-    }
-
     /// Updates the last role sync timestamp to current time
     ///
     /// Sets the last_role_sync_at column to the current UTC timestamp.
@@ -108,34 +85,6 @@ impl<'a> UserRepository<'a> {
             .filter(entity::user::Column::DiscordId.eq(user_id.to_string()))
             .col_expr(
                 entity::user::Column::LastRoleSyncAt,
-                sea_orm::sea_query::Expr::value(Utc::now().naive_utc()),
-            )
-            .exec(self.db)
-            .await?;
-        Ok(())
-    }
-
-    /// Updates the last guild sync timestamp for multiple users at once
-    ///
-    /// Sets the last_guild_sync_at column to the current UTC timestamp for all specified users.
-    /// Used after successfully syncing guild memberships for multiple users during bot startup.
-    ///
-    /// # Arguments
-    /// - `user_ids`: Slice of Discord IDs of users to update (u64)
-    ///
-    /// # Returns
-    /// - `Ok(())`: Timestamps updated successfully
-    /// - `Err(DbErr)`: Database error during update
-    pub async fn update_guild_sync_timestamps(&self, user_ids: &[u64]) -> Result<(), DbErr> {
-        if user_ids.is_empty() {
-            return Ok(());
-        }
-
-        let user_id_strings: Vec<String> = user_ids.iter().map(|id| id.to_string()).collect();
-        entity::prelude::User::update_many()
-            .filter(entity::user::Column::DiscordId.is_in(user_id_strings))
-            .col_expr(
-                entity::user::Column::LastGuildSyncAt,
                 sea_orm::sea_query::Expr::value(Utc::now().naive_utc()),
             )
             .exec(self.db)

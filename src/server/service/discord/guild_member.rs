@@ -84,42 +84,4 @@ impl<'a> DiscordGuildMemberService<'a> {
         member_repo.delete(user_id, guild_id).await?;
         Ok(())
     }
-
-    /// Gets all members for a guild
-    ///
-    /// # Arguments
-    /// - `guild_id`: Discord guild ID
-    ///
-    /// # Returns
-    /// - `Ok(Vec<Model>)`: List of all guild members
-    /// - `Err(AppError)`: Database error
-    pub async fn get_guild_members(
-        &self,
-        guild_id: u64,
-    ) -> Result<Vec<entity::discord_guild_member::Model>, AppError> {
-        let member_repo = DiscordGuildMemberRepository::new(self.db);
-        let members = member_repo.get_members_by_guild(guild_id).await?;
-        Ok(members)
-    }
-
-    /// Gets all logged-in users (with app accounts) for a guild
-    ///
-    /// Returns members who both:
-    /// 1. Are in the guild
-    /// 2. Have logged into the application
-    ///
-    /// # Arguments
-    /// - `guild_id`: Discord guild ID
-    ///
-    /// # Returns
-    /// - `Ok(Vec<(User, DiscordGuildMember)>)`: List of logged-in members
-    /// - `Err(AppError)`: Database error
-    pub async fn get_logged_in_members(
-        &self,
-        guild_id: u64,
-    ) -> Result<Vec<(entity::user::Model, entity::discord_guild_member::Model)>, AppError> {
-        let member_repo = DiscordGuildMemberRepository::new(self.db);
-        let members = member_repo.get_logged_in_members(guild_id).await?;
-        Ok(members)
-    }
 }

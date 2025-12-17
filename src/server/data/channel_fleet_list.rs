@@ -57,23 +57,4 @@ impl<'a> ChannelFleetListRepository<'a> {
             Ok(new_record.insert(self.db).await?)
         }
     }
-
-    /// Gets all channels that have fleet list messages
-    pub async fn get_all(&self) -> Result<Vec<entity::channel_fleet_list::Model>, AppError> {
-        let lists = entity::prelude::ChannelFleetList::find()
-            .all(self.db)
-            .await?;
-
-        Ok(lists)
-    }
-
-    /// Deletes a fleet list record by channel ID
-    pub async fn delete_by_channel_id(&self, channel_id: &str) -> Result<u64, AppError> {
-        let result = entity::prelude::ChannelFleetList::delete_many()
-            .filter(entity::channel_fleet_list::Column::ChannelId.eq(channel_id))
-            .exec(self.db)
-            .await?;
-
-        Ok(result.rows_affected)
-    }
 }
