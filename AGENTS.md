@@ -1,6 +1,4 @@
-# Autumn Repository Standards
-
-## Dependencies
+# Dependencies
 
 This application uses the Autumn tech stack which utilizes the Rust programming language for both:
 - Frontend being Rust WASM via feature `web` with Dioxus frontend framework
@@ -37,15 +35,13 @@ Situational (feature `server`)
 - `eve_esi` - Rust API interface for EVE Online's ESI
 - `serenity` - Rust API interface for Discord's API
 
-## Application Structure
-
-### Domain-Driven Architecture
+# Domain-Driven Architecture
 
 This application uses a **layered architecture** where data flows through distinct layers, each with its own responsibility and data model type. This separation prevents tight coupling and keeps concerns isolated.
 
 ---
 
-### The Request Flow (Example: Creating a User)
+## The Request Flow (Example: Creating a User)
 
 ```
 Frontend                  Backend
@@ -71,7 +67,7 @@ UserParam               .into_dto()            (serialized JSON)
 
 ---
 
-### The Five Layers (By Domain)
+## The Five Layers (By Domain)
 
 For each **domain** (e.g., `user`, `character`), we have these five pieces:
 
@@ -97,7 +93,7 @@ impl<'a> UserRepository<'a> {
 }
 ```
 
-#### 2. **Service** - `server/service/user.rs`
+### 2. **Service** - `server/service/user.rs`
 **Responsibility**: Business logic and orchestration  
 **Uses**: `CreateUserParam`, `GetUserParam` (server-only param models)  
 **Example**:
@@ -117,7 +113,7 @@ impl<'a> UserService<'a> {
 }
 ```
 
-#### 3. **Controller** - `server/controller/user.rs`
+### 3. **Controller** - `server/controller/user.rs`
 **Responsibility**: Handle HTTP requests, access control, convert to DTOs  
 **Uses**: Receives `CreateUserDto` from frontend, uses `CreateUserParam` internally, returns `UserDto`  
 **Example**:
@@ -132,7 +128,7 @@ pub async fn create_user(Json(dto): Json<CreateUserDto>) -> Result<Json<UserDto>
 }
 ```
 
-#### 4. **Shared DTOs** - `model/user.rs`
+### 4. **Shared DTOs** - `model/user.rs`
 **Responsibility**: Data transfer between frontend and backend via API  
 **Uses**: `CreateUserDto`, `UserDto` (derives `Serialize`, `Deserialize`)  
 **Example**:
@@ -146,7 +142,7 @@ pub struct UserDto {
 }
 ```
 
-#### 5. **Frontend API** - `client/api/user.rs`
+### 5. **Frontend API** - `client/api/user.rs`
 **Responsibility**: Make API requests to backend  
 **Uses**: `UserDto`, `CreateUserDto`  
 **Example**:
@@ -159,7 +155,7 @@ pub async fn create_user(dto: CreateUserDto) -> Result<UserDto> {
 
 ---
 
-### Data Models Explained
+## Data Models Explained
 
 | Model Type | Location | Derives Serialize? | Used Where | Purpose |
 |------------|----------|-------------------|------------|---------|
@@ -169,7 +165,7 @@ pub async fn create_user(dto: CreateUserDto) -> Result<UserDto> {
 
 ---
 
-### Key Rules (What Goes Where)
+## Key Rules (What Goes Where)
 
 ✅ **DO:**
 - Use **entity models** only inside `server/data/` functions (never return them)
@@ -187,7 +183,7 @@ pub async fn create_user(dto: CreateUserDto) -> Result<UserDto> {
 
 ---
 
-### Why This Architecture?
+## Why This Architecture?
 
 **Separation of Concerns**:
 - **Database changes** only affect the data layer internals
@@ -207,7 +203,7 @@ pub async fn create_user(dto: CreateUserDto) -> Result<UserDto> {
 
 ---
 
-### Complete Example Flow: "Get User by ID"
+## Complete Example Flow: "Get User by ID"
 
 ```
 1. Frontend calls: client/api/user.rs::get_user(id: i32)
@@ -245,7 +241,7 @@ pub async fn create_user(dto: CreateUserDto) -> Result<UserDto> {
 
 ---
 
-### Conversion Helper Pattern
+## Conversion Helper Pattern
 
 To avoid verbose conversion code, we implement these in `server/model/{domain}.rs`:
 
@@ -298,9 +294,9 @@ impl From<CreateUserDto> for CreateUserParam {
 
 ---
 
-## File Structure
+# File Structure
 
-### Root Overview
+## Root Overview
 
 ```
 application/
@@ -322,7 +318,7 @@ application/
 
 ---
 
-### Client Overview
+## Client Overview
 
 ```
 client/
@@ -347,7 +343,7 @@ client/
 
 ---
 
-### Model Overview
+## Model Overview
 
 ```
 model/
@@ -358,7 +354,7 @@ model/
 
 ---
 
-### Server Overview
+## Server Overview
 
 ```
 server/
@@ -402,6 +398,83 @@ server/
 ```
 
 ---
+
+# Documentation Standards
+
+## Methods
+
+- We list the arguments and what the argument is for, let the code speak for itself, our docs explain the why and the behavior
+- For arguments we describe briefly what that argument is used for
+- For return types, we should list out each possible variant & error as well as why it returned that value
+
+### Service/Data Methods
+
+```rust
+/// Short description of what it does
+/// 
+/// 2-3 sentences on behavior - or use a bullet point list for a more complex method
+/// 
+/// # Arguments
+/// - `user_id`: ID of the user to get information for
+/// 
+/// # Returns
+/// - `Ok(Some(User))`: User was found...
+/// - `Ok(None)`: User was not found in database
+/// - `Err(DbErr(_))`: A database error occurred
+pub async fn get_user(user_id: i32) -> Result<Option<UseParam>, AppError> {
+    Ok(user)
+}
+```
+
+### Controller Methods
+
+- We use the utoipa::path proc macro for generating SwaggerUi API documentation
+- We do `///` method documentation to describe behavior which will also be shown in the SwaggerUi
+- For access control, these are generally permission enum variants such as `Permission::LoggedIn`
+
+```rust
+static USER_TAG: &str = "user";
+
+/// Retrieves information for the currently authenticated user
+///
+/// Fetches the user ID from the session & checks to see if they are logged in. Then queries
+/// the database to retrieve information on the user, returning their user ID & name.
+/// 
+/// # Access Control
+/// - `LoggedIn`: Can only access this route if user is logged in
+/// 
+/// # Arguments
+/// - `state`: Application state containing the database connection for character lookup
+/// - `session`: User's session containing their user ID
+/// 
+/// # Returns
+/// - `Ok(Some(UserDto))`: User's ID & name
+/// - `Ok(None)`: User not in session or not in database
+/// - `Err(DbErr(_))`: An error occurred retrieving user information from the database
+/// - `Err(SessionErr(_))`: An error occurred getting user ID from session
+#[utoipa::path(
+    get,
+    path = "/api/user",
+    tag = USER_TAG,
+    responses(
+        (status = 200, description = "Success when retrieving user", body = UserDto),
+        (status = 404, description = "User not found", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+)]
+pub async fn get_user(
+    State(state): State<AppState>,
+    session: Session,
+) -> Result<impl IntoResponse, AppError> {
+    // AuthGuard would retrieve user info when doing permission check so we can just
+    // return the user from auth guard to avoid redundant DB calls
+    let user = AuthGuard::new(&state.db, &session)
+        .require(&[Permission::LoggedIn])
+        .await?;
+
+    Ok((StatusCode::OK, Json(user.into_dto())).into_response())
+}
+```
 
 # Dioxus 
 
