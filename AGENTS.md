@@ -409,20 +409,29 @@ server/
 
 ### Service/Data Methods
 
+- Short description of what the method does
+- 2-3 sentences on behavior
+- List of arguments and what the arguments are/do
+- List of all response variants included possible errors
+
+Example:
+
 ```rust
-/// Short description of what it does
-/// 
-/// 2-3 sentences on behavior - or use a bullet point list for a more complex method
-/// 
+/// Generates an OAuth2 login URL for EVE Online SSO.
+///
+/// Creates a login URL with the requested scopes and a CSRF state token for security.
+/// The user should be redirected to this URL to begin the authentication flow with EVE Online.
+///
 /// # Arguments
-/// - `user_id`: ID of the user to get information for
-/// 
+/// - `scopes` - List of OAuth2 scopes to request from the user
+///
 /// # Returns
-/// - `Ok(Some(User))`: User was found...
-/// - `Ok(None)`: User was not found in database
-/// - `Err(DbErr(_))`: A database error occurred
-pub async fn get_user(user_id: i32) -> Result<Option<UseParam>, AppError> {
-    Ok(user)
+/// - `Ok(AuthenticationData)` - Login URL and CSRF state token for callback validation
+/// - `Err(Error::EsiError)` - ESI client OAuth2 not configured properly
+pub fn generate_login_url(&self, scopes: Vec<String>) -> Result<AuthenticationData, Error> {
+    let login = self.esi_client.oauth2().login_url(scopes)?;
+
+    Ok(login)
 }
 ```
 
@@ -431,6 +440,8 @@ pub async fn get_user(user_id: i32) -> Result<Option<UseParam>, AppError> {
 - We use the utoipa::path proc macro for generating SwaggerUi API documentation
 - We do `///` method documentation to describe behavior which will also be shown in the SwaggerUi
 - For access control, these are generally permission enum variants such as `Permission::LoggedIn`
+
+Example:
 
 ```rust
 static USER_TAG: &str = "user";
@@ -475,6 +486,126 @@ pub async fn get_user(
     Ok((StatusCode::OK, Json(user.into_dto())).into_response())
 }
 ```
+
+
+### Test Methods
+
+- Short description of expected result
+- 2-3 sentences on what is being verified and the current state
+- Expected outcome
+
+Example:
+
+```rust
+/// Tests successful redirect to EVE Online login page.
+///
+/// Verifies that the login endpoint returns a 307 temporary redirect response
+/// that directs the user to the EVE Online SSO login page for authentication.
+///
+/// Expected: Ok with 307 TEMPORARY_REDIRECT response
+#[tokio::test]
+async fn redirects_to_eve_login() -> Result<(), TestError> {
+    let test = TestBuilder::new().build().await?;
+
+    let params = LoginParams { change_main: None };
+    let result = login(State(test.into_app_state()), test.session, Query(params)).await;
+
+    assert!(result.is_ok());
+    let resp = result.unwrap().into_response();
+    assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
+
+    Ok(())
+}
+```
+
+---
+
+## Modules
+
+- Short description of the module
+- 1-3 paragraphs depending on complexity that describs what the module does
+
+Example:
+
+```rust
+//! OAuth2 callback service for EVE Online SSO authentication.
+//!
+//! This module provides the `CallbackService` for handling OAuth2 callbacks from EVE SSO.
+//! It orchestrates token validation, character ownership management, user creation/updates,
+//! and main character assignment with comprehensive retry logic and caching.
+```
+
+---
+
+## Enums
+
+- Short description of what the enum represents
+- 2-3 sentences of its purpose and behavior
+- Each variant should have a short description, what it is for, and, if applicable, what its fields are for.
+
+Example:
+
+```rust
+/// Configuration error type for environment variable validation failures.
+///
+/// These errors occur during application startup when the configuration system detects
+/// missing or invalid environment variables. Configuration errors are always treated as
+/// fatal and result in 500 Internal Server Error responses if encountered during request
+/// handling, though typically they prevent the application from starting at all.
+#[derive(Error, Debug)]
+pub enum ConfigError {
+    /// Required environment variable is not set.
+    ///
+    /// The application requires this environment variable to be defined. Check the
+    /// documentation or `.env.example` file for required configuration variables.
+    #[error("Missing required environment variable: {0}")]
+    MissingEnvVar(String),
+
+    /// Environment variable value is invalid or malformed.
+    ///
+    /// The environment variable is set but contains a value that cannot be parsed or
+    /// is not within acceptable bounds. The `reason` field provides details about why
+    /// the value was rejected.
+    ///
+    /// # Fields
+    /// - `var`: Name of the environment variable with invalid value
+    /// - `reason`: Explanation of why the value is invalid
+    #[error("Invalid value for environment variable {var}: {reason}")]
+    InvalidEnvValue {
+        /// Name of the environment variable with invalid value.
+        var: String,
+        /// Explanation of why the value is invalid.
+        reason: String,
+    },
+}
+```
+
+---
+
+## Structs
+
+- Short description
+- 2-3 sentences on behavior, purpose, and/or what the struct represents
+- Each field should have its own `///` documentation describing what it represents
+
+Example:
+
+```rust
+/// Worker job with scheduled execution timestamp.
+///
+/// Wraps a `WorkerJob` with the timestamp it was scheduled for execution. This allows
+/// the worker handler to distinguish between jobs scheduled before ESI downtime (which
+/// should be rescheduled) versus jobs scheduled during downtime (scheduler bug).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScheduledWorkerJob {
+    /// The worker job to execute.
+    pub job: WorkerJob,
+    /// The UTC timestamp when this job was scheduled for execution.
+    pub scheduled_at: DateTime<Utc>,
+}
+```
+
+---
 
 # Dioxus 
 
