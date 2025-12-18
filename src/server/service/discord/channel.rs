@@ -1,5 +1,5 @@
 use dioxus_logger::tracing;
-use sea_orm::{DatabaseConnection, EntityTrait, PaginatorTrait, QueryOrder};
+use sea_orm::DatabaseConnection;
 use serenity::all::{ChannelId, ChannelType, GuildChannel};
 use std::collections::HashMap;
 
@@ -17,19 +17,19 @@ impl<'a> DiscordGuildChannelService<'a> {
         Self { db }
     }
 
-    /// Updates channels for a guild by deleting channels that no longer exist and upserting current text channels
+    /// Updates channels for a guild by deleting channels that no longer exist and upserting current text channels.
     ///
     /// Filters for text channels only (excludes voice, category, forum, etc.).
     /// Removes channels from the database that no longer exist in Discord.
     /// Creates or updates all current text channels.
     ///
     /// # Arguments
-    /// - `guild_id`: Discord's unique identifier for the guild (u64)
-    /// - `guild_channels`: HashMap of all channels in the guild
+    /// - `guild_id` - Discord's unique identifier for the guild
+    /// - `guild_channels` - HashMap of all channels in the guild
     ///
     /// # Returns
-    /// - `Ok(())`: Channels updated successfully
-    /// - `Err(AppError)`: Database error during sync
+    /// - `Ok(())` - Channels updated successfully
+    /// - `Err(AppError)` - Database error during sync
     pub async fn update_channels(
         &self,
         guild_id: u64,
@@ -49,12 +49,13 @@ impl<'a> DiscordGuildChannelService<'a> {
 
         // Find channels that no longer exist in Discord and delete them
         for existing_channel in existing_channels {
-            let channel_id = existing_channel.channel_id.parse::<u64>().map_err(|e| {
-                AppError::InternalError(format!("Failed to parse channel_id: {}", e))
-            })?;
-            if !text_channels.contains_key(&ChannelId::new(channel_id)) {
-                channel_repo.delete(channel_id).await?;
-                tracing::info!("Deleted channel {} from guild {}", channel_id, guild_id);
+            if !text_channels.contains_key(&ChannelId::new(existing_channel.channel_id)) {
+                channel_repo.delete(existing_channel.channel_id).await?;
+                tracing::info!(
+                    "Deleted channel {} from guild {}",
+                    existing_channel.channel_id,
+                    guild_id
+                );
             }
         }
 
@@ -72,46 +73,46 @@ impl<'a> DiscordGuildChannelService<'a> {
         Ok(())
     }
 
-    /// Get paginated channels for a guild
+    /// Retrieves paginated channels for a guild.
+    ///
+    /// Fetches channels from the database with pagination support, converting
+    /// domain models to DTOs for API responses. Uses a simple offset-based
+    /// pagination approach.
+    ///
+    /// # Arguments
+    /// - `guild_id` - Discord's unique identifier for the guild
+    /// - `page` - Page number (0-indexed)
+    /// - `entries` - Number of entries per page
+    ///
+    /// # Returns
+    /// - `Ok(PaginatedDiscordGuildChannelsDto)` - Paginated channel data with metadata
+    /// - `Err(AppError)` - Database error during query or entity conversion failure
     pub async fn get_paginated(
         &self,
         guild_id: u64,
         page: u64,
         entries: u64,
     ) -> Result<PaginatedDiscordGuildChannelsDto, AppError> {
-        use entity::prelude::DiscordGuildChannel;
-        use sea_orm::ColumnTrait;
-        use sea_orm::QueryFilter;
+        let channel_repo = DiscordGuildChannelRepository::new(self.db);
 
-        let paginator = DiscordGuildChannel::find()
-            .filter(entity::discord_guild_channel::Column::GuildId.eq(guild_id.to_string()))
-            .order_by_asc(entity::discord_guild_channel::Column::Position)
-            .paginate(self.db, entries);
+        // Get all channels for the guild (already sorted by position)
+        let all_channels = channel_repo.get_by_guild_id(guild_id).await?;
 
-        let total = paginator.num_pages().await?;
-        let channels = paginator.fetch_page(page).await?;
+        // Calculate pagination
+        let total = all_channels.len() as u64;
+        let start = (page * entries) as usize;
 
-        let channel_dtos: Result<Vec<DiscordGuildChannelDto>, AppError> = channels
+        // Get the page slice and convert to DTOs
+        let channel_dtos: Vec<DiscordGuildChannelDto> = all_channels
             .into_iter()
-            .map(|channel| {
-                let guild_id = channel.guild_id.parse::<u64>().map_err(|e| {
-                    AppError::InternalError(format!("Failed to parse guild_id: {}", e))
-                })?;
-                let channel_id = channel.channel_id.parse::<u64>().map_err(|e| {
-                    AppError::InternalError(format!("Failed to parse channel_id: {}", e))
-                })?;
-                Ok(DiscordGuildChannelDto {
-                    guild_id,
-                    channel_id,
-                    name: channel.name,
-                    position: channel.position,
-                })
-            })
+            .skip(start)
+            .take(entries as usize)
+            .map(|channel| channel.into_dto())
             .collect();
 
         Ok(PaginatedDiscordGuildChannelsDto {
-            channels: channel_dtos?,
-            total: total * entries,
+            channels: channel_dtos,
+            total,
             page,
             entries,
         })
