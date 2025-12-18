@@ -6,7 +6,7 @@
 //! is synced from Discord via Serenity and stored locally for display and to
 //! prevent excessive re-syncing.
 //!
-//! All methods return param models at the repository boundary, converting SeaORM
+//! All methods return domain models at the repository boundary, converting SeaORM
 //! entity models internally to prevent database-specific structures from leaking
 //! into service and controller layers.
 
@@ -15,7 +15,7 @@ use migration::OnConflict;
 use sea_orm::{ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter};
 use serenity::all::Guild;
 
-use crate::server::model::discord::DiscordGuildParam;
+use crate::server::model::discord::DiscordGuild;
 
 /// Repository for Discord guild database operations.
 ///
@@ -46,9 +46,9 @@ impl<'a> DiscordGuildRepository<'a> {
     /// - `guild` - Serenity guild object containing guild data from Discord
     ///
     /// # Returns
-    /// - `Ok(DiscordGuildParam)` - The upserted guild as a param model
+    /// - `Ok(DiscordGuild)` - The upserted guild as a domain model
     /// - `Err(DbErr)` - Database error during upsert operation
-    pub async fn upsert(&self, guild: Guild) -> Result<DiscordGuildParam, DbErr> {
+    pub async fn upsert(&self, guild: Guild) -> Result<DiscordGuild, DbErr> {
         let entity = entity::prelude::DiscordGuild::insert(entity::discord_guild::ActiveModel {
             guild_id: ActiveValue::Set(guild.id.get().to_string()),
             name: ActiveValue::Set(guild.name),
@@ -64,7 +64,7 @@ impl<'a> DiscordGuildRepository<'a> {
         .exec_with_returning(self.db)
         .await?;
 
-        DiscordGuildParam::from_entity(entity)
+        DiscordGuild::from_entity(entity)
     }
 
     /// Gets all guilds in the database.
@@ -73,14 +73,14 @@ impl<'a> DiscordGuildRepository<'a> {
     /// or bot-wide operations like syncing all guilds.
     ///
     /// # Returns
-    /// - `Ok(Vec<DiscordGuildParam>)` - Vector of all guild records
+    /// - `Ok(Vec<DiscordGuild>)` - Vector of all guild records
     /// - `Err(DbErr)` - Database error during query
-    pub async fn get_all(&self) -> Result<Vec<DiscordGuildParam>, DbErr> {
+    pub async fn get_all(&self) -> Result<Vec<DiscordGuild>, DbErr> {
         let entities = entity::prelude::DiscordGuild::find().all(self.db).await?;
 
         entities
             .into_iter()
-            .map(DiscordGuildParam::from_entity)
+            .map(DiscordGuild::from_entity)
             .collect()
     }
 
@@ -94,19 +94,16 @@ impl<'a> DiscordGuildRepository<'a> {
     /// - `guild_id` - Discord's unique identifier for the guild
     ///
     /// # Returns
-    /// - `Ok(Some(DiscordGuildParam))` - Guild found in database
+    /// - `Ok(Some(DiscordGuild))` - Guild found in database
     /// - `Ok(None)` - Guild not found (bot not in this guild)
     /// - `Err(DbErr)` - Database error during query
-    pub async fn find_by_guild_id(
-        &self,
-        guild_id: u64,
-    ) -> Result<Option<DiscordGuildParam>, DbErr> {
+    pub async fn find_by_guild_id(&self, guild_id: u64) -> Result<Option<DiscordGuild>, DbErr> {
         let entity = entity::prelude::DiscordGuild::find()
             .filter(entity::discord_guild::Column::GuildId.eq(guild_id.to_string()))
             .one(self.db)
             .await?;
 
-        entity.map(DiscordGuildParam::from_entity).transpose()
+        entity.map(DiscordGuild::from_entity).transpose()
     }
 
     /// Gets all guilds for a specific user.
@@ -119,9 +116,9 @@ impl<'a> DiscordGuildRepository<'a> {
     /// - `user_id` - Discord user ID
     ///
     /// # Returns
-    /// - `Ok(Vec<DiscordGuildParam>)` - Vector of guild models the user is a member of
+    /// - `Ok(Vec<DiscordGuild>)` - Vector of guild models the user is a member of
     /// - `Err(DbErr)` - Database error during query
-    pub async fn get_guilds_for_user(&self, user_id: u64) -> Result<Vec<DiscordGuildParam>, DbErr> {
+    pub async fn get_guilds_for_user(&self, user_id: u64) -> Result<Vec<DiscordGuild>, DbErr> {
         let entities = entity::prelude::DiscordGuild::find()
             .inner_join(entity::prelude::DiscordGuildMember)
             .filter(entity::discord_guild_member::Column::UserId.eq(user_id.to_string()))
@@ -130,7 +127,7 @@ impl<'a> DiscordGuildRepository<'a> {
 
         entities
             .into_iter()
-            .map(DiscordGuildParam::from_entity)
+            .map(DiscordGuild::from_entity)
             .collect()
     }
 

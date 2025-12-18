@@ -12,9 +12,7 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder,
 };
 
-use crate::server::model::ping_format::{
-    CreatePingFormatParam, PingFormatParam, UpdatePingFormatParam,
-};
+use crate::server::model::ping_format::{CreatePingFormatParam, PingFormat, UpdatePingFormatParam};
 
 /// Repository providing database operations for ping format management.
 ///
@@ -45,9 +43,9 @@ impl<'a> PingFormatRepository<'a> {
     /// - `param` - Create parameters containing guild_id and name
     ///
     /// # Returns
-    /// - `Ok(PingFormatParam)` - The created ping format with generated ID
+    /// - `Ok(PingFormat)` - The created ping format with generated ID
     /// - `Err(DbErr)` - Database error during insert operation
-    pub async fn create(&self, param: CreatePingFormatParam) -> Result<PingFormatParam, DbErr> {
+    pub async fn create(&self, param: CreatePingFormatParam) -> Result<PingFormat, DbErr> {
         let entity = entity::ping_format::ActiveModel {
             guild_id: ActiveValue::Set(param.guild_id.to_string()),
             name: ActiveValue::Set(param.name),
@@ -56,7 +54,7 @@ impl<'a> PingFormatRepository<'a> {
         .insert(self.db)
         .await?;
 
-        Ok(PingFormatParam::from_entity(entity))
+        Ok(PingFormat::from_entity(entity))
     }
 
     /// Gets paginated ping formats for a guild.
@@ -71,14 +69,14 @@ impl<'a> PingFormatRepository<'a> {
     /// - `per_page` - Number of ping formats to return per page
     ///
     /// # Returns
-    /// - `Ok((ping_formats, total))` - Vector of ping formats for the page and total count
-    /// - `Err(DbErr)` - Database error during pagination query
-    pub async fn get_by_guild_id_paginated(
+    /// - `Ok((formats, total))` - Vector of ping formats and total count
+    /// - `Err(DbErr)` - Database error during query
+    pub async fn get_all_by_guild_paginated(
         &self,
         guild_id: u64,
         page: u64,
         per_page: u64,
-    ) -> Result<(Vec<PingFormatParam>, u64), DbErr> {
+    ) -> Result<(Vec<PingFormat>, u64), DbErr> {
         let paginator = entity::prelude::PingFormat::find()
             .filter(entity::ping_format::Column::GuildId.eq(guild_id.to_string()))
             .order_by_asc(entity::ping_format::Column::Name)
@@ -86,10 +84,7 @@ impl<'a> PingFormatRepository<'a> {
 
         let total = paginator.num_items().await?;
         let entities = paginator.fetch_page(page).await?;
-        let ping_formats = entities
-            .into_iter()
-            .map(PingFormatParam::from_entity)
-            .collect();
+        let ping_formats = entities.into_iter().map(PingFormat::from_entity).collect();
 
         Ok((ping_formats, total))
     }
@@ -103,10 +98,10 @@ impl<'a> PingFormatRepository<'a> {
     /// - `param` - Update parameters containing id and new name
     ///
     /// # Returns
-    /// - `Ok(PingFormatParam)` - The updated ping format with new name
+    /// - `Ok(PingFormat)` - The updated ping format with new name
     /// - `Err(DbErr::RecordNotFound)` - No ping format exists with the specified ID
     /// - `Err(DbErr)` - Other database error during update operation
-    pub async fn update(&self, param: UpdatePingFormatParam) -> Result<PingFormatParam, DbErr> {
+    pub async fn update(&self, param: UpdatePingFormatParam) -> Result<PingFormat, DbErr> {
         let ping_format = entity::prelude::PingFormat::find_by_id(param.id)
             .one(self.db)
             .await?
@@ -120,7 +115,7 @@ impl<'a> PingFormatRepository<'a> {
 
         let entity = active_model.update(self.db).await?;
 
-        Ok(PingFormatParam::from_entity(entity))
+        Ok(PingFormat::from_entity(entity))
     }
 
     /// Deletes a ping format.

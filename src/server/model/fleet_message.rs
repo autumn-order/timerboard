@@ -1,18 +1,15 @@
-//! Parameter models for fleet message data operations.
+//! Domain models for fleet message data operations.
 //!
-//! This module defines the parameter models used internally on the server for fleet message
-//! operations. These models serve as the boundary between the data layer and service/controller
-//! layers, with conversion methods to/from entity models.
+//! Defines models for tracking Discord messages posted for fleet notifications.
 
 use chrono::{DateTime, Utc};
 
-/// Represents a fleet message with full data from the database.
+/// Discord message posted for fleet notifications.
 ///
-/// Contains all fleet message information including IDs, channel/message identifiers,
-/// message type, and creation timestamp. Fleet messages track Discord messages posted
-/// for fleet notifications (creation, reminders, formup).
+/// Tracks messages posted for fleet events such as creation announcements, reminders,
+/// and formup notifications. Stores channel and message IDs for message management.
 #[derive(Debug, Clone, PartialEq)]
-pub struct FleetMessageParam {
+pub struct FleetMessage {
     /// Unique identifier for the fleet message record.
     pub id: i32,
     /// ID of the fleet this message belongs to.
@@ -27,17 +24,14 @@ pub struct FleetMessageParam {
     pub created_at: DateTime<Utc>,
 }
 
-impl FleetMessageParam {
-    /// Converts an entity model to a fleet message param.
-    ///
-    /// This conversion happens at the data layer boundary to ensure entity models
-    /// never leak into service or controller layers.
+impl FleetMessage {
+    /// Converts an entity model to a fleet message domain model at the repository boundary.
     ///
     /// # Arguments
     /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `FleetMessageParam` - The converted fleet message param
+    /// - `FleetMessage` - The converted fleet message domain model
     pub fn from_entity(entity: entity::fleet_message::Model) -> Self {
         Self {
             id: entity.id,
@@ -50,9 +44,9 @@ impl FleetMessageParam {
     }
 }
 
-/// Parameters for creating a new fleet message.
+/// Parameters for creating a new fleet message record.
 ///
-/// Used when recording a new Discord message posted for fleet notifications.
+/// Records a Discord message posted for fleet notifications (creation, reminder, or formup).
 #[derive(Debug, Clone)]
 pub struct CreateFleetMessageParam {
     /// ID of the fleet this message belongs to.

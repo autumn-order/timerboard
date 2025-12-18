@@ -10,7 +10,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
 };
 
-use crate::server::model::fleet_message::{CreateFleetMessageParam, FleetMessageParam};
+use crate::server::model::fleet_message::{CreateFleetMessageParam, FleetMessage};
 
 /// Repository providing database operations for fleet message management.
 ///
@@ -45,7 +45,7 @@ impl<'a> FleetMessageRepository<'a> {
     /// # Returns
     /// - `Ok(FleetMessageParam)` - The created fleet message record with generated ID
     /// - `Err(DbErr)` - Database error during insert operation (including foreign key violation)
-    pub async fn create(&self, param: CreateFleetMessageParam) -> Result<FleetMessageParam, DbErr> {
+    pub async fn create(&self, param: CreateFleetMessageParam) -> Result<FleetMessage, DbErr> {
         let entity = entity::fleet_message::ActiveModel {
             fleet_id: ActiveValue::Set(param.fleet_id),
             channel_id: ActiveValue::Set(param.channel_id.to_string()),
@@ -56,7 +56,7 @@ impl<'a> FleetMessageRepository<'a> {
         .insert(self.db)
         .await?;
 
-        Ok(FleetMessageParam::from_entity(entity))
+        Ok(FleetMessage::from_entity(entity))
     }
 
     /// Gets all messages for a fleet.
@@ -69,9 +69,9 @@ impl<'a> FleetMessageRepository<'a> {
     /// - `fleet_id` - ID of the fleet to get messages for
     ///
     /// # Returns
-    /// - `Ok(Vec<FleetMessageParam>)` - Vector of fleet messages (empty if no messages exist)
+    /// - `Ok(Vec<FleetMessage>)` - Vector of fleet messages (empty if no messages)
     /// - `Err(DbErr)` - Database error during query
-    pub async fn get_by_fleet_id(&self, fleet_id: i32) -> Result<Vec<FleetMessageParam>, DbErr> {
+    pub async fn get_by_fleet_id(&self, fleet_id: i32) -> Result<Vec<FleetMessage>, DbErr> {
         let entities = entity::prelude::FleetMessage::find()
             .filter(entity::fleet_message::Column::FleetId.eq(fleet_id))
             .all(self.db)
@@ -79,7 +79,7 @@ impl<'a> FleetMessageRepository<'a> {
 
         Ok(entities
             .into_iter()
-            .map(FleetMessageParam::from_entity)
+            .map(FleetMessage::from_entity)
             .collect())
     }
 }

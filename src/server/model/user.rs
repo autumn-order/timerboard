@@ -2,12 +2,12 @@ use chrono::{DateTime, Utc};
 
 use crate::model::user::UserDto;
 
-/// Represents a user with full data from the database.
+/// User with Discord identity, permissions, and sync metadata.
 ///
-/// Contains all user information including Discord ID, name, admin status,
-/// and synchronization timestamps.
+/// Tracks user's Discord ID, display name, admin privileges, and when their
+/// guild memberships and role assignments were last synchronized.
 #[derive(Debug, Clone, PartialEq)]
-pub struct UserParam {
+pub struct User {
     /// Discord ID of the user (stored as String in database).
     pub discord_id: String,
     /// Display name of the user.
@@ -20,11 +20,8 @@ pub struct UserParam {
     pub last_role_sync_at: DateTime<Utc>,
 }
 
-impl UserParam {
-    /// Converts the user param to a DTO for API responses.
-    ///
-    /// # Arguments
-    /// - `self` - The user param to convert
+impl User {
+    /// Converts the user domain model to a DTO for API responses.
     ///
     /// # Returns
     /// - `UserDto` - The converted user DTO with discord_id as u64
@@ -36,16 +33,13 @@ impl UserParam {
         }
     }
 
-    /// Converts an entity model to a user param.
-    ///
-    /// This conversion happens at the data layer boundary to ensure entity models
-    /// never leak into service or controller layers.
+    /// Converts an entity model to a user domain model at the repository boundary.
     ///
     /// # Arguments
     /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `UserParam` - The converted user param
+    /// - `User` - The converted user domain model
     pub fn from_entity(entity: entity::user::Model) -> Self {
         Self {
             discord_id: entity.discord_id,
@@ -57,10 +51,10 @@ impl UserParam {
     }
 }
 
-/// Parameters for upserting (insert or update) a user.
+/// Parameters for upserting a user during authentication or sync.
 ///
-/// Used when creating a new user or updating an existing user's information
-/// during Discord authentication or sync operations.
+/// Creates new users or updates existing user information. The optional `is_admin`
+/// field preserves existing admin status when None.
 #[derive(Debug, Clone)]
 pub struct UpsertUserParam {
     /// Discord ID of the user.

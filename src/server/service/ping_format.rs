@@ -87,7 +87,7 @@ impl<'a> PingFormatService<'a> {
         let field_repo = PingFormatFieldRepository::new(self.db);
 
         let (ping_formats, total) = format_repo
-            .get_by_guild_id_paginated(guild_id, page, per_page)
+            .get_all_by_guild_paginated(guild_id, page, per_page)
             .await?;
 
         let total_pages = if per_page > 0 {

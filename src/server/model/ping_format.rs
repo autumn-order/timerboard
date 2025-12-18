@@ -1,17 +1,15 @@
-//! Parameter models for ping format data operations.
+//! Domain models for ping format data operations.
 //!
-//! This module defines the parameter models used internally on the server for ping format
-//! and ping format field operations. These models serve as the boundary between the data
-//! layer and service/controller layers, with conversion methods to/from entity models and DTOs.
+//! Defines ping format and field models that structure fleet notification messages.
 
 use crate::model::ping_format::{PingFormatDto, PingFormatFieldDto};
 
-/// Represents a ping format with full data from the database.
+/// Ping format template for structuring fleet notification messages.
 ///
-/// Contains all ping format information including ID, guild ID, and name.
-/// This is the primary model returned by repository methods.
+/// Defines the overall format with a name and guild association. Contains multiple
+/// fields that structure the data displayed in fleet pings.
 #[derive(Debug, Clone, PartialEq)]
-pub struct PingFormatParam {
+pub struct PingFormat {
     /// Unique identifier for the ping format.
     pub id: i32,
     /// Discord guild ID (stored as String in database).
@@ -20,14 +18,10 @@ pub struct PingFormatParam {
     pub name: String,
 }
 
-impl PingFormatParam {
-    /// Converts the ping format param to a DTO for API responses.
-    ///
-    /// Note: This conversion only includes basic fields. Additional data like fields,
-    /// fleet_category_count, and fleet_category_names must be provided separately.
+impl PingFormat {
+    /// Converts the ping format domain model to a DTO for API responses.
     ///
     /// # Arguments
-    /// - `self` - The ping format param to convert
     /// - `fields` - Vector of ping format field DTOs
     /// - `fleet_category_count` - Number of fleet categories using this format
     /// - `fleet_category_names` - Names of fleet categories using this format
@@ -50,16 +44,13 @@ impl PingFormatParam {
         }
     }
 
-    /// Converts an entity model to a ping format param.
-    ///
-    /// This conversion happens at the data layer boundary to ensure entity models
-    /// never leak into service or controller layers.
+    /// Converts an entity model to a ping format domain model at the repository boundary.
     ///
     /// # Arguments
     /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `PingFormatParam` - The converted ping format param
+    /// - `PingFormat` - The converted ping format domain model
     pub fn from_entity(entity: entity::ping_format::Model) -> Self {
         Self {
             id: entity.id,
@@ -69,9 +60,9 @@ impl PingFormatParam {
     }
 }
 
-/// Parameters for creating a new ping format.
+/// Parameters for creating a new ping format template.
 ///
-/// Used when creating a new ping format in the database with initial field configuration.
+/// Creates a new ping format with a name. Fields are added separately after creation.
 #[derive(Debug, Clone)]
 pub struct CreatePingFormatParam {
     /// Discord guild ID as u64.
@@ -80,9 +71,9 @@ pub struct CreatePingFormatParam {
     pub name: String,
 }
 
-/// Parameters for updating an existing ping format.
+/// Parameters for updating an existing ping format template.
 ///
-/// Used when updating a ping format's name. Fields are managed separately.
+/// Updates only the ping format name. Fields are managed through separate operations.
 #[derive(Debug, Clone)]
 pub struct UpdatePingFormatParam {
     /// ID of the ping format to update.
@@ -91,12 +82,12 @@ pub struct UpdatePingFormatParam {
     pub name: String,
 }
 
-/// Represents a ping format field with full data from the database.
+/// Individual field within a ping format template.
 ///
-/// Contains all field information including ID, ping format ID, name, priority,
-/// and default value. Fields define the structure of ping messages.
+/// Defines a single data field in fleet ping messages with a name, display priority,
+/// and optional default value. Lower priority values are displayed first.
 #[derive(Debug, Clone, PartialEq)]
-pub struct PingFormatFieldParam {
+pub struct PingFormatField {
     /// Unique identifier for the field.
     pub id: i32,
     /// ID of the ping format this field belongs to.
@@ -109,11 +100,8 @@ pub struct PingFormatFieldParam {
     pub default_value: Option<String>,
 }
 
-impl PingFormatFieldParam {
-    /// Converts the ping format field param to a DTO for API responses.
-    ///
-    /// # Arguments
-    /// - `self` - The ping format field param to convert
+impl PingFormatField {
+    /// Converts the ping format field domain model to a DTO for API responses.
     ///
     /// # Returns
     /// - `PingFormatFieldDto` - The converted field DTO
@@ -127,16 +115,13 @@ impl PingFormatFieldParam {
         }
     }
 
-    /// Converts an entity model to a ping format field param.
-    ///
-    /// This conversion happens at the data layer boundary to ensure entity models
-    /// never leak into service or controller layers.
+    /// Converts an entity model to a ping format field domain model at the repository boundary.
     ///
     /// # Arguments
     /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `PingFormatFieldParam` - The converted field param
+    /// - `PingFormatField` - The converted field domain model
     pub fn from_entity(entity: entity::ping_format_field::Model) -> Self {
         Self {
             id: entity.id,
@@ -148,9 +133,7 @@ impl PingFormatFieldParam {
     }
 }
 
-/// Parameters for creating a new ping format field.
-///
-/// Used when creating a new field for an existing ping format.
+/// Parameters for creating a new field in a ping format template.
 #[derive(Debug, Clone)]
 pub struct CreatePingFormatFieldParam {
     /// ID of the ping format this field belongs to.
@@ -163,9 +146,7 @@ pub struct CreatePingFormatFieldParam {
     pub default_value: Option<String>,
 }
 
-/// Parameters for updating an existing ping format field.
-///
-/// Used when updating a field's name, priority, or default value.
+/// Parameters for updating an existing ping format field's properties.
 #[derive(Debug, Clone)]
 pub struct UpdatePingFormatFieldParam {
     /// ID of the field to update.

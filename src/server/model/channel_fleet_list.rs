@@ -1,18 +1,15 @@
-//! Parameter models for channel fleet list data operations.
+//! Domain models for channel fleet list data operations.
 //!
-//! This module defines the parameter models used internally on the server for channel fleet list
-//! operations. These models serve as the boundary between the data layer and service/controller
-//! layers, with conversion methods to/from entity models.
+//! Defines models for tracking pinned fleet list messages in Discord channels.
 
 use chrono::{DateTime, Utc};
 
-/// Represents a channel fleet list with full data from the database.
+/// Pinned fleet list message in a Discord channel.
 ///
-/// Contains all channel fleet list information including IDs, channel/message identifiers,
-/// and timestamps. Channel fleet lists track the pinned fleet list messages posted in
-/// Discord channels that display upcoming fleets.
+/// Tracks the channel and message IDs for fleet list messages, along with the last
+/// message timestamp to determine whether to edit existing messages or repost new ones.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ChannelFleetListParam {
+pub struct ChannelFleetList {
     /// Unique identifier for the channel fleet list record.
     pub id: i32,
     /// Discord channel ID where the fleet list is posted (stored as String).
@@ -27,17 +24,14 @@ pub struct ChannelFleetListParam {
     pub updated_at: DateTime<Utc>,
 }
 
-impl ChannelFleetListParam {
-    /// Converts an entity model to a channel fleet list param.
-    ///
-    /// This conversion happens at the data layer boundary to ensure entity models
-    /// never leak into service or controller layers.
+impl ChannelFleetList {
+    /// Converts an entity model to a channel fleet list domain model at the repository boundary.
     ///
     /// # Arguments
     /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `ChannelFleetListParam` - The converted channel fleet list param
+    /// - `ChannelFleetList` - The converted channel fleet list domain model
     pub fn from_entity(entity: entity::channel_fleet_list::Model) -> Self {
         Self {
             id: entity.id,
@@ -50,11 +44,10 @@ impl ChannelFleetListParam {
     }
 }
 
-/// Parameters for upserting a channel fleet list.
+/// Parameters for upserting a channel fleet list message.
 ///
-/// Used when creating or updating the fleet list message for a channel. The upsert operation
-/// will create a new record if none exists, or update the existing record with the new
-/// message ID and timestamps.
+/// Creates a new record if none exists for the channel, or updates the existing
+/// record with the new message ID and timestamps.
 #[derive(Debug, Clone)]
 pub struct UpsertChannelFleetListParam {
     /// Discord channel ID where the fleet list is posted.

@@ -5,7 +5,7 @@
 //! roles, and querying roles by guild. Role data is synced from Discord via Serenity
 //! and stored locally for permission checks and display purposes.
 //!
-//! All methods return param models at the repository boundary, converting SeaORM
+//! All methods return domain models at the repository boundary, converting SeaORM
 //! entity models internally to prevent database-specific structures from leaking
 //! into service and controller layers.
 
@@ -14,7 +14,7 @@ use sea_orm::{ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, 
 use serenity::all::{Role, RoleId};
 use std::collections::HashMap;
 
-use crate::server::model::discord::DiscordGuildRoleParam;
+use crate::server::model::discord::DiscordGuildRole;
 
 /// Repository for Discord guild role database operations.
 ///
@@ -46,9 +46,9 @@ impl<'a> DiscordGuildRoleRepository<'a> {
     /// - `role` - Serenity role object containing role data from Discord
     ///
     /// # Returns
-    /// - `Ok(DiscordGuildRoleParam)` - The upserted role as a param model
+    /// - `Ok(DiscordGuildRole)` - The upserted role as a domain model
     /// - `Err(DbErr)` - Database error during upsert operation
-    pub async fn upsert(&self, guild_id: u64, role: &Role) -> Result<DiscordGuildRoleParam, DbErr> {
+    pub async fn upsert(&self, guild_id: u64, role: &Role) -> Result<DiscordGuildRole, DbErr> {
         let entity =
             entity::prelude::DiscordGuildRole::insert(entity::discord_guild_role::ActiveModel {
                 guild_id: ActiveValue::Set(guild_id.to_string()),
@@ -69,7 +69,7 @@ impl<'a> DiscordGuildRoleRepository<'a> {
             .exec_with_returning(self.db)
             .await?;
 
-        DiscordGuildRoleParam::from_entity(entity)
+        DiscordGuildRole::from_entity(entity)
     }
 
     /// Upserts multiple Discord guild roles in batch.
@@ -89,7 +89,7 @@ impl<'a> DiscordGuildRoleRepository<'a> {
         &self,
         guild_id: u64,
         roles: &HashMap<RoleId, Role>,
-    ) -> Result<Vec<DiscordGuildRoleParam>, DbErr> {
+    ) -> Result<Vec<DiscordGuildRole>, DbErr> {
         let mut results = Vec::new();
 
         for role in roles.values() {
@@ -132,10 +132,7 @@ impl<'a> DiscordGuildRoleRepository<'a> {
     /// # Returns
     /// - `Ok(Vec<DiscordGuildRoleParam>)` - Vector of roles in the guild
     /// - `Err(DbErr)` - Database error during query
-    pub async fn get_by_guild_id(
-        &self,
-        guild_id: u64,
-    ) -> Result<Vec<DiscordGuildRoleParam>, DbErr> {
+    pub async fn get_by_guild_id(&self, guild_id: u64) -> Result<Vec<DiscordGuildRole>, DbErr> {
         let entities = entity::prelude::DiscordGuildRole::find()
             .filter(entity::discord_guild_role::Column::GuildId.eq(guild_id.to_string()))
             .all(self.db)
@@ -143,7 +140,7 @@ impl<'a> DiscordGuildRoleRepository<'a> {
 
         entities
             .into_iter()
-            .map(DiscordGuildRoleParam::from_entity)
+            .map(DiscordGuildRole::from_entity)
             .collect()
     }
 }

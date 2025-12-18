@@ -1,18 +1,16 @@
-//! Parameter models for fleet data operations.
+//! Domain models for fleet data operations.
 //!
-//! This module defines the parameter models used internally on the server for fleet
-//! operations. These models serve as the boundary between the data layer and service/controller
-//! layers, with conversion methods to/from entity models.
+//! Defines fleet-related domain models and parameter types for fleet operations.
 
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
-/// Represents a fleet with full data from the database.
+/// Fleet operation with scheduling, commander, and configuration details.
 ///
-/// Contains all fleet information including ID, category, commander, timing, and settings.
-/// This is the primary model returned by repository methods.
+/// Tracks fleet category, commander, scheduled time, visibility settings, and
+/// reminder preferences for organized fleet operations.
 #[derive(Debug, Clone, PartialEq)]
-pub struct FleetParam {
+pub struct Fleet {
     /// Unique identifier for the fleet.
     pub id: i32,
     /// ID of the fleet category this fleet belongs to.
@@ -33,17 +31,14 @@ pub struct FleetParam {
     pub created_at: DateTime<Utc>,
 }
 
-impl FleetParam {
-    /// Converts an entity model to a fleet param.
-    ///
-    /// This conversion happens at the data layer boundary to ensure entity models
-    /// never leak into service or controller layers.
+impl Fleet {
+    /// Converts an entity model to a fleet domain model at the repository boundary.
     ///
     /// # Arguments
     /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `FleetParam` - The converted fleet param
+    /// - `Fleet` - The converted fleet domain model
     pub fn from_entity(entity: entity::fleet::Model) -> Self {
         Self {
             id: entity.id,
@@ -59,9 +54,10 @@ impl FleetParam {
     }
 }
 
-/// Parameters for creating a new fleet.
+/// Parameters for creating a new fleet operation.
 ///
-/// Used when creating a new fleet operation with initial configuration and field values.
+/// Includes initial configuration, custom field values for the ping format,
+/// and visibility/reminder settings.
 #[derive(Debug, Clone)]
 pub struct CreateFleetParams {
     /// ID of the fleet category this fleet belongs to.
@@ -82,10 +78,10 @@ pub struct CreateFleetParams {
     pub disable_reminder: bool,
 }
 
-/// Parameters for updating an existing fleet.
+/// Parameters for updating an existing fleet operation.
 ///
-/// Used when updating fleet details. All fields are optional - only provided fields
-/// will be updated. Field values can be completely replaced if provided.
+/// All fields are optional - only provided fields will be updated. The field_values
+/// map, if provided, completely replaces all existing field values.
 #[derive(Debug, Clone)]
 pub struct UpdateFleetParams {
     /// ID of the fleet to update.

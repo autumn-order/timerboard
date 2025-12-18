@@ -8,13 +8,10 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
 };
 
-use crate::server::{
-    error::AppError,
-    model::channel_fleet_list::{ChannelFleetListParam, UpsertChannelFleetListParam},
-};
+use crate::server::model::channel_fleet_list::{ChannelFleetList, UpsertChannelFleetListParam};
 
 /// Repository providing database operations for channel fleet list management.
 ///
@@ -53,13 +50,13 @@ impl<'a> ChannelFleetListRepository<'a> {
     pub async fn get_by_channel_id(
         &self,
         channel_id: &str,
-    ) -> Result<Option<ChannelFleetListParam>, AppError> {
+    ) -> Result<Option<ChannelFleetList>, DbErr> {
         let entity = entity::prelude::ChannelFleetList::find()
             .filter(entity::channel_fleet_list::Column::ChannelId.eq(channel_id))
             .one(self.db)
             .await?;
 
-        Ok(entity.map(ChannelFleetListParam::from_entity))
+        Ok(entity.map(ChannelFleetList::from_entity))
     }
 
     /// Creates or updates the fleet list message for a channel.
@@ -73,12 +70,12 @@ impl<'a> ChannelFleetListRepository<'a> {
     /// - `param` - Upsert parameters containing channel_id and message_id
     ///
     /// # Returns
-    /// - `Ok(ChannelFleetListParam)` - The created or updated fleet list record
+    /// - `Ok(ChannelFleetList)` - The created or updated channel fleet list
     /// - `Err(AppError)` - Database error during upsert operation
     pub async fn upsert(
         &self,
         param: UpsertChannelFleetListParam,
-    ) -> Result<ChannelFleetListParam, AppError> {
+    ) -> Result<ChannelFleetList, DbErr> {
         // Check if record exists
         let existing = self.get_by_channel_id(&param.channel_id).await?;
 
@@ -109,6 +106,6 @@ impl<'a> ChannelFleetListRepository<'a> {
             new_record.insert(self.db).await?
         };
 
-        Ok(ChannelFleetListParam::from_entity(entity))
+        Ok(ChannelFleetList::from_entity(entity))
     }
 }

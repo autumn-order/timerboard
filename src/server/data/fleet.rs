@@ -13,7 +13,7 @@ use sea_orm::{
 };
 use std::collections::HashMap;
 
-use crate::server::model::fleet::{CreateFleetParams, FleetParam, UpdateFleetParams};
+use crate::server::model::fleet::{CreateFleetParams, Fleet, UpdateFleetParams};
 
 /// Repository providing database operations for fleet management.
 ///
@@ -45,11 +45,11 @@ impl<'a> FleetRepository<'a> {
     /// - `params` - Create parameters containing all fleet creation data including field values
     ///
     /// # Returns
-    /// - `Ok(FleetParam)` - The created fleet with generated ID
+    /// - `Ok(Fleet)` - The created fleet with generated ID
     /// - `Err(DbErr)` - Database error during insert operation (including foreign key violations)
-    pub async fn create(&self, params: CreateFleetParams) -> Result<FleetParam, DbErr> {
+    pub async fn create(&self, params: CreateFleetParams) -> Result<Fleet, DbErr> {
         // Create the fleet
-        let fleet = entity::fleet::ActiveModel {
+        let entity = entity::fleet::ActiveModel {
             category_id: ActiveValue::Set(params.category_id),
             name: ActiveValue::Set(params.name),
             commander_id: ActiveValue::Set(params.commander_id.to_string()),
@@ -66,7 +66,7 @@ impl<'a> FleetRepository<'a> {
         // Insert field values
         for (field_id, value) in params.field_values {
             entity::fleet_field_value::ActiveModel {
-                fleet_id: ActiveValue::Set(fleet.id),
+                fleet_id: ActiveValue::Set(entity.id),
                 field_id: ActiveValue::Set(field_id),
                 value: ActiveValue::Set(value),
             }
@@ -74,7 +74,7 @@ impl<'a> FleetRepository<'a> {
             .await?;
         }
 
-        Ok(FleetParam::from_entity(fleet))
+        Ok(Fleet::from_entity(entity))
     }
 
     /// Gets a fleet by ID with its field values.
@@ -90,10 +90,7 @@ impl<'a> FleetRepository<'a> {
     /// - `Ok(Some((fleet, field_values)))` - Fleet param and map of field_id to value
     /// - `Ok(None)` - No fleet found with that ID
     /// - `Err(DbErr)` - Database error during query
-    pub async fn get_by_id(
-        &self,
-        id: i32,
-    ) -> Result<Option<(FleetParam, HashMap<i32, String>)>, DbErr> {
+    pub async fn get_by_id(&self, id: i32) -> Result<Option<(Fleet, HashMap<i32, String>)>, DbErr> {
         let entity = entity::prelude::Fleet::find_by_id(id).one(self.db).await?;
 
         if let Some(entity) = entity {
@@ -105,7 +102,7 @@ impl<'a> FleetRepository<'a> {
                 .map(|fv| (fv.field_id, fv.value))
                 .collect();
 
-            Ok(Some((FleetParam::from_entity(entity), field_values)))
+            Ok(Some((Fleet::from_entity(entity), field_values)))
         } else {
             Ok(None)
         }
@@ -136,7 +133,7 @@ impl<'a> FleetRepository<'a> {
         page: u64,
         per_page: u64,
         viewable_category_ids: Option<Vec<i32>>,
-    ) -> Result<(Vec<FleetParam>, u64), DbErr> {
+    ) -> Result<(Vec<Fleet>, u64), DbErr> {
         use entity::fleet_category;
         use sea_orm::JoinType;
 
@@ -166,7 +163,7 @@ impl<'a> FleetRepository<'a> {
         let paginator = query.paginate(self.db, per_page);
         let total = paginator.num_items().await?;
         let entities = paginator.fetch_page(page).await?;
-        let fleets = entities.into_iter().map(FleetParam::from_entity).collect();
+        let fleets = entities.into_iter().map(Fleet::from_entity).collect();
 
         Ok((fleets, total))
     }
@@ -199,10 +196,10 @@ impl<'a> FleetRepository<'a> {
     /// - `params` - Update parameters containing fleet ID and optional new values
     ///
     /// # Returns
-    /// - `Ok(FleetParam)` - The updated fleet with new values
+    /// - `Ok(Fleet)` - The updated fleet with new values
     /// - `Err(DbErr::RecordNotFound)` - No fleet exists with the specified ID
     /// - `Err(DbErr)` - Other database error during update operation
-    pub async fn update(&self, params: UpdateFleetParams) -> Result<FleetParam, DbErr> {
+    pub async fn update(&self, params: UpdateFleetParams) -> Result<Fleet, DbErr> {
         let id = params.id;
         let fleet = entity::prelude::Fleet::find_by_id(id)
             .one(self.db)
@@ -252,6 +249,6 @@ impl<'a> FleetRepository<'a> {
             }
         }
 
-        Ok(FleetParam::from_entity(updated_fleet))
+        Ok(Fleet::from_entity(updated_fleet))
     }
 }

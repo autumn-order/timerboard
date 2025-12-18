@@ -4,7 +4,7 @@
 //! It handles user creation, updates, queries, and admin status management with proper
 //! conversion between entity models and parameter models at the infrastructure boundary.
 
-use crate::server::model::user::{UpsertUserParam, UserParam};
+use crate::server::model::user::{UpsertUserParam, User};
 use chrono::Utc;
 use migration::OnConflict;
 use sea_orm::{
@@ -42,9 +42,9 @@ impl<'a> UserRepository<'a> {
     /// - `param` - User upsert parameters including discord_id, name, and optional admin status
     ///
     /// # Returns
-    /// - `Ok(UserParam)` - The created or updated user
+    /// - `Ok(User)` - The created or updated user
     /// - `Err(DbErr)` - Database error during insert or update
-    pub async fn upsert(&self, param: UpsertUserParam) -> Result<UserParam, DbErr> {
+    pub async fn upsert(&self, param: UpsertUserParam) -> Result<User, DbErr> {
         // Build list of columns to update on conflict
         let mut update_columns = vec![entity::user::Column::Name];
 
@@ -67,7 +67,7 @@ impl<'a> UserRepository<'a> {
         .exec_with_returning(self.db)
         .await?;
 
-        Ok(UserParam::from_entity(entity))
+        Ok(User::from_entity(entity))
     }
 
     /// Finds a user by their Discord ID.
@@ -79,15 +79,15 @@ impl<'a> UserRepository<'a> {
     /// - `user_id` - Discord user ID as u64
     ///
     /// # Returns
-    /// - `Ok(Some(UserParam))` - User found with full data
+    /// - `Ok(Some(User))` - User found with full data
     /// - `Ok(None)` - No user found with that Discord ID
     /// - `Err(DbErr)` - Database error during query
-    pub async fn find_by_discord_id(&self, user_id: u64) -> Result<Option<UserParam>, DbErr> {
+    pub async fn find_by_discord_id(&self, user_id: u64) -> Result<Option<User>, DbErr> {
         let entity = entity::prelude::User::find_by_id(user_id.to_string())
             .one(self.db)
             .await?;
 
-        Ok(entity.map(UserParam::from_entity))
+        Ok(entity.map(User::from_entity))
     }
 
     /// Checks if any admin users exist in the database.
@@ -178,14 +178,14 @@ impl<'a> UserRepository<'a> {
         &self,
         page: u64,
         per_page: u64,
-    ) -> Result<(Vec<UserParam>, u64), DbErr> {
+    ) -> Result<(Vec<User>, u64), DbErr> {
         let paginator = entity::prelude::User::find()
             .order_by_asc(entity::user::Column::Name)
             .paginate(self.db, per_page);
 
         let total = paginator.num_pages().await?;
         let entities = paginator.fetch_page(page).await?;
-        let users = entities.into_iter().map(UserParam::from_entity).collect();
+        let users = entities.into_iter().map(User::from_entity).collect();
 
         Ok((users, total))
     }
@@ -196,16 +196,16 @@ impl<'a> UserRepository<'a> {
     /// Used for displaying admin lists and checking admin permissions.
     ///
     /// # Returns
-    /// - `Ok(Vec<UserParam>)` - Vector of all admin users (empty if no admins exist)
+    /// - `Ok(Vec<User>)` - Vector of all admin users (empty if no admins exist)
     /// - `Err(DbErr)` - Database error during query
-    pub async fn get_all_admins(&self) -> Result<Vec<UserParam>, DbErr> {
+    pub async fn get_all_admins(&self) -> Result<Vec<User>, DbErr> {
         let entities = entity::prelude::User::find()
             .filter(entity::user::Column::Admin.eq(true))
             .order_by_asc(entity::user::Column::Name)
             .all(self.db)
             .await?;
 
-        Ok(entities.into_iter().map(UserParam::from_entity).collect())
+        Ok(entities.into_iter().map(User::from_entity).collect())
     }
 
     /// Sets admin status for a user.

@@ -1,13 +1,11 @@
 use sea_orm::DbErr;
 
-/// Represents a Discord guild member.
+/// Discord user's membership in a guild with identity information.
 ///
-/// This param model represents a Discord user who is a member of a guild,
-/// including their username and optional guild-specific nickname. It's used
-/// by the service layer to work with guild members without depending on
-/// database entity models.
+/// Tracks the user's Discord username and optional guild-specific nickname
+/// for display purposes.
 #[derive(Debug, Clone, PartialEq)]
-pub struct DiscordGuildMemberParam {
+pub struct DiscordGuildMember {
     /// Discord user ID as a u64.
     pub user_id: u64,
     /// Discord guild ID as a u64.
@@ -18,17 +16,16 @@ pub struct DiscordGuildMemberParam {
     pub nickname: Option<String>,
 }
 
-impl DiscordGuildMemberParam {
-    /// Converts an entity model to a param model at the repository boundary.
+impl DiscordGuildMember {
+    /// Converts an entity model to a domain model at the repository boundary.
     ///
-    /// Parses the string IDs from the database into u64 values for type-safe
-    /// usage in the service layer. Also preserves username and nickname data.
+    /// Parses string IDs from the database into u64 values for type safety.
     ///
     /// # Arguments
     /// - `entity` - The database entity model to convert
     ///
     /// # Returns
-    /// - `Ok(DiscordGuildMemberParam)` - Successfully converted param model
+    /// - `Ok(DiscordGuildMember)` - Successfully converted domain model
     /// - `Err(DbErr::Custom)` - Failed to parse user_id or guild_id as u64
     pub fn from_entity(entity: entity::discord_guild_member::Model) -> Result<Self, DbErr> {
         let user_id = entity

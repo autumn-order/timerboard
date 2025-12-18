@@ -5,7 +5,7 @@
 //! those with application accounts), storing their username and guild-specific
 //! nickname. This data is synced from Discord and used for display purposes.
 //!
-//! All methods return param models at the repository boundary, converting SeaORM
+//! All methods return domain models at the repository boundary, converting SeaORM
 //! entity models internally to prevent database-specific structures from leaking
 //! into service and controller layers.
 
@@ -13,7 +13,7 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
 };
 
-use crate::server::model::discord::DiscordGuildMemberParam;
+use crate::server::model::discord::DiscordGuildMember;
 
 /// Repository for Discord guild member database operations.
 ///
@@ -56,7 +56,7 @@ impl<'a> DiscordGuildMemberRepository<'a> {
         guild_id: u64,
         username: String,
         nickname: Option<String>,
-    ) -> Result<DiscordGuildMemberParam, DbErr> {
+    ) -> Result<DiscordGuildMember, DbErr> {
         let user_id_str = user_id.to_string();
         let guild_id_str = guild_id.to_string();
 
@@ -85,7 +85,7 @@ impl<'a> DiscordGuildMemberRepository<'a> {
             .await?
         };
 
-        DiscordGuildMemberParam::from_entity(entity)
+        DiscordGuildMember::from_entity(entity)
     }
 
     /// Deletes a guild member record.
@@ -125,7 +125,7 @@ impl<'a> DiscordGuildMemberRepository<'a> {
     pub async fn get_members_by_guild(
         &self,
         guild_id: u64,
-    ) -> Result<Vec<DiscordGuildMemberParam>, DbErr> {
+    ) -> Result<Vec<DiscordGuildMember>, DbErr> {
         let guild_id_str = guild_id.to_string();
         let entities = entity::prelude::DiscordGuildMember::find()
             .filter(entity::discord_guild_member::Column::GuildId.eq(guild_id_str.as_str()))
@@ -134,7 +134,7 @@ impl<'a> DiscordGuildMemberRepository<'a> {
 
         entities
             .into_iter()
-            .map(DiscordGuildMemberParam::from_entity)
+            .map(DiscordGuildMember::from_entity)
             .collect()
     }
 
@@ -155,7 +155,7 @@ impl<'a> DiscordGuildMemberRepository<'a> {
         &self,
         user_id: u64,
         guild_id: u64,
-    ) -> Result<Option<DiscordGuildMemberParam>, DbErr> {
+    ) -> Result<Option<DiscordGuildMember>, DbErr> {
         let user_id_str = user_id.to_string();
         let guild_id_str = guild_id.to_string();
         let entity = entity::prelude::DiscordGuildMember::find()
@@ -164,7 +164,7 @@ impl<'a> DiscordGuildMemberRepository<'a> {
             .one(self.db)
             .await?;
 
-        entity.map(DiscordGuildMemberParam::from_entity).transpose()
+        entity.map(DiscordGuildMember::from_entity).transpose()
     }
 
     /// Syncs guild members by replacing all members with the provided list.

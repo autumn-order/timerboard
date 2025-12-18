@@ -12,7 +12,7 @@ use sea_orm::{
 };
 
 use crate::server::model::ping_format::{
-    CreatePingFormatFieldParam, PingFormatFieldParam, UpdatePingFormatFieldParam,
+    CreatePingFormatFieldParam, PingFormatField, UpdatePingFormatFieldParam,
 };
 
 /// Repository providing database operations for ping format field management.
@@ -45,12 +45,12 @@ impl<'a> PingFormatFieldRepository<'a> {
     /// - `param` - Create parameters containing ping_format_id, name, priority, and default_value
     ///
     /// # Returns
-    /// - `Ok(PingFormatFieldParam)` - The created field with generated ID
-    /// - `Err(DbErr)` - Database error during insert operation (including foreign key violation)
+    /// - `Ok(PingFormatField)` - The created ping format field with generated ID
+    /// - `Err(DbErr)` - Database error during insert operation
     pub async fn create(
         &self,
         param: CreatePingFormatFieldParam,
-    ) -> Result<PingFormatFieldParam, DbErr> {
+    ) -> Result<PingFormatField, DbErr> {
         let entity = entity::ping_format_field::ActiveModel {
             ping_format_id: ActiveValue::Set(param.ping_format_id),
             name: ActiveValue::Set(param.name),
@@ -61,7 +61,7 @@ impl<'a> PingFormatFieldRepository<'a> {
         .insert(self.db)
         .await?;
 
-        Ok(PingFormatFieldParam::from_entity(entity))
+        Ok(PingFormatField::from_entity(entity))
     }
 
     /// Gets all fields for a ping format, ordered by priority.
@@ -74,12 +74,12 @@ impl<'a> PingFormatFieldRepository<'a> {
     /// - `ping_format_id` - ID of the ping format to get fields for
     ///
     /// # Returns
-    /// - `Ok(Vec<PingFormatFieldParam>)` - Vector of fields ordered by priority (empty if no fields)
+    /// - `Ok(Vec<PingFormatField>)` - Vector of fields ordered by priority
     /// - `Err(DbErr)` - Database error during query
     pub async fn get_by_ping_format_id(
         &self,
         ping_format_id: i32,
-    ) -> Result<Vec<PingFormatFieldParam>, DbErr> {
+    ) -> Result<Vec<PingFormatField>, DbErr> {
         let entities = entity::prelude::PingFormatField::find()
             .filter(entity::ping_format_field::Column::PingFormatId.eq(ping_format_id))
             .order_by_asc(entity::ping_format_field::Column::Priority)
@@ -88,7 +88,7 @@ impl<'a> PingFormatFieldRepository<'a> {
 
         Ok(entities
             .into_iter()
-            .map(PingFormatFieldParam::from_entity)
+            .map(PingFormatField::from_entity)
             .collect())
     }
 
@@ -101,13 +101,13 @@ impl<'a> PingFormatFieldRepository<'a> {
     /// - `param` - Update parameters containing id, name, priority, and default_value
     ///
     /// # Returns
-    /// - `Ok(PingFormatFieldParam)` - The updated field with new values
+    /// - `Ok(PingFormatField)` - The updated field
     /// - `Err(DbErr::RecordNotFound)` - No field exists with the specified ID
     /// - `Err(DbErr)` - Other database error during update operation
     pub async fn update(
         &self,
         param: UpdatePingFormatFieldParam,
-    ) -> Result<PingFormatFieldParam, DbErr> {
+    ) -> Result<PingFormatField, DbErr> {
         let field = entity::prelude::PingFormatField::find_by_id(param.id)
             .one(self.db)
             .await?
@@ -123,7 +123,7 @@ impl<'a> PingFormatFieldRepository<'a> {
 
         let entity = active_model.update(self.db).await?;
 
-        Ok(PingFormatFieldParam::from_entity(entity))
+        Ok(PingFormatField::from_entity(entity))
     }
 
     /// Deletes a ping format field.

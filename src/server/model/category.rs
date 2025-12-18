@@ -1,7 +1,10 @@
 use chrono::Duration;
 use sea_orm::DbErr;
 
-/// Simple access role data without UI display fields (name, color)
+/// Access role permissions without display properties.
+///
+/// Contains only permission flags for a role. Used when display information
+/// (name, color) is not needed or unavailable.
 #[derive(Debug, Clone)]
 pub struct AccessRoleData {
     pub role_id: u64,
@@ -10,7 +13,10 @@ pub struct AccessRoleData {
     pub can_manage: bool,
 }
 
-/// Access role with enriched display data
+/// Access role with permissions and display properties.
+///
+/// Includes permission flags along with enriched display data from the guild role
+/// (name, color, position) for UI presentation.
 #[derive(Debug, Clone)]
 pub struct AccessRole {
     pub role_id: u64,
@@ -73,7 +79,10 @@ impl From<crate::model::category::FleetCategoryAccessRoleDto> for AccessRoleData
     }
 }
 
-/// Ping role with enriched display data
+/// Ping role with display properties for notification targeting.
+///
+/// Represents a role that will be mentioned in fleet ping messages, with enriched
+/// display data for UI presentation.
 #[derive(Debug, Clone)]
 pub struct PingRole {
     pub role_id: u64,
@@ -116,7 +125,10 @@ impl PingRole {
     }
 }
 
-/// Channel with enriched display data
+/// Discord channel with display properties for fleet list posting.
+///
+/// Represents a channel where fleet lists will be posted, with enriched display
+/// data for UI presentation.
 #[derive(Debug, Clone)]
 pub struct Channel {
     pub channel_id: u64,
@@ -153,7 +165,10 @@ impl Channel {
     }
 }
 
-/// Parameters for creating a fleet category
+/// Parameters for creating a new fleet category with role/channel associations.
+///
+/// Includes all configuration for the category including ping format, timing settings,
+/// and the initial set of access roles, ping roles, and channels.
 #[derive(Debug, Clone)]
 pub struct CreateFleetCategoryParams {
     pub guild_id: u64,
@@ -183,7 +198,10 @@ impl CreateFleetCategoryParams {
     }
 }
 
-/// Parameters for updating a fleet category
+/// Parameters for updating an existing fleet category and its associations.
+///
+/// Replaces all category configuration including role and channel associations.
+/// Any existing associations not included will be removed.
 #[derive(Debug, Clone)]
 pub struct UpdateFleetCategoryParams {
     pub id: i32,
@@ -219,7 +237,10 @@ impl UpdateFleetCategoryParams {
     }
 }
 
-/// Result from repository when fetching a category with related data
+/// Fleet category with all related entity models for conversion.
+///
+/// Raw repository result containing the category and all related entities with
+/// optional guild role/channel data for enrichment.
 #[derive(Debug, Clone)]
 pub struct FleetCategoryWithRelations {
     pub category: entity::fleet_category::Model,
@@ -238,7 +259,10 @@ pub struct FleetCategoryWithRelations {
     )>,
 }
 
-/// Result from repository when fetching paginated categories with counts
+/// Fleet category with relationship counts for list display.
+///
+/// Repository result for paginated category listings, including counts of
+/// associated roles and channels without loading full relationship data.
 #[derive(Debug, Clone)]
 pub struct FleetCategoryWithCounts {
     pub category: entity::fleet_category::Model,
@@ -248,7 +272,10 @@ pub struct FleetCategoryWithCounts {
     pub channels_count: usize,
 }
 
-/// Full fleet category with all related data
+/// Fleet category with complete configuration and enriched relationships.
+///
+/// Contains all category settings, timing configurations, and fully enriched
+/// access roles, ping roles, and channels with display properties.
 #[derive(Debug, Clone)]
 pub struct FleetCategory {
     pub id: i32,
@@ -342,7 +369,10 @@ impl FleetCategory {
     }
 }
 
-/// Fleet category list item with counts
+/// Fleet category summary for paginated list display.
+///
+/// Contains category settings and relationship counts without loading full
+/// relationship data, optimized for list views.
 #[derive(Debug, Clone)]
 pub struct FleetCategoryListItem {
     pub id: i32,
@@ -431,7 +461,9 @@ impl FleetCategoryListItem {
     }
 }
 
-/// Paginated fleet categories result
+/// Paginated result containing fleet category list items and metadata.
+///
+/// Includes the category list along with pagination information for UI display.
 #[derive(Debug, Clone)]
 pub struct PaginatedFleetCategories {
     pub categories: Vec<FleetCategoryListItem>,

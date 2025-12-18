@@ -5,13 +5,13 @@
 //! creating, deleting, and syncing role memberships as users gain or lose roles
 //! in Discord guilds.
 //!
-//! All methods return param models at the repository boundary, converting SeaORM
+//! All methods return domain models at the repository boundary, converting SeaORM
 //! entity models internally to prevent database-specific structures from leaking
 //! into service and controller layers.
 
 use sea_orm::{ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter};
 
-use crate::server::model::discord::UserDiscordGuildRoleParam;
+use crate::server::model::discord::UserDiscordGuildRole;
 
 /// Repository for user Discord guild role relationship operations.
 ///
@@ -40,16 +40,12 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
     ///
     /// # Arguments
     /// - `user_id` - Discord user ID
-    /// - `role_id` - Discord role ID
+    /// - `role_id` - Discord role ID as u64
     ///
     /// # Returns
-    /// - `Ok(UserDiscordGuildRoleParam)` - The created user-guild-role relationship
-    /// - `Err(DbErr)` - Database error (e.g., foreign key constraint or duplicate key violation)
-    pub async fn create(
-        &self,
-        user_id: u64,
-        role_id: u64,
-    ) -> Result<UserDiscordGuildRoleParam, DbErr> {
+    /// - `Ok(UserDiscordGuildRole)` - The created role membership record
+    /// - `Err(DbErr)` - Database error during insert operation
+    pub async fn create(&self, user_id: u64, role_id: u64) -> Result<UserDiscordGuildRole, DbErr> {
         let entity = entity::prelude::UserDiscordGuildRole::insert(
             entity::user_discord_guild_role::ActiveModel {
                 user_id: ActiveValue::Set(user_id.to_string()),
@@ -59,7 +55,7 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
         .exec_with_returning(self.db)
         .await?;
 
-        UserDiscordGuildRoleParam::from_entity(entity)
+        UserDiscordGuildRole::from_entity(entity)
     }
 
     /// Creates multiple user-guild-role relationships for a single user.
@@ -79,7 +75,7 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
         &self,
         user_id: u64,
         role_ids: &[u64],
-    ) -> Result<Vec<UserDiscordGuildRoleParam>, DbErr> {
+    ) -> Result<Vec<UserDiscordGuildRole>, DbErr> {
         let mut results = Vec::new();
 
         let user_id_str = user_id.to_string();

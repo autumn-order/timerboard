@@ -1,12 +1,11 @@
 use sea_orm::DbErr;
 
-/// Represents a Discord guild role.
+/// Discord role within a guild with display properties and hierarchy position.
 ///
-/// This param model represents a role within a Discord guild with its display
-/// properties (name, color, position). It's used by the service layer to work
-/// with Discord roles without depending on database entity models.
+/// Tracks role name, color for display styling, and position in the guild's
+/// role hierarchy where higher positions indicate greater importance.
 #[derive(Debug, Clone, PartialEq)]
-pub struct DiscordGuildRoleParam {
+pub struct DiscordGuildRole {
     /// Discord role ID as a u64.
     pub role_id: u64,
     /// Discord guild ID as a u64.
@@ -19,17 +18,16 @@ pub struct DiscordGuildRoleParam {
     pub position: i16,
 }
 
-impl DiscordGuildRoleParam {
-    /// Converts an entity model to a param model at the repository boundary.
+impl DiscordGuildRole {
+    /// Converts an entity model to a domain model at the repository boundary.
     ///
-    /// Parses the string IDs from the database into u64 values for type-safe
-    /// usage in the service layer. Also preserves role display properties.
+    /// Parses string IDs from the database into u64 values for type safety.
     ///
     /// # Arguments
     /// - `entity` - The database entity model to convert
     ///
     /// # Returns
-    /// - `Ok(DiscordGuildRoleParam)` - Successfully converted param model
+    /// - `Ok(DiscordGuildRole)` - Successfully converted domain model
     /// - `Err(DbErr::Custom)` - Failed to parse role_id or guild_id as u64
     pub fn from_entity(entity: entity::discord_guild_role::Model) -> Result<Self, DbErr> {
         let role_id = entity
