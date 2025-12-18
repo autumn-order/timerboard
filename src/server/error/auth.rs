@@ -1,3 +1,9 @@
+//! Authentication and authorization error types.
+//!
+//! This module defines errors related to user authentication, OAuth2 flows, and
+//! permission validation. Each error variant maps to an appropriate HTTP status code
+//! and user-friendly error message when converted to a response.
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -8,6 +14,11 @@ use thiserror::Error;
 
 use crate::{model::api::ErrorDto, server::error::InternalServerError};
 
+/// Authentication and authorization error type.
+///
+/// Represents errors that occur during user authentication, OAuth2 callbacks, session
+/// validation, and permission checks. Implements `IntoResponse` to automatically convert
+/// errors into appropriate HTTP responses with status codes ranging from 400-500.
 #[derive(Error, Debug)]
 pub enum AuthError {
     /// CSRF state validation failed during OAuth callback.
@@ -23,12 +34,43 @@ pub enum AuthError {
     /// Results in a 403 Forbidden response.
     #[error("Invalid or expired admin code")]
     AdminCodeValidationFailed,
+
+    /// User ID not found in session.
+    ///
+    /// The request requires an authenticated user but no user ID exists in the session.
+    /// This typically occurs when a user accesses a protected endpoint without logging in.
+    /// Results in a 404 Not Found response with "User not found" message.
     #[error("User not found in session")]
     UserNotInSession,
+
+    /// User exists in session but not in database.
+    ///
+    /// The user ID from the session does not correspond to any user record in the database.
+    /// This can occur if a user was deleted while having an active session.
+    /// Results in a 404 Not Found response with "User not found" message.
+    ///
+    /// # Fields
+    /// - Discord user ID from the session
     #[error("User {0} not found in database")]
     UserNotInDatabase(u64),
+
+    /// User lacks required permissions for the requested operation.
+    ///
+    /// The authenticated user does not have sufficient permissions to perform the
+    /// requested action. The reason field provides details about the specific permission
+    /// that was denied. Results in a 403 Forbidden response.
+    ///
+    /// # Fields
+    /// - `u64` - Discord user ID of the user denied access
+    /// - `String` - Detailed reason for access denial (logged but not sent to client)
     #[error("Access denied for user {0}: {1}")]
     AccessDenied(u64, String),
+
+    /// OAuth2 token exchange failed during callback.
+    ///
+    /// The authorization code from the OAuth2 callback could not be exchanged for
+    /// an access token. This typically indicates an issue with the OAuth2 provider
+    /// or an invalid/expired authorization code. Results in a 500 Internal Server Error.
     #[error(transparent)]
     RequestTokenErr(
         #[from]
@@ -41,19 +83,15 @@ pub enum AuthError {
 
 /// Converts authentication errors into HTTP responses.
 ///
-/// Maps authentication errors to appropriate HTTP status codes and user-friendly error messages:
-/// - `UserNotInSession` / `UserNotInDatabase` → 404 Not Found with "User not found"
-/// - `CsrfValidationFailed` / `CsrfMissingValue` → 400 Bad Request with "There was an issue logging you in"
-/// - `CharacterOwnedByAnotherUser` / `CharacterNotOwned` → 400 Bad Request with "Invalid character selection"
-/// - Other errors → 500 Internal Server Error with generic message
-///
-/// All errors are logged at debug level for diagnostics while keeping client-facing messages
-/// generic to avoid information leakage.
+/// Maps authentication errors to appropriate HTTP status codes and user-friendly error messages.
+/// Error details are logged server-side while client-facing messages remain generic to prevent
+/// information leakage about system internals or security mechanisms.
 ///
 /// # Returns
-/// - 400 Bad Request - For CSRF failures and invalid character operations
-/// - 404 Not Found - For missing users
-/// - 500 Internal Server Error - For unexpected authentication errors
+/// - `400 Bad Request` - For CSRF validation failures
+/// - `403 Forbidden` - For admin code failures and access denied errors
+/// - `404 Not Found` - For missing users (both session and database)
+/// - `500 Internal Server Error` - For OAuth2 token errors and unexpected failures
 impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
         let user_not_found = (
