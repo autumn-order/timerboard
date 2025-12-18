@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "server")]
+use utoipa::ToSchema;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct PingFormatDto {
     pub id: i32,
     #[serde(
@@ -15,6 +19,7 @@ pub struct PingFormatDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct PingFormatFieldDto {
     pub id: i32,
     pub ping_format_id: i32,
@@ -24,12 +29,14 @@ pub struct PingFormatFieldDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct CreatePingFormatDto {
     pub name: String,
     pub fields: Vec<CreatePingFormatFieldDto>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct CreatePingFormatFieldDto {
     pub name: String,
     pub priority: i32,
@@ -37,12 +44,14 @@ pub struct CreatePingFormatFieldDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct UpdatePingFormatDto {
     pub name: String,
     pub fields: Vec<UpdatePingFormatFieldDto>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct UpdatePingFormatFieldDto {
     pub id: Option<i32>,
     pub name: String,
@@ -51,6 +60,7 @@ pub struct UpdatePingFormatFieldDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct PaginatedPingFormatsDto {
     pub ping_formats: Vec<PingFormatDto>,
     pub total: u64,

@@ -1,7 +1,11 @@
 use chrono::Duration;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "server")]
+use utoipa::ToSchema;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct FleetCategoryAccessRoleDto {
     #[serde(
         serialize_with = "serialize_u64_as_string",
@@ -17,6 +21,7 @@ pub struct FleetCategoryAccessRoleDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct FleetCategoryPingRoleDto {
     #[serde(
         serialize_with = "serialize_u64_as_string",
@@ -29,6 +34,7 @@ pub struct FleetCategoryPingRoleDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct FleetCategoryChannelDto {
     #[serde(
         serialize_with = "serialize_u64_as_string",
@@ -40,6 +46,7 @@ pub struct FleetCategoryChannelDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct FleetCategoryDto {
     pub id: i32,
     #[serde(
@@ -59,6 +66,7 @@ pub struct FleetCategoryDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct FleetCategoryListItemDto {
     pub id: i32,
     #[serde(
@@ -78,6 +86,7 @@ pub struct FleetCategoryListItemDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct CreateFleetCategoryDto {
     pub ping_format_id: i32,
     pub name: String,
@@ -90,6 +99,7 @@ pub struct CreateFleetCategoryDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct UpdateFleetCategoryDto {
     pub ping_format_id: i32,
     pub name: String,
@@ -102,6 +112,7 @@ pub struct UpdateFleetCategoryDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct PaginatedFleetCategoriesDto {
     pub categories: Vec<FleetCategoryListItemDto>,
     pub total: u64,
@@ -111,6 +122,7 @@ pub struct PaginatedFleetCategoriesDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct PingFormatFieldDto {
     pub id: i32,
     pub name: String,
@@ -119,6 +131,7 @@ pub struct PingFormatFieldDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct FleetCategoryDetailsDto {
     pub id: i32,
     #[serde(

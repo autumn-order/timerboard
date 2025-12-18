@@ -1,130 +1,217 @@
-use axum::{
-    routing::{get, put},
-    Router,
-};
+//! HTTP routing and OpenAPI documentation configuration.
+//!
+//! This module defines the application's HTTP routes and generates OpenAPI documentation
+//! using utoipa. All API endpoints are registered here with their OpenAPI specifications,
+//! and Swagger UI is configured to provide interactive API documentation at `/api/docs`.
 
-use crate::server::{
-    controller::{
-        admin::{add_admin, add_bot, get_all_admins, get_all_users, remove_admin},
-        auth::{callback, get_user, login, logout},
+use axum::Router;
+use utoipa::OpenApi;
+use utoipa_axum::{router::OpenApiRouter, routes};
+use utoipa_swagger_ui::SwaggerUi;
+
+use crate::{
+    model::{
+        api::{ErrorDto, SuccessDto},
         category::{
-            create_fleet_category, delete_fleet_category, get_fleet_categories,
-            get_fleet_categories_by_ping_format, get_fleet_category_by_id, update_fleet_category,
+            CreateFleetCategoryDto, FleetCategoryAccessRoleDto, FleetCategoryChannelDto,
+            FleetCategoryDetailsDto, FleetCategoryDto, FleetCategoryListItemDto,
+            FleetCategoryPingRoleDto, PaginatedFleetCategoriesDto, UpdateFleetCategoryDto,
         },
         discord::{
-            get_all_discord_guilds, get_discord_guild_by_id, get_discord_guild_channels,
-            get_discord_guild_roles,
+            DiscordGuildChannelDto, DiscordGuildDto, DiscordGuildMemberDto, DiscordGuildRoleDto,
+            PaginatedDiscordGuildChannelsDto, PaginatedDiscordGuildRolesDto,
         },
-        fleet::{
-            create_fleet, delete_fleet, get_category_details, get_fleet, get_fleets,
-            get_guild_members, update_fleet,
-        },
+        fleet::{CreateFleetDto, FleetDto, FleetListItemDto, PaginatedFleetsDto, UpdateFleetDto},
         ping_format::{
-            create_ping_format, delete_ping_format, get_ping_formats, update_ping_format,
+            CreatePingFormatDto, CreatePingFormatFieldDto, PaginatedPingFormatsDto, PingFormatDto,
+            PingFormatFieldDto, UpdatePingFormatDto, UpdatePingFormatFieldDto,
         },
-        user::{get_user_guilds, get_user_manageable_categories},
+        user::{PaginatedUsersDto, UserDto},
     },
-    state::AppState,
+    server::{controller, state::AppState},
 };
 
+/// Builds the application's HTTP router with all API endpoints and Swagger UI documentation.
+///
+/// Constructs an Axum router with all authentication, user management, admin, fleet, category,
+/// and discord endpoints registered. Each endpoint is annotated with OpenAPI specifications via
+/// utoipa, which are collected into a unified OpenAPI document. The router includes Swagger UI
+/// at `/api/docs` for interactive API exploration and testing.
+///
+/// # Registered Endpoints
+///
+/// ## Authentication (`/api/auth`)
+/// - `GET /api/auth/login` - Initiate Discord OAuth authentication
+/// - `GET /api/auth/callback` - OAuth callback handler
+/// - `GET /api/auth/logout` - Logout current user
+/// - `GET /api/auth/user` - Get current user information
+///
+/// ## User (`/api/user`)
+/// - `GET /api/user/guilds` - Get guilds available to current user
+/// - `GET /api/user/guilds/{guild_id}/manageable-categories` - Get manageable categories
+///
+/// ## Admin (`/api/admin`)
+/// - `GET /api/admin/bot/add` - Add bot to Discord server
+/// - `GET /api/admin/users` - Get all users (paginated)
+/// - `GET /api/admin/admins` - Get all admins
+/// - `POST /api/admin/admins/{user_id}` - Add admin
+/// - `DELETE /api/admin/admins/{user_id}` - Remove admin
+/// - `GET /api/admin/servers` - Get all Discord guilds
+/// - `GET /api/admin/servers/{guild_id}` - Get Discord guild by ID
+/// - `GET /api/admin/servers/{guild_id}/roles` - Get guild roles
+/// - `GET /api/admin/servers/{guild_id}/channels` - Get guild channels
+///
+/// ## Categories (`/api/admin/servers/{guild_id}/categories`)
+/// - `GET /api/admin/servers/{guild_id}/categories` - Get all categories
+/// - `POST /api/admin/servers/{guild_id}/categories` - Create category
+/// - `GET /api/admin/servers/{guild_id}/categories/{category_id}` - Get category by ID
+/// - `PUT /api/admin/servers/{guild_id}/categories/{category_id}` - Update category
+/// - `DELETE /api/admin/servers/{guild_id}/categories/{category_id}` - Delete category
+///
+/// ## Ping Formats (`/api/admin/servers/{guild_id}/formats`)
+/// - `GET /api/admin/servers/{guild_id}/formats` - Get all ping formats
+/// - `POST /api/admin/servers/{guild_id}/formats` - Create ping format
+/// - `PUT /api/admin/servers/{guild_id}/formats/{format_id}` - Update ping format
+/// - `DELETE /api/admin/servers/{guild_id}/formats/{format_id}` - Delete ping format
+/// - `GET /api/admin/servers/{guild_id}/formats/{format_id}/categories` - Get categories by format
+///
+/// ## Fleets (`/api/guilds/{guild_id}`)
+/// - `GET /api/guilds/{guild_id}/members` - Get guild members
+/// - `GET /api/guilds/{guild_id}/categories/{category_id}/details` - Get category details
+/// - `GET /api/guilds/{guild_id}/fleets` - Get all fleets
+/// - `POST /api/guilds/{guild_id}/fleets` - Create fleet
+/// - `GET /api/guilds/{guild_id}/fleets/{fleet_id}` - Get fleet by ID
+/// - `PUT /api/guilds/{guild_id}/fleets/{fleet_id}` - Update fleet
+/// - `DELETE /api/guilds/{guild_id}/fleets/{fleet_id}` - Delete fleet
+///
+/// # OpenAPI Documentation
+/// The OpenAPI specification is available at `/api/docs/openapi.json` and includes:
+/// - Endpoint paths and HTTP methods
+/// - Request/response schemas
+/// - Authentication requirements
+/// - Error responses
+///
+/// # Swagger UI
+/// Interactive API documentation is served at `/api/docs` **only in debug builds**.
+/// In release builds, the Swagger UI endpoint is not available for security reasons.
+/// Allowing developers to:
+/// - Browse available endpoints
+/// - View request/response schemas
+/// - Test endpoints directly from the browser
+/// - Download the OpenAPI specification
+///
+/// # Returns
+/// An Axum `Router<AppState>` configured with all routes and middleware, ready to be
+/// merged into the main application router.
+///
+/// # Example
+/// ```ignore
+/// let app_state = AppState { db, http_client, oauth_client, worker, admin_code_service };
+/// let router = routes().with_state(app_state);
+/// // Router is now ready to serve HTTP requests
+/// ```
 pub fn router() -> Router<AppState> {
-    Router::new().nest("/api", api_router())
-}
-
-fn api_router() -> Router<AppState> {
-    Router::new()
-        .nest("/auth", auth_router())
-        .nest("/admin", admin_router())
-        .nest("/user", user_router())
-        .nest("/guilds", guilds_router())
-}
-
-fn auth_router() -> Router<AppState> {
-    Router::new()
-        .route("/login", get(login))
-        .route("/callback", get(callback))
-        .route("/logout", get(logout))
-        .route("/user", get(get_user))
-}
-
-fn user_router() -> Router<AppState> {
-    Router::new().route("/guilds", get(get_user_guilds)).route(
-        "/guilds/{guild_id}/manageable-categories",
-        get(get_user_manageable_categories),
-    )
-}
-
-fn guilds_router() -> Router<AppState> {
-    Router::new()
-        .route("/{guild_id}/members", get(get_guild_members))
-        .route(
-            "/{guild_id}/categories/{category_id}/details",
-            get(get_category_details),
+    #[derive(OpenApi)]
+    #[openapi(
+        info(
+            title = "Timerboard API",
+            description = "API for managing EVE Online fleet timers and Discord integration"
+        ),
+        tags(
+            (name = controller::auth::AUTH_TAG, description = "Authentication endpoints"),
+            (name = controller::user::USER_TAG, description = "User endpoints"),
+            (name = controller::admin::ADMIN_TAG, description = "Admin endpoints"),
+            (name = controller::category::CATEGORY_TAG, description = "Fleet category endpoints"),
+            (name = controller::ping_format::PING_FORMAT_TAG, description = "Ping format endpoints"),
+            (name = controller::fleet::FLEET_TAG, description = "Fleet endpoints"),
+            (name = controller::discord::DISCORD_TAG, description = "Discord endpoints"),
+        ),
+        components(
+            schemas(
+                ErrorDto,
+                SuccessDto,
+                UserDto,
+                PaginatedUsersDto,
+                DiscordGuildDto,
+                DiscordGuildMemberDto,
+                DiscordGuildRoleDto,
+                DiscordGuildChannelDto,
+                PaginatedDiscordGuildRolesDto,
+                PaginatedDiscordGuildChannelsDto,
+                FleetCategoryDto,
+                FleetCategoryListItemDto,
+                PaginatedFleetCategoriesDto,
+                FleetCategoryDetailsDto,
+                FleetCategoryAccessRoleDto,
+                FleetCategoryPingRoleDto,
+                FleetCategoryChannelDto,
+                CreateFleetCategoryDto,
+                UpdateFleetCategoryDto,
+                PingFormatDto,
+                PingFormatFieldDto,
+                CreatePingFormatDto,
+                CreatePingFormatFieldDto,
+                UpdatePingFormatDto,
+                UpdatePingFormatFieldDto,
+                PaginatedPingFormatsDto,
+                FleetDto,
+                FleetListItemDto,
+                PaginatedFleetsDto,
+                CreateFleetDto,
+                UpdateFleetDto,
+            )
         )
-        .route("/{guild_id}/fleets", get(get_fleets).post(create_fleet))
-        .route(
-            "/{guild_id}/fleets/{fleet_id}",
-            get(get_fleet).put(update_fleet).delete(delete_fleet),
-        )
-}
+    )]
+    struct ApiDoc;
 
-fn admin_router() -> Router<AppState> {
-    Router::new()
-        .route("/bot/add", get(add_bot))
-        .nest("/servers", servers_router())
-        .nest("/users", users_router())
-        .nest("/admins", admins_router())
-}
+    let (router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
+        // Auth routes
+        .routes(routes!(controller::auth::login))
+        .routes(routes!(controller::auth::callback))
+        .routes(routes!(controller::auth::logout))
+        .routes(routes!(controller::auth::get_user))
+        // User routes
+        .routes(routes!(controller::user::get_user_guilds))
+        .routes(routes!(controller::user::get_user_manageable_categories))
+        // Admin routes
+        .routes(routes!(controller::admin::add_bot))
+        .routes(routes!(controller::admin::get_all_users))
+        .routes(routes!(controller::admin::get_all_admins))
+        .routes(routes!(controller::admin::add_admin))
+        .routes(routes!(controller::admin::remove_admin))
+        // Discord routes
+        .routes(routes!(controller::discord::get_all_discord_guilds))
+        .routes(routes!(controller::discord::get_discord_guild_by_id))
+        .routes(routes!(controller::discord::get_discord_guild_roles))
+        .routes(routes!(controller::discord::get_discord_guild_channels))
+        // Category routes
+        .routes(routes!(controller::category::get_fleet_categories))
+        .routes(routes!(controller::category::create_fleet_category))
+        .routes(routes!(controller::category::get_fleet_category_by_id))
+        .routes(routes!(controller::category::update_fleet_category))
+        .routes(routes!(controller::category::delete_fleet_category))
+        .routes(routes!(
+            controller::category::get_fleet_categories_by_ping_format
+        ))
+        // Ping format routes
+        .routes(routes!(controller::ping_format::get_ping_formats))
+        .routes(routes!(controller::ping_format::create_ping_format))
+        .routes(routes!(controller::ping_format::update_ping_format))
+        .routes(routes!(controller::ping_format::delete_ping_format))
+        // Fleet routes
+        .routes(routes!(controller::fleet::get_guild_members))
+        .routes(routes!(controller::fleet::get_category_details))
+        .routes(routes!(controller::fleet::get_fleets))
+        .routes(routes!(controller::fleet::create_fleet))
+        .routes(routes!(controller::fleet::get_fleet))
+        .routes(routes!(controller::fleet::update_fleet))
+        .routes(routes!(controller::fleet::delete_fleet))
+        .split_for_parts();
 
-fn users_router() -> Router<AppState> {
-    Router::new().route("/", get(get_all_users))
-}
-
-fn admins_router() -> Router<AppState> {
-    Router::new().route("/", get(get_all_admins)).route(
-        "/{user_id}",
-        axum::routing::post(add_admin).delete(remove_admin),
-    )
-}
-
-fn servers_router() -> Router<AppState> {
-    Router::new()
-        .route("/", get(get_all_discord_guilds))
-        .route("/{guild_id}", get(get_discord_guild_by_id))
-        .nest("/{guild_id}/categories", server_categories_router())
-        .nest("/{guild_id}/formats", server_formats_router())
-        .nest("/{guild_id}/roles", server_roles_router())
-        .nest("/{guild_id}/channels", server_channels_router())
-}
-
-fn server_categories_router() -> Router<AppState> {
-    Router::new()
-        .route("/", get(get_fleet_categories).post(create_fleet_category))
-        .route(
-            "/{category_id}",
-            get(get_fleet_category_by_id)
-                .put(update_fleet_category)
-                .delete(delete_fleet_category),
-        )
-}
-
-fn server_formats_router() -> Router<AppState> {
-    Router::new()
-        .route("/", get(get_ping_formats).post(create_ping_format))
-        .route(
-            "/{format_id}",
-            put(update_ping_format).delete(delete_ping_format),
-        )
-        .route(
-            "/{format_id}/categories",
-            get(get_fleet_categories_by_ping_format),
-        )
-}
-
-fn server_roles_router() -> Router<AppState> {
-    Router::new().route("/", get(get_discord_guild_roles))
-}
-
-fn server_channels_router() -> Router<AppState> {
-    Router::new().route("/", get(get_discord_guild_channels))
+    // Only serve Swagger UI in debug builds
+    if cfg!(debug_assertions) {
+        router.merge(SwaggerUi::new("/api/docs").url("/api/docs/openapi.json", api))
+    } else {
+        router
+    }
 }

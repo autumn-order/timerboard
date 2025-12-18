@@ -41,6 +41,9 @@ tokio-cron-scheduler = { version = "0.15.1", optional = true }
 tower-sessions = { version = "0.14.0", optional = true }
 tower-sessions-sqlx-store = { version = "0.15.0", features = ["sqlite"], optional = true }
 url = { version = "2.5.7", optional = true }
+utoipa = { version = "5.4.0", features = ["axum_extras", "chrono"], optional = true }
+utoipa-axum = { version = "0.2.0", optional = true }
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"], optional = true }
 
 [features]
 default = ["web"]
@@ -63,6 +66,9 @@ server = [
   "tokio-cron-scheduler",
   "tower-sessions",
   "tower-sessions-sqlx-store",
-  "url"
+  "url",
+  "utoipa",
+  "utoipa-axum",
+  "utoipa-swagger-ui"
 ]
 web = ["dioxus/web", "gloo-timers", "reqwasm", "serde_json"]

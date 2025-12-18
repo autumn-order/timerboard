@@ -10,9 +10,10 @@ use tower_sessions::Session;
 
 use crate::{
     model::{
+        api::ErrorDto,
         category::{FleetCategoryDetailsDto, PingFormatFieldDto},
         discord::DiscordGuildMemberDto,
-        fleet::{CreateFleetDto, UpdateFleetDto},
+        fleet::{CreateFleetDto, FleetDto, PaginatedFleetsDto, UpdateFleetDto},
     },
     server::{
         data::category::FleetCategoryRepository,
@@ -22,6 +23,9 @@ use crate::{
         state::AppState,
     },
 };
+
+/// Tag for grouping fleet endpoints in OpenAPI documentation
+pub static FLEET_TAG: &str = "fleet";
 
 #[derive(Deserialize)]
 pub struct PaginationQuery {
@@ -35,8 +39,40 @@ fn default_per_page() -> u64 {
     10
 }
 
-/// GET /api/guilds/{guild_id}/categories/{category_id}/details
-/// Get category details including ping format fields for fleet creation
+/// Get category details including ping format fields for fleet creation.
+///
+/// Returns detailed information about a fleet category including its ping format fields,
+/// access roles, ping roles, and channels. Used for fleet creation forms.
+///
+/// # Access Control
+/// - `CategoryView` - User must have view permission for the category
+///
+/// # Arguments
+/// - `state` - Application state containing the database connection
+/// - `session` - User's session for authentication
+/// - `guild_id` - Discord guild ID
+/// - `category_id` - Fleet category ID to fetch details for
+///
+/// # Returns
+/// - `200 OK` - Category details with ping format fields and role configurations
+/// - `401 Unauthorized` - User not authenticated or lacks view permission
+/// - `404 Not Found` - Category not found
+/// - `500 Internal Server Error` - Database error
+#[utoipa::path(
+    get,
+    path = "/api/guilds/{guild_id}/categories/{category_id}/details",
+    tag = FLEET_TAG,
+    params(
+        ("guild_id" = u64, Path, description = "Discord guild ID"),
+        ("category_id" = i32, Path, description = "Fleet category ID")
+    ),
+    responses(
+        (status = 200, description = "Successfully retrieved category details", body = FleetCategoryDetailsDto),
+        (status = 401, description = "User not authenticated or lacks permission", body = ErrorDto),
+        (status = 404, description = "Category not found", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+)]
 pub async fn get_category_details(
     State(state): State<AppState>,
     session: Session,
@@ -136,8 +172,36 @@ pub async fn get_category_details(
     Ok((StatusCode::OK, Json(dto)))
 }
 
-/// GET /api/guilds/{guild_id}/members
-/// Get all members of a guild for FC selection
+/// Get all members of a Discord guild for FC selection.
+///
+/// Returns a list of all members in the specified Discord guild. Used for selecting
+/// fleet commanders when creating or updating fleets.
+///
+/// # Access Control
+/// - `LoggedIn` - User must be authenticated
+///
+/// # Arguments
+/// - `state` - Application state containing the database connection
+/// - `session` - User's session for authentication
+/// - `guild_id` - Discord guild ID to fetch members for
+///
+/// # Returns
+/// - `200 OK` - List of guild members with their user ID, username, and display name
+/// - `401 Unauthorized` - User not authenticated
+/// - `500 Internal Server Error` - Database error
+#[utoipa::path(
+    get,
+    path = "/api/guilds/{guild_id}/members",
+    tag = FLEET_TAG,
+    params(
+        ("guild_id" = u64, Path, description = "Discord guild ID")
+    ),
+    responses(
+        (status = 200, description = "Successfully retrieved guild members", body = Vec<DiscordGuildMemberDto>),
+        (status = 401, description = "User not authenticated", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+)]
 pub async fn get_guild_members(
     State(state): State<AppState>,
     session: Session,
@@ -163,8 +227,40 @@ pub async fn get_guild_members(
     Ok((StatusCode::OK, Json(member_dtos)))
 }
 
-/// POST /api/guilds/{guild_id}/fleets
-/// Create a new fleet
+/// Create a new fleet.
+///
+/// Creates a new fleet in the specified category with fleet time, commander, description,
+/// and custom field values. Sends Discord notifications to configured channels and roles.
+///
+/// # Access Control
+/// - `CategoryCreate` - User must have create permission for the category
+///
+/// # Arguments
+/// - `state` - Application state containing database, Discord HTTP client, and app URL
+/// - `session` - User's session for authentication
+/// - `guild_id` - Discord guild ID to create the fleet in
+/// - `dto` - Fleet creation data (category, time, commander, description, fields, etc.)
+///
+/// # Returns
+/// - `201 Created` - Successfully created fleet
+/// - `401 Unauthorized` - User not authenticated or lacks create permission
+/// - `400 Bad Request` - Invalid fleet data
+/// - `500 Internal Server Error` - Database or Discord API error
+#[utoipa::path(
+    post,
+    path = "/api/guilds/{guild_id}/fleets",
+    tag = FLEET_TAG,
+    params(
+        ("guild_id" = u64, Path, description = "Discord guild ID")
+    ),
+    request_body = CreateFleetDto,
+    responses(
+        (status = 201, description = "Successfully created fleet", body = FleetDto),
+        (status = 400, description = "Invalid fleet data", body = ErrorDto),
+        (status = 401, description = "User not authenticated or lacks permission", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+)]
 pub async fn create_fleet(
     State(state): State<AppState>,
     session: Session,
@@ -182,8 +278,11 @@ pub async fn create_fleet(
     Ok((StatusCode::CREATED, Json(fleet)))
 }
 
-/// GET /api/guilds/{guild_id}/fleets/{fleet_id}
-/// Get fleet details by ID
+/// Get fleet details by ID.
+///
+/// Returns detailed information about a specific fleet including its category, time,
+/// commander, description, and custom field values. Respects visibility rules for
+/// hidden fleets.
 ///
 /// # Visibility Rules
 /// Returns a fleet (200 OK) only if ALL of the following are true:
@@ -194,9 +293,35 @@ pub async fn create_fleet(
 ///    - If no reminder is configured, the fleet start time has passed
 /// 3. Admins bypass all permission and visibility restrictions
 ///
+/// # Access Control
+/// - `LoggedIn` - User must be authenticated and have view permission for the category
+///
+/// # Arguments
+/// - `state` - Application state containing database, Discord HTTP client, and app URL
+/// - `session` - User's session for authentication
+/// - `guild_id` - Discord guild ID
+/// - `fleet_id` - Fleet ID to fetch
+///
 /// # Returns
-/// - 200 OK with FleetDto if fleet exists and user has permission to view it
-/// - 404 Not Found if fleet doesn't exist OR user lacks permission (doesn't leak existence)
+/// - `200 OK` - Fleet details if user has permission to view it
+/// - `401 Unauthorized` - User not authenticated
+/// - `404 Not Found` - Fleet doesn't exist OR user lacks permission (doesn't leak existence)
+/// - `500 Internal Server Error` - Database error
+#[utoipa::path(
+    get,
+    path = "/api/guilds/{guild_id}/fleets/{fleet_id}",
+    tag = FLEET_TAG,
+    params(
+        ("guild_id" = u64, Path, description = "Discord guild ID"),
+        ("fleet_id" = i32, Path, description = "Fleet ID")
+    ),
+    responses(
+        (status = 200, description = "Successfully retrieved fleet", body = FleetDto),
+        (status = 401, description = "User not authenticated", body = ErrorDto),
+        (status = 404, description = "Fleet not found or user lacks permission", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+)]
 pub async fn get_fleet(
     State(state): State<AppState>,
     session: Session,
@@ -219,8 +344,11 @@ pub async fn get_fleet(
     Ok((StatusCode::OK, Json(fleet)))
 }
 
-/// GET /api/guilds/{guild_id}/fleets
-/// Get paginated fleets for a guild
+/// Get paginated fleets for a guild.
+///
+/// Returns a paginated list of fleets for the specified guild, filtered by user
+/// permissions and visibility rules. Only returns fleets the user has permission
+/// to view and respects hidden fleet visibility settings.
 ///
 /// # Visibility Rules
 /// Returns fleets filtered by:
@@ -232,8 +360,34 @@ pub async fn get_fleet(
 ///    - If no reminder is configured, the fleet start time has passed
 /// 4. **Admin Override**: Admins bypass all category and visibility filtering
 ///
+/// # Access Control
+/// - `LoggedIn` - User must be authenticated
+///
+/// # Arguments
+/// - `state` - Application state containing database, Discord HTTP client, and app URL
+/// - `session` - User's session for authentication
+/// - `guild_id` - Discord guild ID to fetch fleets for
+/// - `pagination` - Pagination parameters (page and per_page)
+///
 /// # Returns
-/// - 200 OK with PaginatedFleetsDto containing visible fleets
+/// - `200 OK` - Paginated list of visible fleets
+/// - `401 Unauthorized` - User not authenticated
+/// - `500 Internal Server Error` - Database error
+#[utoipa::path(
+    get,
+    path = "/api/guilds/{guild_id}/fleets",
+    tag = FLEET_TAG,
+    params(
+        ("guild_id" = u64, Path, description = "Discord guild ID"),
+        ("page" = Option<u64>, Query, description = "Page number (default: 0)"),
+        ("per_page" = Option<u64>, Query, description = "Items per page (default: 10)")
+    ),
+    responses(
+        (status = 200, description = "Successfully retrieved paginated fleets", body = PaginatedFleetsDto),
+        (status = 401, description = "User not authenticated", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+)]
 pub async fn get_fleets(
     State(state): State<AppState>,
     session: Session,
@@ -262,8 +416,11 @@ pub async fn get_fleets(
     Ok((StatusCode::OK, Json(fleets)))
 }
 
-/// PUT /api/guilds/{guild_id}/fleets/{fleet_id}
-/// Update a fleet (requires manage permission or being the fleet commander)
+/// Update a fleet.
+///
+/// Updates an existing fleet with new time, commander, description, hidden status,
+/// or custom field values. Sends Discord notifications for updates. User must be
+/// the fleet commander, have manage permission, or be an admin.
 ///
 /// # Authorization
 /// User must be:
@@ -275,6 +432,42 @@ pub async fn get_fleets(
 /// The returned updated fleet respects the same visibility rules as GET (see get_fleet).
 /// If the fleet is updated to be hidden, the requester can still see it in the response
 /// if they have appropriate permissions.
+///
+/// # Access Control
+/// - `LoggedIn` - User must be authenticated and authorized to update the fleet
+///
+/// # Arguments
+/// - `state` - Application state containing database, Discord HTTP client, and app URL
+/// - `session` - User's session for authentication
+/// - `guild_id` - Discord guild ID
+/// - `fleet_id` - Fleet ID to update
+/// - `dto` - Fleet update data
+///
+/// # Returns
+/// - `200 OK` - Successfully updated fleet
+/// - `401 Unauthorized` - User not authenticated
+/// - `403 Forbidden` - User lacks permission to update the fleet
+/// - `404 Not Found` - Fleet not found
+/// - `400 Bad Request` - Invalid fleet data
+/// - `500 Internal Server Error` - Database or Discord API error
+#[utoipa::path(
+    put,
+    path = "/api/guilds/{guild_id}/fleets/{fleet_id}",
+    tag = FLEET_TAG,
+    params(
+        ("guild_id" = u64, Path, description = "Discord guild ID"),
+        ("fleet_id" = i32, Path, description = "Fleet ID")
+    ),
+    request_body = UpdateFleetDto,
+    responses(
+        (status = 200, description = "Successfully updated fleet", body = FleetDto),
+        (status = 400, description = "Invalid fleet data", body = ErrorDto),
+        (status = 401, description = "User not authenticated", body = ErrorDto),
+        (status = 403, description = "User lacks permission to update fleet", body = ErrorDto),
+        (status = 404, description = "Fleet not found", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+)]
 pub async fn update_fleet(
     State(state): State<AppState>,
     session: Session,
@@ -320,8 +513,10 @@ pub async fn update_fleet(
     Ok((StatusCode::OK, Json(updated_fleet)))
 }
 
-/// DELETE /api/guilds/{guild_id}/fleets/{fleet_id}
-/// Delete a fleet (requires manage permission or being the fleet commander)
+/// Delete a fleet.
+///
+/// Deletes an existing fleet and removes associated Discord messages. User must be
+/// the fleet commander, have manage permission, or be an admin.
 ///
 /// # Authorization
 /// User must be:
@@ -331,6 +526,38 @@ pub async fn update_fleet(
 ///
 /// # Visibility
 /// The fleet must be visible to the user (same rules as GET) before deletion is allowed.
+///
+/// # Access Control
+/// - `LoggedIn` - User must be authenticated and authorized to delete the fleet
+///
+/// # Arguments
+/// - `state` - Application state containing database, Discord HTTP client, and app URL
+/// - `session` - User's session for authentication
+/// - `guild_id` - Discord guild ID
+/// - `fleet_id` - Fleet ID to delete
+///
+/// # Returns
+/// - `204 No Content` - Successfully deleted fleet
+/// - `401 Unauthorized` - User not authenticated
+/// - `403 Forbidden` - User lacks permission to delete the fleet
+/// - `404 Not Found` - Fleet not found or user lacks permission
+/// - `500 Internal Server Error` - Database error
+#[utoipa::path(
+    delete,
+    path = "/api/guilds/{guild_id}/fleets/{fleet_id}",
+    tag = FLEET_TAG,
+    params(
+        ("guild_id" = u64, Path, description = "Discord guild ID"),
+        ("fleet_id" = i32, Path, description = "Fleet ID")
+    ),
+    responses(
+        (status = 204, description = "Successfully deleted fleet"),
+        (status = 401, description = "User not authenticated", body = ErrorDto),
+        (status = 403, description = "User lacks permission to delete fleet", body = ErrorDto),
+        (status = 404, description = "Fleet not found", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+)]
 pub async fn delete_fleet(
     State(state): State<AppState>,
     session: Session,

@@ -6,25 +6,46 @@ use axum::{
 };
 use tower_sessions::Session;
 
-use crate::server::{
-    error::AppError,
-    middleware::auth::AuthGuard,
-    service::{category::FleetCategoryService, user::UserService},
-    state::AppState,
+use crate::{
+    model::{api::ErrorDto, category::FleetCategoryListItemDto, discord::DiscordGuildDto},
+    server::{
+        error::AppError,
+        middleware::auth::AuthGuard,
+        service::{category::FleetCategoryService, user::UserService},
+        state::AppState,
+    },
 };
 
-/// GET /api/user/guilds - Get all guilds available to the current user
+/// Tag for grouping user endpoints in OpenAPI documentation
+pub static USER_TAG: &str = "user";
+
+/// Get all guilds available to the current user.
 ///
 /// Returns a list of all Discord guilds (timerboards) that the authenticated user
 /// has access to. If the user is an admin, returns ALL guilds in the system.
 /// If the user is not an admin, returns only guilds the user is a member of.
 ///
-/// # Authentication
-/// Requires user to be logged in (no admin permission required)
+/// # Access Control
+/// - `LoggedIn` - User must be authenticated
+///
+/// # Arguments
+/// - `state` - Application state containing the database connection
+/// - `session` - User's session for authentication
 ///
 /// # Returns
-/// - `200 OK`: JSON array of DiscordGuildDto (all guilds for admins, user's guilds otherwise)
-/// - `500 Internal Server Error`: Database or parsing error
+/// - `200 OK` - JSON array of DiscordGuildDto (all guilds for admins, user's guilds otherwise)
+/// - `401 Unauthorized` - User not authenticated
+/// - `500 Internal Server Error` - Database or parsing error
+#[utoipa::path(
+    get,
+    path = "/api/user/guilds",
+    tag = USER_TAG,
+    responses(
+        (status = 200, description = "Successfully retrieved user guilds", body = Vec<DiscordGuildDto>),
+        (status = 401, description = "User not authenticated", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+)]
 pub async fn get_user_guilds(
     State(state): State<AppState>,
     session: Session,
@@ -43,20 +64,36 @@ pub async fn get_user_guilds(
     Ok((StatusCode::OK, Json(guilds)))
 }
 
-/// GET /api/user/guilds/{guild_id}/manageable-categories - Get fleet categories user can create/manage
+/// Get fleet categories user can create/manage.
 ///
 /// Returns a list of fleet categories where the authenticated user has can_create OR
 /// can_manage permissions through their Discord roles. Admins get all categories for the guild.
 ///
-/// # Authentication
-/// Requires user to be logged in (no admin permission required)
+/// # Access Control
+/// - `LoggedIn` - User must be authenticated
 ///
-/// # Path Parameters
-/// - `guild_id`: Discord guild ID (u64)
+/// # Arguments
+/// - `state` - Application state containing the database connection
+/// - `guild_id` - Discord guild ID to fetch categories for
+/// - `session` - User's session for authentication
 ///
 /// # Returns
-/// - `200 OK`: JSON array of FleetCategoryListItem (all categories for admins, manageable categories otherwise)
-/// - `500 Internal Server Error`: Database or parsing error
+/// - `200 OK` - JSON array of FleetCategoryListItem (all categories for admins, manageable categories otherwise)
+/// - `401 Unauthorized` - User not authenticated
+/// - `500 Internal Server Error` - Database or parsing error
+#[utoipa::path(
+    get,
+    path = "/api/user/guilds/{guild_id}/manageable-categories",
+    tag = USER_TAG,
+    params(
+        ("guild_id" = u64, Path, description = "Discord guild ID")
+    ),
+    responses(
+        (status = 200, description = "Successfully retrieved manageable categories", body = Vec<FleetCategoryListItemDto>),
+        (status = 401, description = "User not authenticated", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+)]
 pub async fn get_user_manageable_categories(
     State(state): State<AppState>,
     Path(guild_id): Path<u64>,

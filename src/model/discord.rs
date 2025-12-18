@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "server")]
+use utoipa::ToSchema;
+
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct DiscordGuildDto {
     #[serde(
         serialize_with = "serialize_u64_as_string",
@@ -12,6 +16,7 @@ pub struct DiscordGuildDto {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct DiscordGuildRoleDto {
     #[serde(
         serialize_with = "serialize_u64_as_string",
@@ -29,6 +34,7 @@ pub struct DiscordGuildRoleDto {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct DiscordGuildChannelDto {
     #[serde(
         serialize_with = "serialize_u64_as_string",
@@ -45,6 +51,7 @@ pub struct DiscordGuildChannelDto {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct PaginatedDiscordGuildRolesDto {
     pub roles: Vec<DiscordGuildRoleDto>,
     pub total: u64,
@@ -53,6 +60,7 @@ pub struct PaginatedDiscordGuildRolesDto {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct PaginatedDiscordGuildChannelsDto {
     pub channels: Vec<DiscordGuildChannelDto>,
     pub total: u64,
@@ -61,6 +69,7 @@ pub struct PaginatedDiscordGuildChannelsDto {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct DiscordGuildMemberDto {
     #[serde(
         serialize_with = "serialize_u64_as_string",

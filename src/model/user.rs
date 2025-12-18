@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "server")]
+use utoipa::ToSchema;
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct UserDto {
     #[serde(
         serialize_with = "serialize_u64_as_string",
@@ -12,6 +16,7 @@ pub struct UserDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct PaginatedUsersDto {
     pub users: Vec<UserDto>,
     pub total: u64,

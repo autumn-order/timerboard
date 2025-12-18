@@ -2,7 +2,11 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[cfg(feature = "server")]
+use utoipa::ToSchema;
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct CreateFleetDto {
     pub category_id: i32,
     pub name: String,
@@ -21,6 +25,7 @@ pub struct CreateFleetDto {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct UpdateFleetDto {
     pub category_id: i32,
     pub name: String,
@@ -37,6 +42,7 @@ pub struct UpdateFleetDto {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct FleetDto {
     pub id: i32,
     pub category_id: i32,
@@ -59,6 +65,7 @@ pub struct FleetDto {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct FleetListItemDto {
     pub id: i32,
     pub category_id: i32,
@@ -77,6 +84,7 @@ pub struct FleetListItemDto {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct PaginatedFleetsDto {
     pub fleets: Vec<FleetListItemDto>,
     pub total: u64,
