@@ -6,17 +6,60 @@ use crate::{
 };
 
 use super::{
+    super::{ConfigTab, ValidationErrorData},
     duration::validate_duration_input,
-    tabs::{AccessRolesTab, ChannelsTab, PingRolesTab},
-    types::{ConfigTab, FormFieldsData, ValidationErrorsData},
+    tab::{AccessRolesTab, ChannelsTab, PingRolesTab},
 };
+
+/// Role data
+#[derive(Clone, PartialEq)]
+pub struct RoleData {
+    pub id: u64,
+    pub name: String,
+    pub color: String,
+    pub position: i16,
+}
+
+/// Channel data
+#[derive(Clone, PartialEq)]
+pub struct ChannelData {
+    pub id: u64,
+    pub name: String,
+    pub position: i32,
+}
+
+/// Access role with permissions
+#[derive(Clone, PartialEq)]
+pub struct AccessRoleData {
+    pub role: RoleData,
+    pub can_view: bool,
+    pub can_create: bool,
+    pub can_manage: bool,
+}
+
+/// Form field values
+#[derive(Clone, Default, PartialEq)]
+pub struct FormFieldData {
+    pub category_name: String,
+    pub ping_format_id: Option<i32>,
+    pub search_query: String,
+    pub ping_cooldown_str: String,
+    pub ping_reminder_str: String,
+    pub max_pre_ping_str: String,
+    pub active_tab: ConfigTab,
+    pub role_search_query: String,
+    pub channel_search_query: String,
+    pub access_roles: Vec<AccessRoleData>,
+    pub ping_roles: Vec<RoleData>,
+    pub channels: Vec<ChannelData>,
+}
 
 /// Reusable form fields component for fleet category forms
 #[component]
 pub fn FleetCategoryFormFields(
     guild_id: u64,
-    mut form_fields: Signal<FormFieldsData>,
-    validation_errors: Signal<ValidationErrorsData>,
+    mut form_fields: Signal<FormFieldData>,
+    validation_errors: Signal<ValidationErrorData>,
     is_submitting: bool,
     ping_formats: Signal<Vec<PingFormatDto>>,
 ) -> Element {
@@ -251,7 +294,7 @@ pub fn FleetCategoryFormFields(
 #[component]
 fn ConfigurationTabs(
     guild_id: u64,
-    mut form_fields: Signal<FormFieldsData>,
+    mut form_fields: Signal<FormFieldData>,
     is_submitting: bool,
 ) -> Element {
     let active_tab = form_fields().active_tab;

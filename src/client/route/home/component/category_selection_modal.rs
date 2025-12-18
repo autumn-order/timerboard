@@ -1,16 +1,21 @@
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
 
-use super::ManageableCategoriesCache;
+use crate::client::{component::Modal, route::home::ManageableCategoriesCache};
 
 #[cfg(feature = "web")]
 use crate::client::api::user::get_user_manageable_categories;
 
+/// Modal for selecting which fleet category to create a fleet in
 #[component]
-pub fn CreateFleetButton(guild_id: u64, mut show_create_modal: Signal<bool>) -> Element {
-    // Use shared cache
+pub fn CategorySelectionModal(
+    guild_id: u64,
+    mut show: Signal<bool>,
+    on_category_selected: EventHandler<i32>,
+) -> Element {
     let mut cache = use_context::<Signal<ManageableCategoriesCache>>();
 
+    // Fetch categories only if not cached or guild changed
     #[cfg(feature = "web")]
     {
         let mut should_fetch = use_signal(|| false);
@@ -66,20 +71,53 @@ pub fn CreateFleetButton(guild_id: u64, mut show_create_modal: Signal<bool>) -> 
         });
     }
 
-    let can_create = cache
+    let categories = cache
         .read()
         .data
         .as_ref()
         .and_then(|result| result.as_ref().ok())
-        .map(|categories| !categories.is_empty())
-        .unwrap_or(false);
+        .cloned()
+        .unwrap_or_default();
 
     rsx! {
-        if can_create {
-            button {
-                class: "btn btn-primary w-full",
-                onclick: move |_| show_create_modal.set(true),
-                "Create Fleet"
+        Modal {
+            show,
+            title: "Select Fleet Category",
+            prevent_close: false,
+            div {
+                class: "space-y-4",
+                if categories.is_empty() {
+                    div {
+                        class: "text-center py-8",
+                        p {
+                            class: "text-base-content/70",
+                            "No categories available for fleet creation."
+                        }
+                    }
+                } else {
+                    div {
+                        class: "grid grid-cols-1 gap-3 max-h-96 overflow-y-auto",
+                        for category in categories {
+                            {
+                                let category_id = category.id;
+                                let category_name = category.name.clone();
+                                rsx! {
+                                    button {
+                                        key: "{category_id}",
+                                        class: "block w-full text-left p-4 rounded-box border border-base-300 hover:bg-base-200 hover:border-primary transition-all",
+                                        onclick: move |_| {
+                                            on_category_selected.call(category_id);
+                                        },
+                                        div {
+                                            class: "font-medium text-lg",
+                                            "{category_name}"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

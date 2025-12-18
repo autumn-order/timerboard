@@ -9,7 +9,7 @@ use crate::{
     model::category::PaginatedFleetCategoriesDto,
 };
 
-use super::modals::EditCategoryModal;
+use super::modal::EditCategoryModal;
 
 #[cfg(feature = "web")]
 use crate::client::api::category::delete_fleet_category;

@@ -3,7 +3,7 @@ use dioxus::prelude::*;
 use crate::client::component::{DropdownItem, SearchableDropdown, SelectedItem, SelectedItemsList};
 use crate::model::discord::DiscordGuildChannelDto;
 
-use super::super::types::{ChannelData, FormFieldsData};
+use super::super::form_field::{ChannelData, FormFieldData};
 
 #[cfg(feature = "web")]
 use crate::client::api::discord::get_discord_guild_channels;
@@ -11,7 +11,7 @@ use crate::client::api::discord::get_discord_guild_channels;
 #[component]
 pub fn ChannelsTab(
     guild_id: u64,
-    mut form_fields: Signal<FormFieldsData>,
+    mut form_fields: Signal<FormFieldData>,
     is_submitting: bool,
 ) -> Element {
     let mut available_channels = use_signal(Vec::<DiscordGuildChannelDto>::new);

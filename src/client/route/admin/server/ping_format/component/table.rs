@@ -9,7 +9,7 @@ use crate::{
     model::ping_format::PaginatedPingFormatsDto,
 };
 
-use super::modals::EditPingFormatModal;
+use super::modal::EditPingFormatModal;
 
 #[cfg(feature = "web")]
 use crate::client::api::ping_format::delete_ping_format;

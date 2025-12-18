@@ -1,8 +1,8 @@
 pub mod server;
-pub mod users;
+pub mod user;
 
 pub use server::{ServerAdminFleetCategory, ServerAdminPingFormat};
-pub use users::AdminUsers;
+pub use user::AdminUsers;
 
 use dioxus::prelude::*;
 use dioxus_logger::tracing;

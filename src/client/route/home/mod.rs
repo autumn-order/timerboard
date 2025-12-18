@@ -1,12 +1,4 @@
-mod category_selection_modal;
-mod create_fleet_button;
-mod fleet_modals;
-mod fleet_table;
-
-pub use category_selection_modal::CategorySelectionModal;
-pub use create_fleet_button::CreateFleetButton;
-pub use fleet_modals::{FleetCreationModal, FleetViewEditModal};
-pub use fleet_table::FleetTable;
+mod component;
 
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
@@ -17,6 +9,9 @@ use crate::{
         component::page::{ErrorPage, LoadingPage, Page},
         constant::SITE_NAME,
         model::error::ApiError,
+        route::home::component::{
+            CategorySelectionModal, CreateFleetButton, FleetCreationModal, FleetTable,
+        },
     },
     model::{
         category::{FleetCategoryDetailsDto, FleetCategoryListItemDto},

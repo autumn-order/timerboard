@@ -5,9 +5,9 @@ use dioxus_logger::tracing;
 use crate::{client::component::FullScreenModal, model::ping_format::PingFormatDto};
 
 use super::{
+    super::ValidationErrorData,
     duration::{format_duration, parse_duration, validate_duration_input},
-    form_fields::FleetCategoryFormFields,
-    FormFieldsData, ValidationErrorsData,
+    form_field::{AccessRoleData, ChannelData, FleetCategoryFormFields, FormFieldData, RoleData},
 };
 
 #[cfg(feature = "web")]
@@ -31,7 +31,7 @@ struct DurationFields {
     max_pre_ping: Option<Duration>,
 }
 
-impl ValidationErrorsData {
+impl ValidationErrorData {
     fn has_errors(&self) -> bool {
         self.ping_cooldown.is_some() || self.ping_reminder.is_some() || self.max_pre_ping.is_some()
     }
@@ -43,9 +43,9 @@ pub fn CreateCategoryModal(
     mut show: Signal<bool>,
     mut refetch_trigger: Signal<u32>,
 ) -> Element {
-    let mut form_fields = use_signal(FormFieldsData::default);
+    let mut form_fields = use_signal(FormFieldData::default);
     let mut submit_data = use_signal(|| (String::new(), DurationFields::default()));
-    let mut validation_errors = use_signal(ValidationErrorsData::default);
+    let mut validation_errors = use_signal(ValidationErrorData::default);
     let mut should_submit = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     let mut ping_formats = use_signal(Vec::<PingFormatDto>::new);
@@ -70,9 +70,9 @@ pub fn CreateCategoryModal(
     // Reset form when modal opens (clears data from previous use)
     use_effect(move || {
         if show() {
-            form_fields.set(FormFieldsData::default());
+            form_fields.set(FormFieldData::default());
             submit_data.set((String::new(), DurationFields::default()));
-            validation_errors.set(ValidationErrorsData::default());
+            validation_errors.set(ValidationErrorData::default());
             should_submit.set(false);
             error.set(None);
         }
@@ -175,7 +175,7 @@ pub fn CreateCategoryModal(
         }
 
         // Validate all duration fields before submitting
-        let errors = ValidationErrorsData {
+        let errors = ValidationErrorData {
             ping_cooldown: validate_duration_input(&fields.ping_cooldown_str),
             ping_reminder: validate_duration_input(&fields.ping_reminder_str),
             max_pre_ping: validate_duration_input(&fields.max_pre_ping_str),
@@ -262,9 +262,9 @@ pub fn EditCategoryModal(
     category_id: Signal<Option<i32>>,
     mut refetch_trigger: Signal<u32>,
 ) -> Element {
-    let mut form_fields = use_signal(FormFieldsData::default);
+    let mut form_fields = use_signal(FormFieldData::default);
     let mut submit_data = use_signal(|| (0i32, String::new(), DurationFields::default()));
-    let mut validation_errors = use_signal(ValidationErrorsData::default);
+    let mut validation_errors = use_signal(ValidationErrorData::default);
     let mut should_submit = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     let mut ping_formats = use_signal(Vec::<PingFormatDto>::new);
@@ -299,9 +299,7 @@ pub fn EditCategoryModal(
     #[cfg(feature = "web")]
     use_effect(move || {
         if let Some(Some(category)) = category_future.read_unchecked().as_ref() {
-            use super::types::{AccessRoleData, ChannelData, RoleData};
-
-            form_fields.set(FormFieldsData {
+            form_fields.set(FormFieldData {
                 category_name: category.name.clone(),
                 ping_format_id: Some(category.ping_format_id),
                 search_query: String::new(),
@@ -359,7 +357,7 @@ pub fn EditCategoryModal(
                     .collect(),
             });
             submit_data.write().0 = category.id;
-            validation_errors.set(ValidationErrorsData::default());
+            validation_errors.set(ValidationErrorData::default());
             error.set(None);
         }
     });
@@ -370,11 +368,11 @@ pub fn EditCategoryModal(
             // Reset submission state and errors
             should_submit.set(false);
             error.set(None);
-            validation_errors.set(ValidationErrorsData::default());
+            validation_errors.set(ValidationErrorData::default());
 
             // If there's no category_id, reset form fields (shouldn't happen in edit modal)
             if category_id().is_none() {
-                form_fields.set(FormFieldsData::default());
+                form_fields.set(FormFieldData::default());
                 submit_data.set((0i32, String::new(), DurationFields::default()));
             }
             // The category_future resource will populate the form fields
@@ -478,7 +476,7 @@ pub fn EditCategoryModal(
         }
 
         // Validate all duration fields before submitting
-        let errors = ValidationErrorsData {
+        let errors = ValidationErrorData {
             ping_cooldown: validate_duration_input(&fields.ping_cooldown_str),
             ping_reminder: validate_duration_input(&fields.ping_reminder_str),
             max_pre_ping: validate_duration_input(&fields.max_pre_ping_str),

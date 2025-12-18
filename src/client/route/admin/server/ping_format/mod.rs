@@ -1,5 +1,4 @@
-mod modals;
-mod table;
+mod component;
 
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
@@ -18,8 +17,10 @@ use crate::{
     model::discord::DiscordGuildDto,
 };
 
-use modals::CreatePingFormatModal;
-use table::{PingFormatPagination, PingFormatsTable};
+use component::{
+    modal::CreatePingFormatModal,
+    table::{PingFormatPagination, PingFormatsTable},
+};
 
 #[cfg(feature = "web")]
 use crate::client::api::{discord_guild::get_discord_guild_by_id, ping_format::get_ping_formats};

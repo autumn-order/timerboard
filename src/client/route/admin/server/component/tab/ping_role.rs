@@ -3,15 +3,15 @@ use dioxus::prelude::*;
 use crate::client::component::{DropdownItem, SearchableDropdown, SelectedItem, SelectedItemsList};
 use crate::model::discord::DiscordGuildRoleDto;
 
-use super::super::types::{AccessRoleData, FormFieldsData, RoleData};
+use super::super::form_field::{FormFieldData, RoleData};
 
 #[cfg(feature = "web")]
 use crate::client::api::discord::get_discord_guild_roles;
 
 #[component]
-pub fn AccessRolesTab(
+pub fn PingRolesTab(
     guild_id: u64,
-    mut form_fields: Signal<FormFieldsData>,
+    mut form_fields: Signal<FormFieldData>,
     is_submitting: bool,
 ) -> Element {
     let mut available_roles = use_signal(Vec::<DiscordGuildRoleDto>::new);
@@ -47,15 +47,11 @@ pub fn AccessRolesTab(
     let filtered_roles = use_memo(move || {
         let roles = available_roles();
         let query = role_search_query().to_lowercase();
-        let access_role_ids: Vec<u64> = form_fields()
-            .access_roles
-            .iter()
-            .map(|ar| ar.role.id)
-            .collect();
+        let ping_role_ids: Vec<u64> = form_fields().ping_roles.iter().map(|r| r.id).collect();
 
         let mut filtered: Vec<_> = roles
             .into_iter()
-            .filter(|r| !access_role_ids.contains(&r.role_id))
+            .filter(|r| !ping_role_ids.contains(&r.role_id))
             .filter(|r| {
                 if query.is_empty() {
                     true
@@ -70,10 +66,10 @@ pub fn AccessRolesTab(
         filtered
     });
 
-    // Sort access roles by position (descending - higher position first)
-    let sorted_access_roles = use_memo(move || {
-        let mut roles = form_fields().access_roles.clone();
-        roles.sort_by_key(|ar| std::cmp::Reverse(ar.role.position));
+    // Sort ping roles by position (descending - higher position first)
+    let sorted_ping_roles = use_memo(move || {
+        let mut roles = form_fields().ping_roles.clone();
+        roles.sort_by_key(|r| std::cmp::Reverse(r.position));
         roles
     });
 
@@ -85,7 +81,7 @@ pub fn AccessRolesTab(
                 class: "form-control flex flex-col gap-2",
                 label {
                     class: "label",
-                    span { class: "label-text", "Add Access Role" }
+                    span { class: "label-text", "Add Ping Role" }
                 }
                 SearchableDropdown {
                     search_query: role_search_query,
@@ -109,13 +105,7 @@ pub fn AccessRolesTab(
                                             color: role.color.clone(),
                                             position: role.position,
                                         };
-                                        let new_access_role = AccessRoleData {
-                                            role: new_role,
-                                            can_view: true,
-                                            can_create: false,
-                                            can_manage: false,
-                                        };
-                                        form_fields.write().access_roles.push(new_access_role);
+                                        form_fields.write().ping_roles.push(new_role);
                                         role_search_query.set(String::new());
                                         role_dropdown_open.set(false);
                                     },
@@ -134,27 +124,24 @@ pub fn AccessRolesTab(
                 }
             }
 
-            // List of access roles with scrollable container
+            // List of ping roles with scrollable container
             SelectedItemsList {
-                label: "Configured Access Roles".to_string(),
-                empty_message: "No access roles configured. Add roles to control who can view, create, or manage fleets in this category.".to_string(),
-                is_empty: sorted_access_roles().is_empty(),
-                for access_role in sorted_access_roles() {
+                label: "Configured Ping Roles".to_string(),
+                empty_message: "No ping roles configured. Add roles to specify who gets notified about fleets in this category.".to_string(),
+                is_empty: sorted_ping_roles().is_empty(),
+                for role in sorted_ping_roles() {
                     {
-                        let role_id = access_role.role.id;
-                        let role_name = access_role.role.name.clone();
-                        let role_color = access_role.role.color.clone();
-                        let can_view = access_role.can_view;
-                        let can_create = access_role.can_create;
-                        let can_manage = access_role.can_manage;
+                        let role_id = role.id;
+                        let role_name = role.name.clone();
+                        let role_color = role.color.clone();
                         // Find the actual index in form_fields
-                        let actual_index = form_fields().access_roles.iter().position(|ar| ar.role.id == role_id).unwrap_or(0);
+                        let actual_index = form_fields().ping_roles.iter().position(|r| r.id == role_id).unwrap_or(0);
                         rsx! {
                             SelectedItem {
                                 key: "{role_id}",
                                 disabled: is_submitting,
                                 on_remove: move |_| {
-                                    form_fields.write().access_roles.remove(actual_index);
+                                    form_fields.write().ping_roles.remove(actual_index);
                                 },
                                 div {
                                     class: "w-4 h-4 rounded flex-shrink-0",
@@ -163,48 +150,6 @@ pub fn AccessRolesTab(
                                 div {
                                     class: "flex-1 font-medium",
                                     "{role_name}"
-                                }
-                                div {
-                                    class: "flex gap-4",
-                                    label {
-                                        class: "label cursor-pointer gap-2",
-                                        span { class: "label-text text-xs", "View" }
-                                        input {
-                                            r#type: "checkbox",
-                                            class: "checkbox checkbox-sm [transition:none]",
-                                            checked: can_view,
-                                            disabled: is_submitting,
-                                            onchange: move |evt| {
-                                                form_fields.write().access_roles[actual_index].can_view = evt.checked();
-                                            }
-                                        }
-                                    }
-                                    label {
-                                        class: "label cursor-pointer gap-2",
-                                        span { class: "label-text text-xs", "Create" }
-                                        input {
-                                            r#type: "checkbox",
-                                            class: "checkbox checkbox-sm [transition:none]",
-                                            checked: can_create,
-                                            disabled: is_submitting,
-                                            onchange: move |evt| {
-                                                form_fields.write().access_roles[actual_index].can_create = evt.checked();
-                                            }
-                                        }
-                                    }
-                                    label {
-                                        class: "label cursor-pointer gap-2",
-                                        span { class: "label-text text-xs", "Manage" }
-                                        input {
-                                            r#type: "checkbox",
-                                            class: "checkbox checkbox-sm [transition:none]",
-                                            checked: can_manage,
-                                            disabled: is_submitting,
-                                            onchange: move |evt| {
-                                                form_fields.write().access_roles[actual_index].can_manage = evt.checked();
-                                            }
-                                        }
-                                    }
                                 }
                             }
                         }
