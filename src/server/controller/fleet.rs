@@ -251,11 +251,13 @@ pub async fn get_fleets(
         FleetService::new(&state.db, state.discord_http.clone(), state.app_url.clone());
     let fleets = fleet_service
         .get_paginated_by_guild(
-            guild_id,
-            user_id,
-            user.admin,
-            pagination.page,
-            pagination.per_page,
+            crate::server::model::fleet::GetPaginatedFleetsByGuildParam {
+                guild_id,
+                user_id,
+                is_admin: user.admin,
+                page: pagination.page,
+                per_page: pagination.per_page,
+            },
         )
         .await?;
 

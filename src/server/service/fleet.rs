@@ -1,3 +1,15 @@
+//! Fleet service for managing fleet operations.
+//!
+//! This module provides the `FleetService` for handling fleet CRUD operations,
+//! including creation, retrieval, updates, and deletion. It orchestrates between
+//! the data layer, permission checks, Discord notifications, and fleet visibility rules.
+//!
+//! Fleet visibility is governed by category permissions and hidden fleet rules:
+//! - Users must have at least view permission for a category to see its fleets
+//! - Hidden fleets are only visible to users with create/manage permissions OR
+//!   after the reminder time has elapsed (or fleet start time if no reminder)
+//! - Admins bypass all visibility restrictions
+
 use chrono::{DateTime, NaiveDateTime, Utc};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serenity::http::Http;
@@ -11,14 +23,21 @@ use crate::{
     server::{
         data::{category::FleetCategoryRepository, fleet::FleetRepository},
         error::AppError,
-        model::fleet::{CreateFleetParams, UpdateFleetParams},
+        model::fleet::{CreateFleetParams, GetPaginatedFleetsByGuildParam, UpdateFleetParams},
         service::fleet_notification::FleetNotificationService,
     },
 };
 
+/// Service for managing fleet operations.
+///
+/// Handles fleet creation, retrieval, updates, and deletion with integrated
+/// permission checks, visibility rules, and Discord notification orchestration.
 pub struct FleetService<'a> {
+    /// Database connection for fleet operations.
     db: &'a DatabaseConnection,
+    /// Discord HTTP client for notification operations.
     discord_http: Arc<Http>,
+    /// Base application URL for embedding links in notifications.
     app_url: String,
 }
 
@@ -31,24 +50,22 @@ impl<'a> FleetService<'a> {
         }
     }
 
-    /// Creates a new fleet
+    /// Creates a new fleet with time validation and Discord notifications.
+    ///
+    /// Creates a fleet after validating the time is not in the past (with 2-minute grace
+    /// period) and checking for conflicts with category cooldown settings. Posts a creation
+    /// notification to Discord and returns the enriched fleet data.
     ///
     /// # Arguments
-    /// - `dto`: Fleet creation data
-    /// - `is_admin`: Whether the creating user is an admin (bypasses permission checks when fetching result)
+    /// - `dto` - Fleet creation data including category, time, commander, and field values
+    /// - `is_admin` - Whether the creating user is an admin for permission checks on result
     ///
     /// # Returns
-    /// - `Ok(FleetDto)`: The created fleet with enriched data
-    /// - `Err(AppError)`: Validation or database error
-    ///
-    /// # Time Validation
-    /// Fleet times are validated with a 2-minute grace period. Times up to 2 minutes in the
-    /// past are accepted to handle form fill time and clock skew between client and server.
-    ///
-    /// # Note
-    /// The returned fleet is fetched using the commander's user_id, so visibility rules apply.
-    /// However, since the commander has create permission (or is admin), they will always be
-    /// able to see their own newly created fleet (even if marked as hidden).
+    /// - `Ok(FleetDto)` - Created fleet with enriched data (category name, commander name)
+    /// - `Err(AppError::BadRequest(_))` - Time validation failed or conflict with cooldown
+    /// - `Err(AppError::NotFound(_))` - Category not found
+    /// - `Err(AppError::InternalError(_))` - Discord notification or data fetch failed
+    /// - `Err(AppError::Database(_))` - Database operation failed
     pub async fn create(&self, dto: CreateFleetDto, is_admin: bool) -> Result<FleetDto, AppError> {
         let repo = FleetRepository::new(self.db);
 
@@ -96,26 +113,23 @@ impl<'a> FleetService<'a> {
             .ok_or_else(|| AppError::NotFound("Fleet not found after creation".to_string()))
     }
 
-    /// Gets a fleet by ID with enriched data (category name, commander name, field values)
+    /// Retrieves a fleet by ID with enriched data and permission filtering.
+    ///
+    /// Fetches fleet with category name, commander display name, and field values.
+    /// Applies visibility rules based on user permissions and fleet hidden status.
     ///
     /// # Arguments
-    /// - `id`: Fleet ID
-    /// - `guild_id`: Discord guild ID (for fetching commander nickname and permission checks)
-    /// - `user_id`: User requesting the fleet (for permission checks)
-    /// - `is_admin`: Whether the user is an admin (bypasses all permission checks)
-    ///
-    /// # Visibility Rules
-    /// The fleet is returned only if:
-    /// 1. User has at least one permission (view, create, or manage) for the fleet's category
-    /// 2. If the fleet is hidden:
-    ///    - User has create OR manage permission for the category, OR
-    ///    - The reminder time has elapsed (or fleet start time if no reminder configured)
-    /// 3. Admins bypass all restrictions
+    /// - `id` - Fleet ID to retrieve
+    /// - `guild_id` - Discord guild ID for fetching commander nickname and permissions
+    /// - `user_id` - Discord user ID for permission checks
+    /// - `is_admin` - Whether the user is an admin (bypasses all permission checks)
     ///
     /// # Returns
-    /// - `Ok(Some(FleetDto))`: The fleet with enriched data (user has permission to view)
-    /// - `Ok(None)`: Fleet not found or user doesn't have permission to view it
-    /// - `Err(AppError)`: Database error
+    /// - `Ok(Some(FleetDto))` - Fleet with enriched data (user has permission to view)
+    /// - `Ok(None)` - Fleet not found or user lacks permission to view it
+    /// - `Err(AppError::NotFound(_))` - Related entity (category, commander) not found
+    /// - `Err(AppError::InternalError(_))` - Failed to parse IDs or fetch guild member
+    /// - `Err(AppError::Database(_))` - Database operation failed
     pub async fn get_by_id(
         &self,
         id: i32,
@@ -239,59 +253,45 @@ impl<'a> FleetService<'a> {
         }
     }
 
-    /// Gets paginated fleets for a guild
+    /// Retrieves paginated fleets for a guild with permission filtering.
     ///
-    /// # Visibility Rules
-    /// Returns fleets filtered by:
-    /// 1. **Category Permissions**: User must have at least one permission (view, create, or manage) for the category
-    /// 2. **Time Filter**: Excludes fleets older than 1 hour from current time
-    /// 3. **Hidden Fleet Visibility**: If a fleet is marked as `hidden`:
-    ///    - User has create OR manage permission for the category, OR
-    ///    - The category's reminder time has elapsed (calculated as fleet_time - ping_reminder), OR
-    ///    - If no reminder is configured, the fleet start time has passed
-    /// 4. **Admin Override**: Admins bypass all category permission and visibility filtering
+    /// Returns fleets filtered by category permissions, time (excludes fleets >1 hour old),
+    /// and hidden fleet visibility rules. Enriches each fleet with category and commander names.
     ///
     /// # Arguments
-    /// - `guild_id`: Discord guild ID
-    /// - `user_id`: Discord user ID for permission filtering
-    /// - `is_admin`: Whether the user is an admin (bypasses all filtering)
-    /// - `page`: Page number (0-indexed)
-    /// - `per_page`: Number of items per page
+    /// - `params` - Guild ID, user ID, admin status, and pagination configuration
     ///
     /// # Returns
-    /// - `Ok(PaginatedFleetsDto)`: Paginated fleet list with enriched data
-    /// - `Err(AppError)`: Database error
+    /// - `Ok(PaginatedFleetsDto)` - Paginated list of fleets with total count and page info
+    /// - `Err(AppError::InternalError(_))` - Failed to parse IDs or fetch guild member
+    /// - `Err(AppError::Database(_))` - Database operation failed
     pub async fn get_paginated_by_guild(
         &self,
-        guild_id: u64,
-        user_id: u64,
-        is_admin: bool,
-        page: u64,
-        per_page: u64,
+        params: GetPaginatedFleetsByGuildParam,
     ) -> Result<PaginatedFleetsDto, AppError> {
         let repo = FleetRepository::new(self.db);
         let category_repo = FleetCategoryRepository::new(self.db);
 
         // Get viewable category IDs for non-admin users
-        let viewable_category_ids = if is_admin {
+        let viewable_category_ids = if params.is_admin {
             None // Admins can view all categories
         } else {
             Some(
                 category_repo
-                    .get_viewable_category_ids_by_user(user_id, guild_id)
+                    .get_viewable_category_ids_by_user(params.user_id, params.guild_id)
                     .await?,
             )
         };
 
         // Get categories where user has create or manage permissions (can see hidden fleets)
-        let manageable_category_ids = if is_admin {
+        let manageable_category_ids = if params.is_admin {
             None // Admins can see all hidden fleets
         } else {
             let create_ids = category_repo
-                .get_creatable_category_ids_by_user(user_id, guild_id)
+                .get_creatable_category_ids_by_user(params.user_id, params.guild_id)
                 .await?;
             let manage_ids = category_repo
-                .get_manageable_category_ids_by_user(user_id, guild_id)
+                .get_manageable_category_ids_by_user(params.user_id, params.guild_id)
                 .await?;
 
             // Combine create and manage IDs
@@ -301,11 +301,16 @@ impl<'a> FleetService<'a> {
         };
 
         let (fleets, total) = repo
-            .get_paginated_by_guild(guild_id, page, per_page, viewable_category_ids)
+            .get_paginated_by_guild(
+                params.guild_id,
+                params.page,
+                params.per_page,
+                viewable_category_ids,
+            )
             .await?;
 
-        let total_pages = if per_page > 0 {
-            (total as f64 / per_page as f64).ceil() as u64
+        let total_pages = if params.per_page > 0 {
+            (total as f64 / params.per_page as f64).ceil() as u64
         } else {
             0
         };
@@ -318,7 +323,7 @@ impl<'a> FleetService<'a> {
             // Filter hidden fleets based on permissions
             if fleet.hidden {
                 // Check if user can see hidden fleets in this category
-                let can_see_hidden = is_admin
+                let can_see_hidden = params.is_admin
                     || manageable_category_ids
                         .as_ref()
                         .map(|ids| ids.contains(&fleet.category_id))
@@ -372,7 +377,7 @@ impl<'a> FleetService<'a> {
                 use crate::server::data::discord::DiscordGuildMemberRepository;
                 let member_repo = DiscordGuildMemberRepository::new(self.db);
                 let commander_display_name = if let Ok(Some(member)) =
-                    member_repo.get_member(commander_id, guild_id).await
+                    member_repo.get_member(commander_id, params.guild_id).await
                 {
                     member.nickname.unwrap_or(member.username)
                 } else {
@@ -396,33 +401,32 @@ impl<'a> FleetService<'a> {
         Ok(PaginatedFleetsDto {
             fleets: fleet_list,
             total,
-            page,
-            per_page,
+            page: params.page,
+            per_page: params.per_page,
             total_pages,
         })
     }
 
-    /// Updates a fleet
+    /// Updates a fleet with time validation and Discord notification updates.
+    ///
+    /// Updates fleet properties after validating time constraints and checking for cooldown
+    /// conflicts. For fleets not yet started, validates new time is not too far in past.
+    /// For started fleets, ensures new time is not earlier than original. Updates Discord
+    /// messages with new information.
     ///
     /// # Arguments
-    /// - `id`: Fleet ID
-    /// - `guild_id`: Guild ID (for authorization check)
-    /// - `user_id`: User ID performing the update (for fetching the result with visibility rules)
-    /// - `is_admin`: Whether the user is an admin (bypasses visibility rules when fetching result)
-    /// - `dto`: Update data
-    ///
-    /// # Time Validation
-    /// For fleets not yet started, new times are validated with a 2-minute grace period.
-    /// Times up to 2 minutes in the past are accepted to handle form fill time and clock skew.
-    /// For fleets already started (original time in past), times cannot be set earlier than original.
-    ///
-    /// # Note
-    /// The returned fleet respects visibility rules (see `get_by_id` for details).
-    /// Authorization to update must be checked by the controller before calling this method.
+    /// - `id` - Fleet ID to update
+    /// - `guild_id` - Discord guild ID for authorization verification
+    /// - `user_id` - Discord user ID for fetching result with visibility rules
+    /// - `is_admin` - Whether the user is an admin (bypasses visibility rules on result)
+    /// - `dto` - Update data including new time, name, description, and field values
     ///
     /// # Returns
-    /// - `Ok(FleetDto)`: The updated fleet with enriched data
-    /// - `Err(AppError)`: Validation, authorization, or database error
+    /// - `Ok(FleetDto)` - Updated fleet with enriched data
+    /// - `Err(AppError::NotFound(_))` - Fleet, category, or commander not found
+    /// - `Err(AppError::BadRequest(_))` - Time validation failed or conflict with cooldown
+    /// - `Err(AppError::InternalError(_))` - Discord notification or ID parsing failed
+    /// - `Err(AppError::Database(_))` - Database operation failed
     pub async fn update(
         &self,
         id: i32,
@@ -513,16 +517,20 @@ impl<'a> FleetService<'a> {
         Err(AppError::NotFound("Fleet not found".to_string()))
     }
 
-    /// Deletes a fleet
+    /// Deletes a fleet and cancels its Discord notifications.
+    ///
+    /// Verifies the fleet belongs to the specified guild before deletion and cancels
+    /// all associated Discord messages (creation and reminder notifications).
     ///
     /// # Arguments
-    /// - `id`: Fleet ID
-    /// - `guild_id`: Guild ID (for authorization check)
+    /// - `id` - Fleet ID to delete
+    /// - `guild_id` - Discord guild ID for authorization verification
     ///
     /// # Returns
-    /// - `Ok(true)`: Fleet deleted
-    /// - `Ok(false)`: Fleet not found or doesn't belong to guild
-    /// - `Err(AppError)`: Database error
+    /// - `Ok(true)` - Fleet was deleted successfully
+    /// - `Ok(false)` - Fleet not found or doesn't belong to guild
+    /// - `Err(AppError::InternalError(_))` - Discord notification cancellation failed
+    /// - `Err(AppError::Database(_))` - Database operation failed
     pub async fn delete(&self, id: i32, guild_id: u64) -> Result<bool, AppError> {
         let repo = FleetRepository::new(self.db);
 
@@ -559,39 +567,35 @@ impl<'a> FleetService<'a> {
         Ok(false)
     }
 
-    /// Parses fleet time from "YYYY-MM-DD HH:MM" format or "now" to DateTime<Utc>
+    /// Parses fleet time from string format with validation.
     ///
-    /// Validates that the fleet time is not in the past.
+    /// Accepts "YYYY-MM-DD HH:MM" format or "now" (case-insensitive). Validates the
+    /// time is not more than 2 minutes in the past to account for form fill time and
+    /// clock skew.
     ///
     /// # Arguments
-    /// - `time_str`: Time string in format "YYYY-MM-DD HH:MM" or "now" (case-insensitive)
+    /// - `time_str` - Time string in format "YYYY-MM-DD HH:MM" or "now"
     ///
     /// # Returns
-    /// - `Ok(DateTime<Utc>)`: Parsed datetime
-    /// - `Err(AppError)`: Invalid format or time is more than 2 minutes in the past
-    ///
-    /// # Grace Period
-    /// Allows times up to 2 minutes in the past to handle:
-    /// - Time spent filling out the form
-    /// - Clock skew between client and server
+    /// - `Ok(DateTime<Utc>)` - Parsed and validated datetime
+    /// - `Err(AppError::BadRequest(_))` - Invalid format or time too far in past
     fn parse_fleet_time(time_str: &str) -> Result<DateTime<Utc>, Box<AppError>> {
         Self::parse_fleet_time_with_min(time_str, None)
     }
 
-    /// Parse fleet time with optional minimum time for edit validation
+    /// Parses fleet time with optional minimum time constraint for updates.
+    ///
+    /// For new fleets or future-scheduled fleets being updated, validates time is not
+    /// more than 2 minutes in the past. For fleets already started (min_time in past),
+    /// ensures new time is not earlier than the original time.
     ///
     /// # Arguments
-    /// - `time_str`: Time string in format "YYYY-MM-DD HH:MM" or "now"
-    /// - `min_time`: Optional minimum time (for edits where original time is in the past)
+    /// - `time_str` - Time string in format "YYYY-MM-DD HH:MM" or "now" (case-insensitive)
+    /// - `min_time` - Optional minimum time for updates (original fleet time)
     ///
     /// # Returns
-    /// - `Ok(DateTime<Utc>)`: Parsed fleet time
-    /// - `Err(AppError)`: Invalid format or time validation failure
-    ///
-    /// # Grace Period
-    /// Allows times up to 2 minutes in the past (when min_time is not provided) to handle:
-    /// - Time spent filling out the form
-    /// - Clock skew between client and server
+    /// - `Ok(DateTime<Utc>)` - Parsed and validated datetime
+    /// - `Err(AppError::BadRequest(_))` - Invalid format or time validation failed
     fn parse_fleet_time_with_min(
         time_str: &str,
         min_time: Option<DateTime<Utc>>,
@@ -640,19 +644,22 @@ impl<'a> FleetService<'a> {
         Ok(fleet_time)
     }
 
-    /// Validates that a fleet time doesn't conflict with existing fleets in the same category
+    /// Validates fleet time doesn't conflict with category cooldown settings.
     ///
-    /// Checks if the category has a `ping_cooldown` setting and validates that no other
-    /// fleet in the same category is scheduled within that time window.
+    /// Checks if the category has a ping_cooldown configured and ensures no other fleet
+    /// in the same category is scheduled within the cooldown window (before or after the
+    /// proposed time).
     ///
     /// # Arguments
-    /// - `category_id`: The category ID to check
-    /// - `fleet_time`: The proposed fleet time
-    /// - `exclude_fleet_id`: Optional fleet ID to exclude from check (for updates)
+    /// - `category_id` - Category ID to check for conflicts
+    /// - `fleet_time` - Proposed fleet time
+    /// - `exclude_fleet_id` - Optional fleet ID to exclude from check (for updates)
     ///
     /// # Returns
-    /// - `Ok(())`: No conflicts found
-    /// - `Err(AppError)`: Conflict found or database error
+    /// - `Ok(())` - No conflicts found
+    /// - `Err(AppError::NotFound(_))` - Category not found
+    /// - `Err(AppError::BadRequest(_))` - Conflict found with existing fleet
+    /// - `Err(AppError::Database(_))` - Database operation failed
     async fn validate_fleet_time_conflict(
         &self,
         category_id: i32,

@@ -101,3 +101,21 @@ pub struct UpdateFleetParams {
     /// New disable_reminder status.
     pub disable_reminder: Option<bool>,
 }
+
+/// Parameters for retrieving paginated fleets for a guild.
+///
+/// Includes guild and user context for permission filtering, admin status for
+/// bypassing restrictions, and pagination configuration.
+#[derive(Debug, Clone)]
+pub struct GetPaginatedFleetsByGuildParam {
+    /// Discord guild ID to fetch fleets for.
+    pub guild_id: u64,
+    /// Discord user ID for permission filtering.
+    pub user_id: u64,
+    /// Whether the user is an admin (bypasses all filtering).
+    pub is_admin: bool,
+    /// Page number (0-indexed).
+    pub page: u64,
+    /// Number of items per page.
+    pub per_page: u64,
+}
