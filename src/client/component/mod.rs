@@ -1,5 +1,3 @@
-pub mod confirmation_modal;
-pub mod fullscreen_modal;
 pub mod header;
 pub mod layout;
 pub mod modal;
@@ -9,8 +7,6 @@ pub mod protected_layout;
 pub mod searchable_dropdown;
 pub mod utc_datetime_input;
 
-pub use confirmation_modal::ConfirmationModal;
-pub use fullscreen_modal::FullScreenModal;
 pub use header::Header;
 pub use layout::Layout;
 pub use modal::Modal;

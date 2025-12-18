@@ -3,7 +3,7 @@ use dioxus_logger::tracing;
 
 use crate::{
     client::{
-        component::{ConfirmationModal, Pagination, PaginationData},
+        component::{modal::ConfirmationModal, Pagination, PaginationData},
         route::admin::server::FleetCategoriesCache,
     },
     model::category::PaginatedFleetCategoriesDto,

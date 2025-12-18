@@ -4,7 +4,7 @@ use dioxus_logger::tracing;
 use std::collections::HashMap;
 
 use crate::{
-    client::{component::FullScreenModal, model::error::ApiError, store::user::UserState},
+    client::{component::modal::FullScreenModal, model::error::ApiError, store::user::UserState},
     model::fleet::CreateFleetDto,
 };
 

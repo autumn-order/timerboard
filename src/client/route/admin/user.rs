@@ -4,8 +4,9 @@ use dioxus_logger::tracing;
 use crate::{
     client::{
         component::{
+            modal::ConfirmationModal,
             page::{ErrorPage, LoadingPage},
-            ConfirmationModal, DropdownItem, Modal, Page, SearchableDropdown,
+            DropdownItem, Modal, Page, SearchableDropdown,
         },
         constant::SITE_NAME,
         model::error::ApiError,

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use crate::{
     client::{
-        component::{ConfirmationModal, FullScreenModal},
+        component::modal::{ConfirmationModal, FullScreenModal},
         model::error::ApiError,
         store::user::UserState,
     },

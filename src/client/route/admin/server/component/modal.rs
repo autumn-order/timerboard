@@ -2,7 +2,7 @@ use chrono::Duration;
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
 
-use crate::{client::component::FullScreenModal, model::ping_format::PingFormatDto};
+use crate::{client::component::modal::FullScreenModal, model::ping_format::PingFormatDto};
 
 use super::{
     super::ValidationErrorData,

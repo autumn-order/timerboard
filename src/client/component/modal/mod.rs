@@ -1,4 +1,10 @@
+pub mod confirmation_modal;
+pub mod fullscreen_modal;
+
 use dioxus::prelude::*;
+
+pub use confirmation_modal::ConfirmationModal;
+pub use fullscreen_modal::FullScreenModal;
 
 #[component]
 pub fn Modal(
