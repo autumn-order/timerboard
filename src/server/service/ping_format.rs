@@ -1,13 +1,17 @@
 use sea_orm::DatabaseConnection;
 
 use crate::{
-    model::ping_format::{PaginatedPingFormatsDto, PingFormatDto, PingFormatFieldDto},
+    model::ping_format::{PaginatedPingFormatsDto, PingFormatDto},
     server::{
         data::{
             category::FleetCategoryRepository,
-            ping_format::{PingFormatFieldRepository, PingFormatRepository},
+            ping_format::{field::PingFormatFieldRepository, PingFormatRepository},
         },
         error::AppError,
+        model::ping_format::{
+            CreatePingFormatFieldParam, CreatePingFormatParam, UpdatePingFormatFieldParam,
+            UpdatePingFormatParam,
+        },
     },
 };
 
@@ -31,21 +35,22 @@ impl<'a> PingFormatService<'a> {
         let field_repo = PingFormatFieldRepository::new(self.db);
 
         // Create the ping format
-        let ping_format = format_repo.create(guild_id, name).await?;
+        let ping_format = format_repo
+            .create(CreatePingFormatParam { guild_id, name })
+            .await?;
 
         // Create all the fields
         let mut result_fields = Vec::new();
         for (field_name, priority, default_value) in fields {
             let field = field_repo
-                .create(ping_format.id, field_name, priority, default_value.clone())
+                .create(CreatePingFormatFieldParam {
+                    ping_format_id: ping_format.id,
+                    name: field_name,
+                    priority,
+                    default_value: default_value.clone(),
+                })
                 .await?;
-            result_fields.push(PingFormatFieldDto {
-                id: field.id,
-                ping_format_id: field.ping_format_id,
-                name: field.name,
-                priority: field.priority,
-                default_value: field.default_value,
-            });
+            result_fields.push(field.into_dto());
         }
 
         // Get fleet category count
@@ -113,16 +118,7 @@ impl<'a> PingFormatService<'a> {
                 id: ping_format.id,
                 guild_id,
                 name: ping_format.name,
-                fields: fields
-                    .into_iter()
-                    .map(|f| PingFormatFieldDto {
-                        id: f.id,
-                        ping_format_id: f.ping_format_id,
-                        name: f.name,
-                        priority: f.priority,
-                        default_value: f.default_value,
-                    })
-                    .collect(),
+                fields: fields.into_iter().map(|f| f.into_dto()).collect(),
                 fleet_category_count,
                 fleet_category_names,
             });
@@ -155,7 +151,9 @@ impl<'a> PingFormatService<'a> {
         }
 
         // Update the ping format
-        let ping_format = format_repo.update(id, name).await?;
+        let ping_format = format_repo
+            .update(UpdatePingFormatParam { id, name })
+            .await?;
 
         // Get existing fields
         let existing_fields = field_repo.get_by_ping_format_id(ping_format.id).await?;
@@ -168,28 +166,26 @@ impl<'a> PingFormatService<'a> {
             if let Some(id) = field_id {
                 // Update existing field
                 let field = field_repo
-                    .update(id, field_name, priority, default_value.clone())
+                    .update(UpdatePingFormatFieldParam {
+                        id,
+                        name: field_name,
+                        priority,
+                        default_value: default_value.clone(),
+                    })
                     .await?;
                 existing_field_ids.push(id);
-                updated_fields.push(PingFormatFieldDto {
-                    id: field.id,
-                    ping_format_id: field.ping_format_id,
-                    name: field.name,
-                    priority: field.priority,
-                    default_value: field.default_value,
-                });
+                updated_fields.push(field.into_dto());
             } else {
                 // Create new field
                 let field = field_repo
-                    .create(ping_format.id, field_name, priority, default_value.clone())
+                    .create(CreatePingFormatFieldParam {
+                        ping_format_id: ping_format.id,
+                        name: field_name,
+                        priority,
+                        default_value: default_value.clone(),
+                    })
                     .await?;
-                updated_fields.push(PingFormatFieldDto {
-                    id: field.id,
-                    ping_format_id: field.ping_format_id,
-                    name: field.name,
-                    priority: field.priority,
-                    default_value: field.default_value,
-                });
+                updated_fields.push(field.into_dto());
             }
         }
 
