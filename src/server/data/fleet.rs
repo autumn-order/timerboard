@@ -27,10 +27,10 @@ impl<'a> FleetRepository<'a> {
     /// Creates a new FleetRepository instance.
     ///
     /// # Arguments
-    /// - `db`: Reference to the database connection
+    /// - `db` - Reference to the database connection
     ///
     /// # Returns
-    /// - `FleetRepository`: New repository instance
+    /// - `FleetRepository` - New repository instance
     pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
@@ -42,11 +42,11 @@ impl<'a> FleetRepository<'a> {
     /// all field values are inserted within the same operation sequence.
     ///
     /// # Arguments
-    /// - `params`: Create parameters containing all fleet creation data including field values
+    /// - `params` - Create parameters containing all fleet creation data including field values
     ///
     /// # Returns
-    /// - `Ok(FleetParam)`: The created fleet with generated ID
-    /// - `Err(DbErr)`: Database error during insert operation (including foreign key violations)
+    /// - `Ok(FleetParam)` - The created fleet with generated ID
+    /// - `Err(DbErr)` - Database error during insert operation (including foreign key violations)
     pub async fn create(&self, params: CreateFleetParams) -> Result<FleetParam, DbErr> {
         // Create the fleet
         let fleet = entity::fleet::ActiveModel {
@@ -84,12 +84,12 @@ impl<'a> FleetRepository<'a> {
     /// or editing fleet details.
     ///
     /// # Arguments
-    /// - `id`: ID of the fleet to retrieve
+    /// - `id` - ID of the fleet to retrieve
     ///
     /// # Returns
-    /// - `Ok(Some((fleet, field_values)))`: Fleet param and map of field_id to value
-    /// - `Ok(None)`: No fleet found with that ID
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Some((fleet, field_values)))` - Fleet param and map of field_id to value
+    /// - `Ok(None)` - No fleet found with that ID
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_by_id(
         &self,
         id: i32,
@@ -122,14 +122,14 @@ impl<'a> FleetRepository<'a> {
     /// ascending order so upcoming fleets appear first.
     ///
     /// # Arguments
-    /// - `guild_id`: Discord guild ID as u64
-    /// - `page`: Zero-indexed page number
-    /// - `per_page`: Number of fleets to return per page
-    /// - `viewable_category_ids`: Optional list of category IDs the user can view (None means all categories - admin bypass)
+    /// - `guild_id` - Discord guild ID as u64
+    /// - `page` - Zero-indexed page number
+    /// - `per_page` - Number of fleets to return per page
+    /// - `viewable_category_ids` - Optional list of category IDs the user can view (None means all categories - admin bypass)
     ///
     /// # Returns
-    /// - `Ok((fleets, total))`: Vector of fleets for the page and total count
-    /// - `Err(DbErr)`: Database error during pagination query
+    /// - `Ok((fleets, total))` - Vector of fleets for the page and total count
+    /// - `Err(DbErr)` - Database error during pagination query
     pub async fn get_paginated_by_guild(
         &self,
         guild_id: u64,
@@ -177,11 +177,11 @@ impl<'a> FleetRepository<'a> {
     /// are automatically deleted due to CASCADE foreign key constraints.
     ///
     /// # Arguments
-    /// - `id`: ID of the fleet to delete
+    /// - `id` - ID of the fleet to delete
     ///
     /// # Returns
-    /// - `Ok(())`: Fleet deleted successfully (or didn't exist)
-    /// - `Err(DbErr)`: Database error during delete operation
+    /// - `Ok(())` - Fleet deleted successfully (or didn't exist)
+    /// - `Err(DbErr)` - Database error during delete operation
     pub async fn delete(&self, id: i32) -> Result<(), DbErr> {
         entity::prelude::Fleet::delete_by_id(id)
             .exec(self.db)
@@ -196,12 +196,12 @@ impl<'a> FleetRepository<'a> {
     /// deleted and replaced with the new values.
     ///
     /// # Arguments
-    /// - `params`: Update parameters containing fleet ID and optional new values
+    /// - `params` - Update parameters containing fleet ID and optional new values
     ///
     /// # Returns
-    /// - `Ok(FleetParam)`: The updated fleet with new values
-    /// - `Err(DbErr::RecordNotFound)`: No fleet exists with the specified ID
-    /// - `Err(DbErr)`: Other database error during update operation
+    /// - `Ok(FleetParam)` - The updated fleet with new values
+    /// - `Err(DbErr::RecordNotFound)` - No fleet exists with the specified ID
+    /// - `Err(DbErr)` - Other database error during update operation
     pub async fn update(&self, params: UpdateFleetParams) -> Result<FleetParam, DbErr> {
         let id = params.id;
         let fleet = entity::prelude::Fleet::find_by_id(id)

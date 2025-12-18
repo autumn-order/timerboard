@@ -20,11 +20,11 @@ impl UserDiscordGuildRoleParam {
     /// usage in the service layer.
     ///
     /// # Arguments
-    /// - `entity`: The database entity model to convert
+    /// - `entity` - The database entity model to convert
     ///
     /// # Returns
-    /// - `Ok(UserDiscordGuildRoleParam)`: Successfully converted param model
-    /// - `Err(DbErr::Custom)`: Failed to parse user_id or role_id as u64
+    /// - `Ok(UserDiscordGuildRoleParam)` - Successfully converted param model
+    /// - `Err(DbErr::Custom)` - Failed to parse user_id or role_id as u64
     pub fn from_entity(entity: entity::user_discord_guild_role::Model) -> Result<Self, DbErr> {
         let user_id = entity
             .user_id

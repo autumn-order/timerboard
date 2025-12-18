@@ -152,7 +152,7 @@ pub async fn get_guild_members(
     let member_dtos: Vec<DiscordGuildMemberDto> = members
         .into_iter()
         .map(|member| DiscordGuildMemberDto {
-            user_id: member.user_id.parse().unwrap_or(0),
+            user_id: member.user_id,
             username: member.username.clone(),
             // Use nickname if available, otherwise fall back to username
             display_name: member.nickname.unwrap_or_else(|| member.username),

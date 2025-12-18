@@ -24,10 +24,10 @@ impl<'a> FleetMessageRepository<'a> {
     /// Creates a new FleetMessageRepository instance.
     ///
     /// # Arguments
-    /// - `db`: Reference to the database connection
+    /// - `db` - Reference to the database connection
     ///
     /// # Returns
-    /// - `FleetMessageRepository`: New repository instance
+    /// - `FleetMessageRepository` - New repository instance
     pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
@@ -40,11 +40,11 @@ impl<'a> FleetMessageRepository<'a> {
     /// delete Discord messages when fleet details change.
     ///
     /// # Arguments
-    /// - `param`: Create parameters containing fleet_id, channel_id, message_id, and message_type
+    /// - `param` - Create parameters containing fleet_id, channel_id, message_id, and message_type
     ///
     /// # Returns
-    /// - `Ok(FleetMessageParam)`: The created fleet message record with generated ID
-    /// - `Err(DbErr)`: Database error during insert operation (including foreign key violation)
+    /// - `Ok(FleetMessageParam)` - The created fleet message record with generated ID
+    /// - `Err(DbErr)` - Database error during insert operation (including foreign key violation)
     pub async fn create(&self, param: CreateFleetMessageParam) -> Result<FleetMessageParam, DbErr> {
         let entity = entity::fleet_message::ActiveModel {
             fleet_id: ActiveValue::Set(param.fleet_id),
@@ -66,11 +66,11 @@ impl<'a> FleetMessageRepository<'a> {
     /// details change or when the fleet is cancelled.
     ///
     /// # Arguments
-    /// - `fleet_id`: ID of the fleet to get messages for
+    /// - `fleet_id` - ID of the fleet to get messages for
     ///
     /// # Returns
-    /// - `Ok(Vec<FleetMessageParam>)`: Vector of fleet messages (empty if no messages exist)
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Vec<FleetMessageParam>)` - Vector of fleet messages (empty if no messages exist)
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_by_fleet_id(&self, fleet_id: i32) -> Result<Vec<FleetMessageParam>, DbErr> {
         let entities = entity::prelude::FleetMessage::find()
             .filter(entity::fleet_message::Column::FleetId.eq(fleet_id))

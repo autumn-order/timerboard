@@ -24,10 +24,10 @@ impl<'a> UserRepository<'a> {
     /// Creates a new UserRepository instance.
     ///
     /// # Arguments
-    /// - `db`: Reference to the database connection
+    /// - `db` - Reference to the database connection
     ///
     /// # Returns
-    /// - `UserRepository`: New repository instance
+    /// - `UserRepository` - New repository instance
     pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
@@ -39,11 +39,11 @@ impl<'a> UserRepository<'a> {
     /// accidental removal of admin privileges during regular login operations.
     ///
     /// # Arguments
-    /// - `param`: User upsert parameters including discord_id, name, and optional admin status
+    /// - `param` - User upsert parameters including discord_id, name, and optional admin status
     ///
     /// # Returns
-    /// - `Ok(UserParam)`: The created or updated user
-    /// - `Err(DbErr)`: Database error during insert or update
+    /// - `Ok(UserParam)` - The created or updated user
+    /// - `Err(DbErr)` - Database error during insert or update
     pub async fn upsert(&self, param: UpsertUserParam) -> Result<UserParam, DbErr> {
         // Build list of columns to update on conflict
         let mut update_columns = vec![entity::user::Column::Name];
@@ -76,12 +76,12 @@ impl<'a> UserRepository<'a> {
     /// their full information if found.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID as u64
+    /// - `user_id` - Discord user ID as u64
     ///
     /// # Returns
-    /// - `Ok(Some(UserParam))`: User found with full data
-    /// - `Ok(None)`: No user found with that Discord ID
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Some(UserParam))` - User found with full data
+    /// - `Ok(None)` - No user found with that Discord ID
+    /// - `Err(DbErr)` - Database error during query
     pub async fn find_by_discord_id(&self, user_id: u64) -> Result<Option<UserParam>, DbErr> {
         let entity = entity::prelude::User::find_by_id(user_id.to_string())
             .one(self.db)
@@ -97,9 +97,9 @@ impl<'a> UserRepository<'a> {
     /// first user should be automatically granted admin privileges.
     ///
     /// # Returns
-    /// - `Ok(true)`: At least one admin user exists in the database
-    /// - `Ok(false)`: No admin users exist (first-time setup scenario)
-    /// - `Err(DbErr)`: Database error during count query
+    /// - `Ok(true)` - At least one admin user exists in the database
+    /// - `Ok(false)` - No admin users exist (first-time setup scenario)
+    /// - `Err(DbErr)` - Database error during count query
     pub async fn admin_exists(&self) -> Result<bool, DbErr> {
         let admin_count = entity::prelude::User::find()
             .filter(entity::user::Column::Admin.eq(true))
@@ -116,11 +116,11 @@ impl<'a> UserRepository<'a> {
     /// the sync last occurred.
     ///
     /// # Arguments
-    /// - `user_id`: Discord ID of the user as u64
+    /// - `user_id` - Discord ID of the user as u64
     ///
     /// # Returns
-    /// - `Ok(())`: Timestamp updated successfully (or no matching user found)
-    /// - `Err(DbErr)`: Database error during update operation
+    /// - `Ok(())` - Timestamp updated successfully (or no matching user found)
+    /// - `Err(DbErr)` - Database error during update operation
     pub async fn update_role_sync_timestamp(&self, user_id: u64) -> Result<(), DbErr> {
         entity::prelude::User::update_many()
             .filter(entity::user::Column::DiscordId.eq(user_id.to_string()))
@@ -140,11 +140,11 @@ impl<'a> UserRepository<'a> {
     /// multiple users during bot startup or batch sync operations.
     ///
     /// # Arguments
-    /// - `user_ids`: Slice of Discord user IDs as u64
+    /// - `user_ids` - Slice of Discord user IDs as u64
     ///
     /// # Returns
-    /// - `Ok(())`: Timestamps updated successfully (returns early if slice is empty)
-    /// - `Err(DbErr)`: Database error during batch update operation
+    /// - `Ok(())` - Timestamps updated successfully (returns early if slice is empty)
+    /// - `Err(DbErr)` - Database error during batch update operation
     pub async fn update_role_sync_timestamps(&self, user_ids: &[u64]) -> Result<(), DbErr> {
         if user_ids.is_empty() {
             return Ok(());
@@ -168,12 +168,12 @@ impl<'a> UserRepository<'a> {
     /// Used for admin user management interfaces to display and manage the user base.
     ///
     /// # Arguments
-    /// - `page`: Zero-indexed page number
-    /// - `per_page`: Number of users to return per page
+    /// - `page` - Zero-indexed page number
+    /// - `per_page` - Number of users to return per page
     ///
     /// # Returns
-    /// - `Ok((users, total))`: Vector of users for the requested page and total user count
-    /// - `Err(DbErr)`: Database error during pagination query
+    /// - `Ok((users, total))` - Vector of users for the requested page and total user count
+    /// - `Err(DbErr)` - Database error during pagination query
     pub async fn get_all_paginated(
         &self,
         page: u64,
@@ -196,8 +196,8 @@ impl<'a> UserRepository<'a> {
     /// Used for displaying admin lists and checking admin permissions.
     ///
     /// # Returns
-    /// - `Ok(Vec<UserParam>)`: Vector of all admin users (empty if no admins exist)
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Vec<UserParam>)` - Vector of all admin users (empty if no admins exist)
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_all_admins(&self) -> Result<Vec<UserParam>, DbErr> {
         let entities = entity::prelude::User::find()
             .filter(entity::user::Column::Admin.eq(true))
@@ -214,12 +214,12 @@ impl<'a> UserRepository<'a> {
     /// Used by admin management endpoints to control which users have elevated permissions.
     ///
     /// # Arguments
-    /// - `user_id`: Discord ID of the user as u64
-    /// - `is_admin`: Whether the user should have admin privileges
+    /// - `user_id` - Discord ID of the user as u64
+    /// - `is_admin` - Whether the user should have admin privileges
     ///
     /// # Returns
-    /// - `Ok(())`: Admin status updated successfully (or no matching user found)
-    /// - `Err(DbErr)`: Database error during update operation
+    /// - `Ok(())` - Admin status updated successfully (or no matching user found)
+    /// - `Err(DbErr)` - Database error during update operation
     pub async fn set_admin(&self, user_id: u64, is_admin: bool) -> Result<(), DbErr> {
         entity::prelude::User::update_many()
             .filter(entity::user::Column::DiscordId.eq(user_id.to_string()))

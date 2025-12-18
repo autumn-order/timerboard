@@ -27,7 +27,7 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
     /// Creates a new repository instance.
     ///
     /// # Arguments
-    /// - `db`: Database connection for executing queries
+    /// - `db` - Database connection for executing queries
     pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
@@ -39,12 +39,12 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
     /// database error if attempting to create a duplicate.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID
-    /// - `role_id`: Discord role ID
+    /// - `user_id` - Discord user ID
+    /// - `role_id` - Discord role ID
     ///
     /// # Returns
-    /// - `Ok(UserDiscordGuildRoleParam)`: The created user-guild-role relationship
-    /// - `Err(DbErr)`: Database error (e.g., foreign key constraint or duplicate key violation)
+    /// - `Ok(UserDiscordGuildRoleParam)` - The created user-guild-role relationship
+    /// - `Err(DbErr)` - Database error (e.g., foreign key constraint or duplicate key violation)
     pub async fn create(
         &self,
         user_id: u64,
@@ -69,12 +69,12 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
     /// Only returns newly created relationships - existing ones are silently skipped.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID
-    /// - `role_ids`: Slice of Discord role IDs to assign to the user
+    /// - `user_id` - Discord user ID
+    /// - `role_ids` - Slice of Discord role IDs to assign to the user
     ///
     /// # Returns
-    /// - `Ok(Vec<UserDiscordGuildRoleParam>)`: Vector of newly created relationships (excludes existing)
-    /// - `Err(DbErr)`: Database error during query or insertion
+    /// - `Ok(Vec<UserDiscordGuildRoleParam>)` - Vector of newly created relationships (excludes existing)
+    /// - `Err(DbErr)` - Database error during query or insertion
     pub async fn create_many(
         &self,
         user_id: u64,
@@ -108,11 +108,11 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
     /// scratch (delete all, then re-insert current roles).
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID
+    /// - `user_id` - Discord user ID
     ///
     /// # Returns
-    /// - `Ok(())`: All relationships successfully deleted (or none existed)
-    /// - `Err(DbErr)`: Database error during deletion
+    /// - `Ok(())` - All relationships successfully deleted (or none existed)
+    /// - `Err(DbErr)` - Database error during deletion
     pub async fn delete_by_user(&self, user_id: u64) -> Result<(), DbErr> {
         entity::prelude::UserDiscordGuildRole::delete_many()
             .filter(entity::user_discord_guild_role::Column::UserId.eq(user_id.to_string()))
@@ -128,12 +128,12 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
     /// the relationship doesn't exist.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID
-    /// - `role_id`: Discord role ID
+    /// - `user_id` - Discord user ID
+    /// - `role_id` - Discord role ID
     ///
     /// # Returns
-    /// - `Ok(())`: Relationship successfully deleted (or didn't exist)
-    /// - `Err(DbErr)`: Database error during deletion
+    /// - `Ok(())` - Relationship successfully deleted (or didn't exist)
+    /// - `Err(DbErr)` - Database error during deletion
     pub async fn delete(&self, user_id: u64, role_id: u64) -> Result<(), DbErr> {
         let user_id_str = user_id.to_string();
         let role_id_str = role_id.to_string();
@@ -153,12 +153,12 @@ impl<'a> UserDiscordGuildRoleRepository<'a> {
     /// roles from Discord to ensure local state matches Discord's state.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID
-    /// - `role_ids`: Slice of Discord role IDs the user should have
+    /// - `user_id` - Discord user ID
+    /// - `role_ids` - Slice of Discord role IDs the user should have
     ///
     /// # Returns
-    /// - `Ok(())`: Sync completed successfully
-    /// - `Err(DbErr)`: Database error during deletion or creation operations
+    /// - `Ok(())` - Sync completed successfully
+    /// - `Err(DbErr)` - Database error during deletion or creation operations
     pub async fn sync_user_roles(&self, user_id: u64, role_ids: &[u64]) -> Result<(), DbErr> {
         // Delete all existing role relationships for this user
         self.delete_by_user(user_id).await?;

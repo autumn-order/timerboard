@@ -17,12 +17,12 @@ impl<'a> DiscordGuildChannelRepository<'a> {
     /// position if it already exists based on channel_id.
     ///
     /// # Arguments
-    /// - `guild_id`: Discord's unique identifier for the guild (u64)
-    /// - `channel`: Discord GuildChannel object containing channel data
+    /// - `guild_id` - Discord's unique identifier for the guild (u64)
+    /// - `channel` - Discord GuildChannel object containing channel data
     ///
     /// # Returns
-    /// - `Ok(Model)`: Successfully created or updated channel record
-    /// - `Err(DbErr)`: Database error during insert/update
+    /// - `Ok(Model)` - Successfully created or updated channel record
+    /// - `Err(DbErr)` - Database error during insert/update
     pub async fn upsert(
         &self,
         guild_id: u64,
@@ -51,11 +51,11 @@ impl<'a> DiscordGuildChannelRepository<'a> {
     /// Removes a channel record from the database when a channel is deleted from Discord.
     ///
     /// # Arguments
-    /// - `channel_id`: Discord's unique identifier for the channel (u64)
+    /// - `channel_id` - Discord's unique identifier for the channel (u64)
     ///
     /// # Returns
-    /// - `Ok(())`: Channel deleted successfully
-    /// - `Err(DbErr)`: Database error during deletion
+    /// - `Ok(())` - Channel deleted successfully
+    /// - `Err(DbErr)` - Database error during deletion
     pub async fn delete(&self, channel_id: u64) -> Result<(), DbErr> {
         entity::prelude::DiscordGuildChannel::delete_many()
             .filter(entity::discord_guild_channel::Column::ChannelId.eq(channel_id.to_string()))
@@ -69,11 +69,11 @@ impl<'a> DiscordGuildChannelRepository<'a> {
     /// Fetches all channel records belonging to a guild, ordered by position.
     ///
     /// # Arguments
-    /// - `guild_id`: Discord's unique identifier for the guild (u64)
+    /// - `guild_id` - Discord's unique identifier for the guild (u64)
     ///
     /// # Returns
-    /// - `Ok(Vec<Model>)`: List of channels in the guild
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Vec<Model>)` - List of channels in the guild
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_by_guild_id(
         &self,
         guild_id: u64,

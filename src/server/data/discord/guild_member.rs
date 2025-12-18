@@ -1,37 +1,62 @@
+//! Discord guild member repository for database operations.
+//!
+//! This module provides the `DiscordGuildMemberRepository` for managing Discord
+//! guild member records in the database. It tracks all guild members (not just
+//! those with application accounts), storing their username and guild-specific
+//! nickname. This data is synced from Discord and used for display purposes.
+//!
+//! All methods return param models at the repository boundary, converting SeaORM
+//! entity models internally to prevent database-specific structures from leaking
+//! into service and controller layers.
+
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
 };
 
+use crate::server::model::discord::DiscordGuildMemberParam;
+
+/// Repository for Discord guild member database operations.
+///
+/// Provides methods for upserting, deleting, and querying guild members.
+/// Used to keep local member data synchronized with Discord's state for
+/// display and identification purposes.
 pub struct DiscordGuildMemberRepository<'a> {
+    /// Database connection for executing queries.
     db: &'a DatabaseConnection,
 }
 
 impl<'a> DiscordGuildMemberRepository<'a> {
+    /// Creates a new repository instance.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection for executing queries
     pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
 
-    /// Creates or updates a guild member record
+    /// Creates or updates a guild member record.
     ///
     /// Stores information about a Discord user who is a member of a guild.
     /// This tracks ALL members, not just those with application accounts.
+    /// If the member already exists, updates their username and nickname.
+    /// Otherwise, creates a new member record.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID (u64)
-    /// - `guild_id`: Discord guild ID (u64)
-    /// - `username`: Discord username
-    /// - `nickname`: Optional guild-specific nickname
+    /// - `user_id` - Discord user ID
+    /// - `guild_id` - Discord guild ID
+    /// - `username` - Discord username
+    /// - `nickname` - Optional guild-specific nickname
     ///
     /// # Returns
-    /// - `Ok(Model)`: The created/updated guild member record
-    /// - `Err(DbErr)`: Database error
+    /// - `Ok(DiscordGuildMemberParam)` - The created/updated guild member record
+    /// - `Err(DbErr)` - Database error during query or upsert
     pub async fn upsert(
         &self,
         user_id: u64,
         guild_id: u64,
         username: String,
         nickname: Option<String>,
-    ) -> Result<entity::discord_guild_member::Model, DbErr> {
+    ) -> Result<DiscordGuildMemberParam, DbErr> {
         let user_id_str = user_id.to_string();
         let guild_id_str = guild_id.to_string();
 
@@ -42,12 +67,12 @@ impl<'a> DiscordGuildMemberRepository<'a> {
             .one(self.db)
             .await?;
 
-        if let Some(existing) = existing {
+        let entity = if let Some(existing) = existing {
             // Update existing record
             let mut active: entity::discord_guild_member::ActiveModel = existing.into();
             active.username = ActiveValue::Set(username);
             active.nickname = ActiveValue::Set(nickname);
-            active.update(self.db).await
+            active.update(self.db).await?
         } else {
             // Create new record
             entity::prelude::DiscordGuildMember::insert(entity::discord_guild_member::ActiveModel {
@@ -57,21 +82,24 @@ impl<'a> DiscordGuildMemberRepository<'a> {
                 nickname: ActiveValue::Set(nickname),
             })
             .exec_with_returning(self.db)
-            .await
-        }
+            .await?
+        };
+
+        DiscordGuildMemberParam::from_entity(entity)
     }
 
-    /// Deletes a guild member record
+    /// Deletes a guild member record.
     ///
-    /// Removes a member from the guild member tracking. Called when a user leaves a guild.
+    /// Removes a member from the guild member tracking. Called when a user leaves
+    /// a guild or is kicked/banned. No-op if the member record doesn't exist.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID (u64)
-    /// - `guild_id`: Discord guild ID (u64)
+    /// - `user_id` - Discord user ID
+    /// - `guild_id` - Discord guild ID
     ///
     /// # Returns
-    /// - `Ok(())`: Member record successfully deleted
-    /// - `Err(DbErr)`: Database error during deletion
+    /// - `Ok(())` - Member record successfully deleted (or didn't exist)
+    /// - `Err(DbErr)` - Database error during deletion
     pub async fn delete(&self, user_id: u64, guild_id: u64) -> Result<(), DbErr> {
         let user_id_str = user_id.to_string();
         let guild_id_str = guild_id.to_string();
@@ -83,64 +111,76 @@ impl<'a> DiscordGuildMemberRepository<'a> {
         Ok(())
     }
 
-    /// Gets all members for a specific guild
+    /// Gets all members for a specific guild.
     ///
-    /// Retrieves all guild members (Discord users) for a given guild.
+    /// Retrieves all guild members (Discord users) for a given guild. Used for
+    /// syncing operations and displaying member lists in administrative interfaces.
     ///
     /// # Arguments
-    /// - `guild_id`: Discord guild ID
+    /// - `guild_id` - Discord guild ID
     ///
     /// # Returns
-    /// - `Ok(Vec<Model>)`: Vector of guild member records
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Vec<DiscordGuildMemberParam>)` - Vector of guild member records
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_members_by_guild(
         &self,
         guild_id: u64,
-    ) -> Result<Vec<entity::discord_guild_member::Model>, DbErr> {
+    ) -> Result<Vec<DiscordGuildMemberParam>, DbErr> {
         let guild_id_str = guild_id.to_string();
-        entity::prelude::DiscordGuildMember::find()
+        let entities = entity::prelude::DiscordGuildMember::find()
             .filter(entity::discord_guild_member::Column::GuildId.eq(guild_id_str.as_str()))
             .all(self.db)
-            .await
+            .await?;
+
+        entities
+            .into_iter()
+            .map(DiscordGuildMemberParam::from_entity)
+            .collect()
     }
 
-    /// Gets a specific member record
+    /// Gets a specific member record.
     ///
-    /// Retrieves a single member's record for a guild.
+    /// Retrieves a single member's record for a guild. Used for looking up
+    /// member details when displaying user information or checking membership status.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID
-    /// - `guild_id`: Discord guild ID
+    /// - `user_id` - Discord user ID
+    /// - `guild_id` - Discord guild ID
     ///
     /// # Returns
-    /// - `Ok(Option<Model>)`: The member record if found
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Some(DiscordGuildMemberParam))` - The member record if found
+    /// - `Ok(None)` - Member not found
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_member(
         &self,
         user_id: u64,
         guild_id: u64,
-    ) -> Result<Option<entity::discord_guild_member::Model>, DbErr> {
+    ) -> Result<Option<DiscordGuildMemberParam>, DbErr> {
         let user_id_str = user_id.to_string();
         let guild_id_str = guild_id.to_string();
-        entity::prelude::DiscordGuildMember::find()
+        let entity = entity::prelude::DiscordGuildMember::find()
             .filter(entity::discord_guild_member::Column::UserId.eq(user_id_str.as_str()))
             .filter(entity::discord_guild_member::Column::GuildId.eq(guild_id_str.as_str()))
             .one(self.db)
-            .await
+            .await?;
+
+        entity.map(DiscordGuildMemberParam::from_entity).transpose()
     }
 
-    /// Syncs guild members by removing members not in the provided list and adding/updating new ones
+    /// Syncs guild members by replacing all members with the provided list.
     ///
-    /// This is a full sync operation that ensures the database matches the provided member list.
-    /// Removes members who are no longer in the guild and adds/updates current members.
+    /// This is a full sync operation that ensures the database matches the provided
+    /// member list. Removes members who are no longer in the guild and adds/updates
+    /// current members. Used when fetching all members from Discord to ensure local
+    /// state matches Discord's state.
     ///
     /// # Arguments
-    /// - `guild_id`: Discord guild ID
-    /// - `members`: Slice of tuples containing (user_id, username, nickname)
+    /// - `guild_id` - Discord guild ID
+    /// - `members` - Slice of tuples containing (user_id, username, nickname)
     ///
     /// # Returns
-    /// - `Ok(())`: Sync completed successfully
-    /// - `Err(DbErr)`: Database error during sync
+    /// - `Ok(())` - Sync completed successfully
+    /// - `Err(DbErr)` - Database error during deletion or upsert operations
     pub async fn sync_guild_members(
         &self,
         guild_id: u64,
@@ -148,17 +188,14 @@ impl<'a> DiscordGuildMemberRepository<'a> {
     ) -> Result<(), DbErr> {
         // Get current members in database
         let current_members = self.get_members_by_guild(guild_id).await?;
-        let _current_user_ids: Vec<String> =
-            current_members.iter().map(|m| m.user_id.clone()).collect();
 
         // Determine which members to keep
-        let new_user_ids: Vec<String> = members.iter().map(|(id, _, _)| id.to_string()).collect();
+        let new_user_ids: Vec<u64> = members.iter().map(|(id, _, _)| *id).collect();
 
         // Delete members who are no longer in the guild
         for current_member in current_members {
             if !new_user_ids.contains(&current_member.user_id) {
-                let user_id = current_member.user_id.parse::<u64>().unwrap_or(0);
-                self.delete(user_id, guild_id).await?;
+                self.delete(current_member.user_id, guild_id).await?;
             }
         }
 

@@ -34,10 +34,10 @@ impl FleetMessageParam {
     /// never leak into service or controller layers.
     ///
     /// # Arguments
-    /// - `entity`: The entity model from the database
+    /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `FleetMessageParam`: The converted fleet message param
+    /// - `FleetMessageParam` - The converted fleet message param
     pub fn from_entity(entity: entity::fleet_message::Model) -> Self {
         Self {
             id: entity.id,

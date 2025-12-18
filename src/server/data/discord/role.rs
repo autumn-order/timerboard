@@ -30,7 +30,7 @@ impl<'a> DiscordGuildRoleRepository<'a> {
     /// Creates a new repository instance.
     ///
     /// # Arguments
-    /// - `db`: Database connection for executing queries
+    /// - `db` - Database connection for executing queries
     pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
@@ -42,12 +42,12 @@ impl<'a> DiscordGuildRoleRepository<'a> {
     /// used when syncing roles from Discord to keep local data current.
     ///
     /// # Arguments
-    /// - `guild_id`: Discord guild ID that owns this role
-    /// - `role`: Serenity role object containing role data from Discord
+    /// - `guild_id` - Discord guild ID that owns this role
+    /// - `role` - Serenity role object containing role data from Discord
     ///
     /// # Returns
-    /// - `Ok(DiscordGuildRoleParam)`: The upserted role as a param model
-    /// - `Err(DbErr)`: Database error during upsert operation
+    /// - `Ok(DiscordGuildRoleParam)` - The upserted role as a param model
+    /// - `Err(DbErr)` - Database error during upsert operation
     pub async fn upsert(&self, guild_id: u64, role: &Role) -> Result<DiscordGuildRoleParam, DbErr> {
         let entity =
             entity::prelude::DiscordGuildRole::insert(entity::discord_guild_role::ActiveModel {
@@ -79,12 +79,12 @@ impl<'a> DiscordGuildRoleRepository<'a> {
     /// syncing all roles for a guild from Discord.
     ///
     /// # Arguments
-    /// - `guild_id`: Discord guild ID that owns these roles
-    /// - `roles`: HashMap of Discord roles from Serenity (role_id -> role)
+    /// - `guild_id` - Discord guild ID that owns these roles
+    /// - `roles` - HashMap of Discord roles from Serenity (role_id -> role)
     ///
     /// # Returns
-    /// - `Ok(Vec<DiscordGuildRoleParam>)`: Vector of upserted roles as param models
-    /// - `Err(DbErr)`: Database error during any upsert operation
+    /// - `Ok(Vec<DiscordGuildRoleParam>)` - Vector of upserted roles as param models
+    /// - `Err(DbErr)` - Database error during any upsert operation
     pub async fn upsert_many(
         &self,
         guild_id: u64,
@@ -107,11 +107,11 @@ impl<'a> DiscordGuildRoleRepository<'a> {
     /// role memberships) are automatically deleted via database cascade constraints.
     ///
     /// # Arguments
-    /// - `role_id`: Discord role ID to delete
+    /// - `role_id` - Discord role ID to delete
     ///
     /// # Returns
-    /// - `Ok(())`: Role successfully deleted (or didn't exist)
-    /// - `Err(DbErr)`: Database error during deletion
+    /// - `Ok(())` - Role successfully deleted (or didn't exist)
+    /// - `Err(DbErr)` - Database error during deletion
     pub async fn delete(&self, role_id: u64) -> Result<(), DbErr> {
         entity::prelude::DiscordGuildRole::delete_many()
             .filter(entity::discord_guild_role::Column::RoleId.eq(role_id.to_string()))
@@ -127,11 +127,11 @@ impl<'a> DiscordGuildRoleRepository<'a> {
     /// what roles exist in a guild.
     ///
     /// # Arguments
-    /// - `guild_id`: Discord guild ID to get roles for
+    /// - `guild_id` - Discord guild ID to get roles for
     ///
     /// # Returns
-    /// - `Ok(Vec<DiscordGuildRoleParam>)`: Vector of roles in the guild
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Vec<DiscordGuildRoleParam>)` - Vector of roles in the guild
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_by_guild_id(
         &self,
         guild_id: u64,

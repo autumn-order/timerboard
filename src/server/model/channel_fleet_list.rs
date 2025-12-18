@@ -34,10 +34,10 @@ impl ChannelFleetListParam {
     /// never leak into service or controller layers.
     ///
     /// # Arguments
-    /// - `entity`: The entity model from the database
+    /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `ChannelFleetListParam`: The converted channel fleet list param
+    /// - `ChannelFleetListParam` - The converted channel fleet list param
     pub fn from_entity(entity: entity::channel_fleet_list::Model) -> Self {
         Self {
             id: entity.id,

@@ -27,13 +27,13 @@ impl PingFormatParam {
     /// fleet_category_count, and fleet_category_names must be provided separately.
     ///
     /// # Arguments
-    /// - `self`: The ping format param to convert
-    /// - `fields`: Vector of ping format field DTOs
-    /// - `fleet_category_count`: Number of fleet categories using this format
-    /// - `fleet_category_names`: Names of fleet categories using this format
+    /// - `self` - The ping format param to convert
+    /// - `fields` - Vector of ping format field DTOs
+    /// - `fleet_category_count` - Number of fleet categories using this format
+    /// - `fleet_category_names` - Names of fleet categories using this format
     ///
     /// # Returns
-    /// - `PingFormatDto`: The converted ping format DTO with guild_id as u64
+    /// - `PingFormatDto` - The converted ping format DTO with guild_id as u64
     pub fn into_dto(
         self,
         fields: Vec<PingFormatFieldDto>,
@@ -56,10 +56,10 @@ impl PingFormatParam {
     /// never leak into service or controller layers.
     ///
     /// # Arguments
-    /// - `entity`: The entity model from the database
+    /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `PingFormatParam`: The converted ping format param
+    /// - `PingFormatParam` - The converted ping format param
     pub fn from_entity(entity: entity::ping_format::Model) -> Self {
         Self {
             id: entity.id,
@@ -113,10 +113,10 @@ impl PingFormatFieldParam {
     /// Converts the ping format field param to a DTO for API responses.
     ///
     /// # Arguments
-    /// - `self`: The ping format field param to convert
+    /// - `self` - The ping format field param to convert
     ///
     /// # Returns
-    /// - `PingFormatFieldDto`: The converted field DTO
+    /// - `PingFormatFieldDto` - The converted field DTO
     pub fn into_dto(self) -> PingFormatFieldDto {
         PingFormatFieldDto {
             id: self.id,
@@ -133,10 +133,10 @@ impl PingFormatFieldParam {
     /// never leak into service or controller layers.
     ///
     /// # Arguments
-    /// - `entity`: The entity model from the database
+    /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `PingFormatFieldParam`: The converted field param
+    /// - `PingFormatFieldParam` - The converted field param
     pub fn from_entity(entity: entity::ping_format_field::Model) -> Self {
         Self {
             id: entity.id,

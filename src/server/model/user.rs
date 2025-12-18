@@ -24,10 +24,10 @@ impl UserParam {
     /// Converts the user param to a DTO for API responses.
     ///
     /// # Arguments
-    /// - `self`: The user param to convert
+    /// - `self` - The user param to convert
     ///
     /// # Returns
-    /// - `UserDto`: The converted user DTO with discord_id as u64
+    /// - `UserDto` - The converted user DTO with discord_id as u64
     pub fn into_dto(self) -> UserDto {
         UserDto {
             discord_id: self.discord_id.parse().unwrap_or(0),
@@ -42,10 +42,10 @@ impl UserParam {
     /// never leak into service or controller layers.
     ///
     /// # Arguments
-    /// - `entity`: The entity model from the database
+    /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `UserParam`: The converted user param
+    /// - `UserParam` - The converted user param
     pub fn from_entity(entity: entity::user::Model) -> Self {
         Self {
             discord_id: entity.discord_id,

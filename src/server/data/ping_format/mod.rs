@@ -28,10 +28,10 @@ impl<'a> PingFormatRepository<'a> {
     /// Creates a new PingFormatRepository instance.
     ///
     /// # Arguments
-    /// - `db`: Reference to the database connection
+    /// - `db` - Reference to the database connection
     ///
     /// # Returns
-    /// - `PingFormatRepository`: New repository instance
+    /// - `PingFormatRepository` - New repository instance
     pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
@@ -42,11 +42,11 @@ impl<'a> PingFormatRepository<'a> {
     /// The ping format fields must be created separately using `PingFormatFieldRepository`.
     ///
     /// # Arguments
-    /// - `param`: Create parameters containing guild_id and name
+    /// - `param` - Create parameters containing guild_id and name
     ///
     /// # Returns
-    /// - `Ok(PingFormatParam)`: The created ping format with generated ID
-    /// - `Err(DbErr)`: Database error during insert operation
+    /// - `Ok(PingFormatParam)` - The created ping format with generated ID
+    /// - `Err(DbErr)` - Database error during insert operation
     pub async fn create(&self, param: CreatePingFormatParam) -> Result<PingFormatParam, DbErr> {
         let entity = entity::ping_format::ActiveModel {
             guild_id: ActiveValue::Set(param.guild_id.to_string()),
@@ -66,13 +66,13 @@ impl<'a> PingFormatRepository<'a> {
     /// guild management interfaces.
     ///
     /// # Arguments
-    /// - `guild_id`: Discord guild ID as u64
-    /// - `page`: Zero-indexed page number
-    /// - `per_page`: Number of ping formats to return per page
+    /// - `guild_id` - Discord guild ID as u64
+    /// - `page` - Zero-indexed page number
+    /// - `per_page` - Number of ping formats to return per page
     ///
     /// # Returns
-    /// - `Ok((ping_formats, total))`: Vector of ping formats for the page and total count
-    /// - `Err(DbErr)`: Database error during pagination query
+    /// - `Ok((ping_formats, total))` - Vector of ping formats for the page and total count
+    /// - `Err(DbErr)` - Database error during pagination query
     pub async fn get_by_guild_id_paginated(
         &self,
         guild_id: u64,
@@ -100,12 +100,12 @@ impl<'a> PingFormatRepository<'a> {
     /// if successful. Fields are managed separately through `PingFormatFieldRepository`.
     ///
     /// # Arguments
-    /// - `param`: Update parameters containing id and new name
+    /// - `param` - Update parameters containing id and new name
     ///
     /// # Returns
-    /// - `Ok(PingFormatParam)`: The updated ping format with new name
-    /// - `Err(DbErr::RecordNotFound)`: No ping format exists with the specified ID
-    /// - `Err(DbErr)`: Other database error during update operation
+    /// - `Ok(PingFormatParam)` - The updated ping format with new name
+    /// - `Err(DbErr::RecordNotFound)` - No ping format exists with the specified ID
+    /// - `Err(DbErr)` - Other database error during update operation
     pub async fn update(&self, param: UpdatePingFormatParam) -> Result<PingFormatParam, DbErr> {
         let ping_format = entity::prelude::PingFormat::find_by_id(param.id)
             .one(self.db)
@@ -130,11 +130,11 @@ impl<'a> PingFormatRepository<'a> {
     /// using this format will have their ping_format_id set to NULL.
     ///
     /// # Arguments
-    /// - `id`: ID of the ping format to delete
+    /// - `id` - ID of the ping format to delete
     ///
     /// # Returns
-    /// - `Ok(())`: Ping format deleted successfully (or didn't exist)
-    /// - `Err(DbErr)`: Database error during delete operation
+    /// - `Ok(())` - Ping format deleted successfully (or didn't exist)
+    /// - `Err(DbErr)` - Database error during delete operation
     pub async fn delete(&self, id: i32) -> Result<(), DbErr> {
         entity::prelude::PingFormat::delete_by_id(id)
             .exec(self.db)
@@ -149,13 +149,13 @@ impl<'a> PingFormatRepository<'a> {
     /// specified guild. Used for authorization checks before allowing updates or deletions.
     ///
     /// # Arguments
-    /// - `id`: ID of the ping format to check
-    /// - `guild_id`: Discord guild ID as u64
+    /// - `id` - ID of the ping format to check
+    /// - `guild_id` - Discord guild ID as u64
     ///
     /// # Returns
-    /// - `Ok(true)`: Ping format exists and belongs to the guild
-    /// - `Ok(false)`: Ping format doesn't exist or belongs to a different guild
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(true)` - Ping format exists and belongs to the guild
+    /// - `Ok(false)` - Ping format doesn't exist or belongs to a different guild
+    /// - `Err(DbErr)` - Database error during query
     pub async fn exists_in_guild(&self, id: i32, guild_id: u64) -> Result<bool, DbErr> {
         let count = entity::prelude::PingFormat::find()
             .filter(entity::ping_format::Column::Id.eq(id))
@@ -173,11 +173,11 @@ impl<'a> PingFormatRepository<'a> {
     /// and to display usage information to users.
     ///
     /// # Arguments
-    /// - `ping_format_id`: ID of the ping format to check
+    /// - `ping_format_id` - ID of the ping format to check
     ///
     /// # Returns
-    /// - `Ok(u64)`: Number of fleet categories using this ping format
-    /// - `Err(DbErr)`: Database error during count query
+    /// - `Ok(u64)` - Number of fleet categories using this ping format
+    /// - `Err(DbErr)` - Database error during count query
     pub async fn get_fleet_category_count(&self, ping_format_id: i32) -> Result<u64, DbErr> {
         entity::prelude::FleetCategory::find()
             .filter(entity::fleet_category::Column::PingFormatId.eq(ping_format_id))

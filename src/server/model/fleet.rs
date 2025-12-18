@@ -40,10 +40,10 @@ impl FleetParam {
     /// never leak into service or controller layers.
     ///
     /// # Arguments
-    /// - `entity`: The entity model from the database
+    /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `FleetParam`: The converted fleet param
+    /// - `FleetParam` - The converted fleet param
     pub fn from_entity(entity: entity::fleet::Model) -> Self {
         Self {
             id: entity.id,

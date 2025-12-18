@@ -29,10 +29,10 @@ impl<'a> ChannelFleetListRepository<'a> {
     /// Creates a new ChannelFleetListRepository instance.
     ///
     /// # Arguments
-    /// - `db`: Reference to the database connection
+    /// - `db` - Reference to the database connection
     ///
     /// # Returns
-    /// - `ChannelFleetListRepository`: New repository instance
+    /// - `ChannelFleetListRepository` - New repository instance
     pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
@@ -44,12 +44,12 @@ impl<'a> ChannelFleetListRepository<'a> {
     /// of the pinned fleet list and timestamps for determining whether to edit or repost.
     ///
     /// # Arguments
-    /// - `channel_id`: Discord channel ID as a string slice
+    /// - `channel_id` - Discord channel ID as a string slice
     ///
     /// # Returns
-    /// - `Ok(Some(ChannelFleetListParam))`: Fleet list record found for the channel
-    /// - `Ok(None)`: No fleet list record exists for this channel
-    /// - `Err(AppError)`: Database error during query
+    /// - `Ok(Some(ChannelFleetListParam))` - Fleet list record found for the channel
+    /// - `Ok(None)` - No fleet list record exists for this channel
+    /// - `Err(AppError)` - Database error during query
     pub async fn get_by_channel_id(
         &self,
         channel_id: &str,
@@ -70,11 +70,11 @@ impl<'a> ChannelFleetListRepository<'a> {
     /// last posted, and `updated_at` is also updated.
     ///
     /// # Arguments
-    /// - `param`: Upsert parameters containing channel_id and message_id
+    /// - `param` - Upsert parameters containing channel_id and message_id
     ///
     /// # Returns
-    /// - `Ok(ChannelFleetListParam)`: The created or updated fleet list record
-    /// - `Err(AppError)`: Database error during upsert operation
+    /// - `Ok(ChannelFleetListParam)` - The created or updated fleet list record
+    /// - `Err(AppError)` - Database error during upsert operation
     pub async fn upsert(
         &self,
         param: UpsertChannelFleetListParam,

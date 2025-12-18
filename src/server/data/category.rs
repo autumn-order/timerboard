@@ -33,7 +33,7 @@ impl<'a> FleetCategoryRepository<'a> {
     /// Creates a new repository instance.
     ///
     /// # Arguments
-    /// - `db`: Database connection for executing queries
+    /// - `db` - Database connection for executing queries
     pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
@@ -45,11 +45,11 @@ impl<'a> FleetCategoryRepository<'a> {
     /// should be rolled back by the database.
     ///
     /// # Arguments
-    /// - `params`: Parameters containing category data and related entity IDs
+    /// - `params` - Parameters containing category data and related entity IDs
     ///
     /// # Returns
-    /// - `Ok(FleetCategoryListItem)`: The created category as a param model
-    /// - `Err(DbErr)`: Database error during insertion
+    /// - `Ok(FleetCategoryListItem)` - The created category as a param model
+    /// - `Err(DbErr)` - Database error during insertion
     pub async fn create(
         &self,
         params: CreateFleetCategoryParams,
@@ -110,12 +110,12 @@ impl<'a> FleetCategoryRepository<'a> {
     /// Results are sorted by position for consistent display ordering.
     ///
     /// # Arguments
-    /// - `id`: Fleet category ID
+    /// - `id` - Fleet category ID
     ///
     /// # Returns
-    /// - `Ok(Some(FleetCategoryWithRelations))`: Category with all related data
-    /// - `Ok(None)`: Category not found
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Some(FleetCategoryWithRelations))` - Category with all related data
+    /// - `Ok(None)` - Category not found
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_by_id(&self, id: i32) -> Result<Option<FleetCategoryWithRelations>, DbErr> {
         let category_result = entity::prelude::FleetCategory::find_by_id(id)
             .find_also_related(entity::prelude::PingFormat)
@@ -250,13 +250,13 @@ impl<'a> FleetCategoryRepository<'a> {
     /// full related data when only counts are needed for list views.
     ///
     /// # Arguments
-    /// - `guild_id`: Discord guild ID
-    /// - `page`: Page number (0-indexed)
-    /// - `per_page`: Number of items per page
+    /// - `guild_id` - Discord guild ID
+    /// - `page` - Page number (0-indexed)
+    /// - `per_page` - Number of items per page
     ///
     /// # Returns
-    /// - `Ok((categories, total))`: Tuple of category list and total count
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok((categories, total))` - Tuple of category list and total count
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_by_guild_id_paginated(
         &self,
         guild_id: u64,
@@ -309,12 +309,12 @@ impl<'a> FleetCategoryRepository<'a> {
     /// Existing related entities are deleted before inserting new ones.
     ///
     /// # Arguments
-    /// - `params`: Parameters containing updated category data and related entity IDs
+    /// - `params` - Parameters containing updated category data and related entity IDs
     ///
     /// # Returns
-    /// - `Ok(FleetCategoryListItem)`: The updated category as a param model
-    /// - `Err(DbErr::RecordNotFound)`: Category with specified ID not found
-    /// - `Err(DbErr)`: Database error during update or related entity operations
+    /// - `Ok(FleetCategoryListItem)` - The updated category as a param model
+    /// - `Err(DbErr::RecordNotFound)` - Category with specified ID not found
+    /// - `Err(DbErr)` - Database error during update or related entity operations
     pub async fn update(
         &self,
         params: UpdateFleetCategoryParams,
@@ -397,11 +397,11 @@ impl<'a> FleetCategoryRepository<'a> {
     /// are automatically deleted via database cascade constraints.
     ///
     /// # Arguments
-    /// - `id`: Fleet category ID to delete
+    /// - `id` - Fleet category ID to delete
     ///
     /// # Returns
-    /// - `Ok(())`: Category successfully deleted
-    /// - `Err(DbErr)`: Database error during deletion
+    /// - `Ok(())` - Category successfully deleted
+    /// - `Err(DbErr)` - Database error during deletion
     pub async fn delete(&self, id: i32) -> Result<(), DbErr> {
         entity::prelude::FleetCategory::delete_by_id(id)
             .exec(self.db)
@@ -415,13 +415,13 @@ impl<'a> FleetCategoryRepository<'a> {
     /// Used for validation before performing operations that require guild ownership.
     ///
     /// # Arguments
-    /// - `id`: Fleet category ID to check
-    /// - `guild_id`: Discord guild ID that should own the category
+    /// - `id` - Fleet category ID to check
+    /// - `guild_id` - Discord guild ID that should own the category
     ///
     /// # Returns
-    /// - `Ok(true)`: Category exists and belongs to the guild
-    /// - `Ok(false)`: Category not found or belongs to a different guild
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(true)` - Category exists and belongs to the guild
+    /// - `Ok(false)` - Category not found or belongs to a different guild
+    /// - `Err(DbErr)` - Database error during query
     pub async fn exists_in_guild(&self, id: i32, guild_id: u64) -> Result<bool, DbErr> {
         let count = entity::prelude::FleetCategory::find()
             .filter(entity::fleet_category::Column::Id.eq(id))
@@ -438,11 +438,11 @@ impl<'a> FleetCategoryRepository<'a> {
     /// categories that need updating when a ping format changes.
     ///
     /// # Arguments
-    /// - `ping_format_id`: Ping format ID to search for
+    /// - `ping_format_id` - Ping format ID to search for
     ///
     /// # Returns
-    /// - `Ok(Vec<FleetCategoryListItem>)`: Categories using the specified ping format
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Vec<FleetCategoryListItem>)` - Categories using the specified ping format
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_by_ping_format_id(
         &self,
         ping_format_id: i32,
@@ -465,12 +465,12 @@ impl<'a> FleetCategoryRepository<'a> {
     /// before calling this method to grant full access.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID
-    /// - `guild_id`: Discord guild ID
+    /// - `user_id` - Discord user ID
+    /// - `guild_id` - Discord guild ID
     ///
     /// # Returns
-    /// - `Ok(Vec<FleetCategoryListItem>)`: Categories the user can create/manage
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Vec<FleetCategoryListItem>)` - Categories the user can create/manage
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_manageable_by_user(
         &self,
         user_id: u64,
@@ -531,12 +531,12 @@ impl<'a> FleetCategoryRepository<'a> {
     /// to grant access to all categories.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID
-    /// - `guild_id`: Discord guild ID
+    /// - `user_id` - Discord user ID
+    /// - `guild_id` - Discord guild ID
     ///
     /// # Returns
-    /// - `Ok(Vec<i32>)`: Category IDs the user can view
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Vec<i32>)` - Category IDs the user can view
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_viewable_category_ids_by_user(
         &self,
         user_id: u64,
@@ -590,12 +590,12 @@ impl<'a> FleetCategoryRepository<'a> {
     /// to grant access to all categories.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID
-    /// - `guild_id`: Discord guild ID
+    /// - `user_id` - Discord user ID
+    /// - `guild_id` - Discord guild ID
     ///
     /// # Returns
-    /// - `Ok(Vec<i32>)`: Category IDs the user can create fleets in
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Vec<i32>)` - Category IDs the user can create fleets in
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_creatable_category_ids_by_user(
         &self,
         user_id: u64,
@@ -649,12 +649,12 @@ impl<'a> FleetCategoryRepository<'a> {
     /// to grant access to all categories.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID
-    /// - `guild_id`: Discord guild ID
+    /// - `user_id` - Discord user ID
+    /// - `guild_id` - Discord guild ID
     ///
     /// # Returns
-    /// - `Ok(Vec<i32>)`: Category IDs the user can manage
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Vec<i32>)` - Category IDs the user can manage
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_manageable_category_ids_by_user(
         &self,
         user_id: u64,
@@ -707,14 +707,14 @@ impl<'a> FleetCategoryRepository<'a> {
     /// category data or fleets within a category.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID
-    /// - `_guild_id`: Discord guild ID (currently unused but kept for API consistency)
-    /// - `category_id`: Fleet category ID to check access for
+    /// - `user_id` - Discord user ID
+    /// - `_guild_id` - Discord guild ID (currently unused but kept for API consistency)
+    /// - `category_id` - Fleet category ID to check access for
     ///
     /// # Returns
-    /// - `Ok(true)`: User has view access to the category
-    /// - `Ok(false)`: User does not have view access
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(true)` - User has view access to the category
+    /// - `Ok(false)` - User does not have view access
+    /// - `Err(DbErr)` - Database error during query
     pub async fn user_can_view_category(
         &self,
         user_id: u64,
@@ -752,14 +752,14 @@ impl<'a> FleetCategoryRepository<'a> {
     /// fleet creation in a category.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID
-    /// - `_guild_id`: Discord guild ID (currently unused but kept for API consistency)
-    /// - `category_id`: Fleet category ID to check access for
+    /// - `user_id` - Discord user ID
+    /// - `_guild_id` - Discord guild ID (currently unused but kept for API consistency)
+    /// - `category_id` - Fleet category ID to check access for
     ///
     /// # Returns
-    /// - `Ok(true)`: User has create access to the category
-    /// - `Ok(false)`: User does not have create access
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(true)` - User has create access to the category
+    /// - `Ok(false)` - User does not have create access
+    /// - `Err(DbErr)` - Database error during query
     pub async fn user_can_create_category(
         &self,
         user_id: u64,
@@ -797,14 +797,14 @@ impl<'a> FleetCategoryRepository<'a> {
     /// category updates, deletion, or other administrative operations.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID
-    /// - `_guild_id`: Discord guild ID (currently unused but kept for API consistency)
-    /// - `category_id`: Fleet category ID to check access for
+    /// - `user_id` - Discord user ID
+    /// - `_guild_id` - Discord guild ID (currently unused but kept for API consistency)
+    /// - `category_id` - Fleet category ID to check access for
     ///
     /// # Returns
-    /// - `Ok(true)`: User has manage access to the category
-    /// - `Ok(false)`: User does not have manage access
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(true)` - User has manage access to the category
+    /// - `Ok(false)` - User does not have manage access
+    /// - `Err(DbErr)` - Database error during query
     pub async fn user_can_manage_category(
         &self,
         user_id: u64,
@@ -842,12 +842,12 @@ impl<'a> FleetCategoryRepository<'a> {
     /// ping format and all related entities.
     ///
     /// # Arguments
-    /// - `category_id`: Fleet category ID
+    /// - `category_id` - Fleet category ID
     ///
     /// # Returns
-    /// - `Ok(Some(FleetCategoryWithRelations))`: Category with all related data
-    /// - `Ok(None)`: Category not found
-    /// - `Err(DbErr)`: Database error during query
+    /// - `Ok(Some(FleetCategoryWithRelations))` - Category with all related data
+    /// - `Ok(None)` - Category not found
+    /// - `Err(DbErr)` - Database error during query
     pub async fn get_category_details(
         &self,
         category_id: i32,
