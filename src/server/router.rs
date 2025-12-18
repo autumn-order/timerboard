@@ -168,27 +168,35 @@ pub fn router(config: &Config) -> Result<Router<AppState>, AppError> {
     )]
     struct ApiDoc;
 
-    let (api_router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
-        // Auth routes
+    // Auth routes
+    let auth_routes = OpenApiRouter::new()
         .routes(routes!(controller::auth::login))
         .routes(routes!(controller::auth::callback))
         .routes(routes!(controller::auth::logout))
-        .routes(routes!(controller::auth::get_user))
-        // User routes
+        .routes(routes!(controller::auth::get_user));
+
+    // User routes
+    let user_routes = OpenApiRouter::new()
         .routes(routes!(controller::user::get_user_guilds))
-        .routes(routes!(controller::user::get_user_manageable_categories))
-        // Admin routes
+        .routes(routes!(controller::user::get_user_manageable_categories));
+
+    // Admin routes
+    let admin_routes = OpenApiRouter::new()
         .routes(routes!(controller::admin::add_bot))
         .routes(routes!(controller::admin::get_all_users))
         .routes(routes!(controller::admin::get_all_admins))
         .routes(routes!(controller::admin::add_admin))
-        .routes(routes!(controller::admin::remove_admin))
-        // Discord routes
+        .routes(routes!(controller::admin::remove_admin));
+
+    // Discord routes
+    let discord_routes = OpenApiRouter::new()
         .routes(routes!(controller::discord::get_all_discord_guilds))
         .routes(routes!(controller::discord::get_discord_guild_by_id))
         .routes(routes!(controller::discord::get_discord_guild_roles))
-        .routes(routes!(controller::discord::get_discord_guild_channels))
-        // Category routes
+        .routes(routes!(controller::discord::get_discord_guild_channels));
+
+    // Category routes
+    let category_routes = OpenApiRouter::new()
         .routes(routes!(controller::category::get_fleet_categories))
         .routes(routes!(controller::category::create_fleet_category))
         .routes(routes!(controller::category::get_fleet_category_by_id))
@@ -196,20 +204,34 @@ pub fn router(config: &Config) -> Result<Router<AppState>, AppError> {
         .routes(routes!(controller::category::delete_fleet_category))
         .routes(routes!(
             controller::category::get_fleet_categories_by_ping_format
-        ))
-        // Ping format routes
+        ));
+
+    // Ping format routes
+    let ping_format_routes = OpenApiRouter::new()
         .routes(routes!(controller::ping_format::get_ping_formats))
         .routes(routes!(controller::ping_format::create_ping_format))
         .routes(routes!(controller::ping_format::update_ping_format))
-        .routes(routes!(controller::ping_format::delete_ping_format))
-        // Fleet routes
+        .routes(routes!(controller::ping_format::delete_ping_format));
+
+    // Fleet routes
+    let fleet_routes = OpenApiRouter::new()
         .routes(routes!(controller::fleet::get_guild_members))
         .routes(routes!(controller::fleet::get_category_details))
         .routes(routes!(controller::fleet::get_fleets))
         .routes(routes!(controller::fleet::create_fleet))
         .routes(routes!(controller::fleet::get_fleet))
         .routes(routes!(controller::fleet::update_fleet))
-        .routes(routes!(controller::fleet::delete_fleet))
+        .routes(routes!(controller::fleet::delete_fleet));
+
+    // Combine all routes
+    let (api_router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .merge(auth_routes)
+        .merge(user_routes)
+        .merge(admin_routes)
+        .merge(discord_routes)
+        .merge(category_routes)
+        .merge(ping_format_routes)
+        .merge(fleet_routes)
         .split_for_parts();
 
     // Only serve Swagger UI in debug builds
