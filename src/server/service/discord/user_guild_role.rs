@@ -47,11 +47,12 @@ impl<'a> UserDiscordGuildRoleService<'a> {
         let matching_discord_role_ids: Vec<u64> = db_roles
             .iter()
             .filter_map(|db_role| {
-                db_role
-                    .role_id
-                    .parse::<u64>()
-                    .ok()
-                    .filter(|id| user_role_ids.contains(id))
+                let role_id = db_role.role_id;
+                if user_role_ids.contains(&role_id) {
+                    Some(role_id)
+                } else {
+                    None
+                }
             })
             .collect();
 

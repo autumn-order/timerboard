@@ -30,10 +30,7 @@ impl<'a> DiscordGuildRoleService<'a> {
 
         // Find roles that no longer exist in Discord and delete them
         for existing_role in existing_roles {
-            let role_id = existing_role
-                .role_id
-                .parse::<u64>()
-                .map_err(|e| AppError::InternalError(format!("Failed to parse role_id: {}", e)))?;
+            let role_id = existing_role.role_id;
             if !guild_roles.contains_key(&RoleId::new(role_id)) {
                 role_repo.delete(role_id).await?;
                 tracing::info!("Deleted role {} from guild {}", role_id, guild_id);
