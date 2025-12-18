@@ -17,23 +17,18 @@ impl<'a> DiscordGuildService<'a> {
     pub async fn get_all(&self) -> Result<Vec<DiscordGuildDto>, AppError> {
         let guild_repo = DiscordGuildRepository::new(self.db);
 
-        let guilds: Result<Vec<_>, _> = guild_repo
+        let guilds: Vec<_> = guild_repo
             .get_all()
             .await?
             .into_iter()
-            .map(|g| {
-                let guild_id = g.guild_id.parse::<u64>().map_err(|e| {
-                    AppError::InternalError(format!("Failed to parse guild_id: {}", e))
-                })?;
-                Ok(DiscordGuildDto {
-                    guild_id,
-                    name: g.name,
-                    icon_hash: g.icon_hash,
-                })
+            .map(|g| DiscordGuildDto {
+                guild_id: g.guild_id,
+                name: g.name,
+                icon_hash: g.icon_hash,
             })
             .collect();
 
-        guilds
+        Ok(guilds)
     }
 
     pub async fn get_by_guild_id(
@@ -44,17 +39,10 @@ impl<'a> DiscordGuildService<'a> {
 
         let guild = guild_repo.find_by_guild_id(guild_id).await?;
 
-        guild
-            .map(|g| {
-                let guild_id = g.guild_id.parse::<u64>().map_err(|e| {
-                    AppError::InternalError(format!("Failed to parse guild_id: {}", e))
-                })?;
-                Ok(DiscordGuildDto {
-                    guild_id,
-                    name: g.name,
-                    icon_hash: g.icon_hash,
-                })
-            })
-            .transpose()
+        Ok(guild.map(|g| DiscordGuildDto {
+            guild_id: g.guild_id,
+            name: g.name,
+            icon_hash: g.icon_hash,
+        }))
     }
 }

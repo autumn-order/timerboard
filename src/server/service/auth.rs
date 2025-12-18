@@ -145,13 +145,10 @@ impl<'a> AuthService<'a> {
 
         let user_role_service = UserDiscordGuildRoleService::new(self.db);
         for guild in user_guilds {
-            if bot_guilds.iter().any(|bot_guild| {
-                bot_guild
-                    .guild_id
-                    .parse::<u64>()
-                    .map(|id| id == guild.id.get())
-                    .unwrap_or(false)
-            }) {
+            if bot_guilds
+                .iter()
+                .any(|bot_guild| bot_guild.guild_id == guild.id.get())
+            {
                 if let Ok(member) = self.fetch_guild_member(token, guild.id).await {
                     if let Err(e) = user_role_service.sync_user_roles(user_id, &member).await {
                         tracing::warn!(

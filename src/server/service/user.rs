@@ -146,19 +146,14 @@ impl<'a> UserService<'a> {
             guild_repo.get_guilds_for_user(user_id).await?
         };
 
-        let guilds = guild_models
+        let guilds: Vec<DiscordGuildDto> = guild_models
             .into_iter()
-            .map(|guild_model| {
-                let guild_id = guild_model.guild_id.parse::<u64>().map_err(|e| {
-                    AppError::InternalError(format!("Failed to parse guild_id: {}", e))
-                })?;
-                Ok(DiscordGuildDto {
-                    guild_id,
-                    name: guild_model.name,
-                    icon_hash: guild_model.icon_hash,
-                })
+            .map(|guild_model| DiscordGuildDto {
+                guild_id: guild_model.guild_id,
+                name: guild_model.name,
+                icon_hash: guild_model.icon_hash,
             })
-            .collect::<Result<Vec<DiscordGuildDto>, AppError>>()?;
+            .collect();
 
         Ok(guilds)
     }
