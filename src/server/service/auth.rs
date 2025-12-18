@@ -17,19 +17,40 @@ use crate::server::{
     state::OAuth2Client,
 };
 
-/// Partial guild information returned from Discord API
+/// Partial guild information returned from Discord API.
+///
+/// Contains minimal guild data returned from Discord's user guilds endpoint.
+/// Used for identifying which guilds a user belongs to during OAuth flow.
 #[derive(Debug, Deserialize)]
 pub struct PartialGuild {
+    /// Discord guild ID.
     pub id: GuildId,
 }
 
+/// Service for Discord OAuth2 authentication and user data synchronization.
+///
+/// Provides methods for handling Discord OAuth2 login flow, user authentication,
+/// and periodic synchronization of user data including guild memberships and roles.
+/// Acts as the orchestration layer between Discord API, OAuth2 client, and user repository.
 pub struct AuthService<'a> {
+    /// Database connection for user operations.
     pub db: &'a DatabaseConnection,
+    /// HTTP client for Discord API requests.
     pub http_client: &'a reqwest::Client,
+    /// OAuth2 client for Discord authentication flow.
     pub oauth_client: &'a OAuth2Client,
 }
 
 impl<'a> AuthService<'a> {
+    /// Creates a new AuthService instance.
+    ///
+    /// # Arguments
+    /// - `db` - Reference to the database connection
+    /// - `http_client` - Reference to the HTTP client for Discord API requests
+    /// - `oauth_client` - Reference to the configured OAuth2 client
+    ///
+    /// # Returns
+    /// - `AuthService` - New service instance
     pub fn new(
         db: &'a DatabaseConnection,
         http_client: &'a reqwest::Client,
@@ -42,6 +63,14 @@ impl<'a> AuthService<'a> {
         }
     }
 
+    /// Generates a Discord OAuth2 login URL with CSRF protection.
+    ///
+    /// Creates an authorization URL that redirects users to Discord's OAuth2 consent screen.
+    /// Requests scopes for user identity, guild list, and guild member information. Returns
+    /// both the URL and CSRF token for callback validation.
+    ///
+    /// # Returns
+    /// - `(Url, CsrfToken)` - Tuple containing the authorization URL and CSRF state token
     pub fn login_url(&self) -> (Url, CsrfToken) {
         let (authorize_url, csrf_state) = self
             .oauth_client
@@ -55,6 +84,21 @@ impl<'a> AuthService<'a> {
         (authorize_url, csrf_state)
     }
 
+    /// Handles OAuth2 callback and authenticates user.
+    ///
+    /// Exchanges the authorization code for an access token, fetches the user's Discord
+    /// information, creates or updates the user record, and syncs their guild/role data
+    /// if needed based on timestamp thresholds. Optionally sets admin status for the user.
+    ///
+    /// # Arguments
+    /// - `authorization_code` - OAuth2 authorization code from Discord callback
+    /// - `set_admin` - Whether to grant admin privileges to this user
+    ///
+    /// # Returns
+    /// - `Ok(User)` - Authenticated user with updated information
+    /// - `Err(AppError::Auth)` - OAuth2 token exchange failed
+    /// - `Err(AppError::Network)` - Failed to fetch user data from Discord API
+    /// - `Err(AppError::Database)` - Database error during user upsert or sync
     pub async fn callback(
         &self,
         authorization_code: String,
@@ -92,10 +136,20 @@ impl<'a> AuthService<'a> {
         Ok(new_user)
     }
 
-    /// Syncs user's role memberships if needed based on timestamp
+    /// Syncs user's role memberships if needed based on timestamp.
     ///
-    /// Guild membership is already tracked via discord_guild_member table (bot events),
-    /// so we only need to sync roles for logged-in users.
+    /// Checks if the user's role data needs refreshing based on a 30-minute threshold.
+    /// Guild membership is already tracked via discord_guild_member table from bot events,
+    /// so this only syncs Discord roles for logged-in users. Skips sync if recently updated.
+    ///
+    /// # Arguments
+    /// - `user` - User domain model containing sync timestamps
+    /// - `token` - OAuth2 access token for Discord API requests
+    ///
+    /// # Returns
+    /// - `Ok(())` - Sync completed or skipped if not needed
+    /// - `Err(AppError::Database)` - Database error during sync
+    /// - `Err(AppError::Network)` - Failed to fetch data from Discord API
     async fn sync_user_data_if_needed(
         &self,
         user: &User,
@@ -127,7 +181,21 @@ impl<'a> AuthService<'a> {
         Ok(())
     }
 
-    /// Syncs user's role memberships
+    /// Syncs user's role memberships across all shared guilds.
+    ///
+    /// Fetches the user's guild member data for each guild they share with the bot,
+    /// updates their role associations in the database, and records the sync timestamp.
+    /// Logs warnings for guilds where member data cannot be fetched but continues processing.
+    ///
+    /// # Arguments
+    /// - `user` - User domain model to sync roles for
+    /// - `token` - OAuth2 access token for Discord API requests
+    /// - `user_guilds` - List of guilds the user belongs to
+    ///
+    /// # Returns
+    /// - `Ok(())` - Role sync completed successfully
+    /// - `Err(AppError::Database)` - Database error during sync
+    /// - `Err(AppError::InternalError)` - Failed to parse user Discord ID
     async fn sync_roles(
         &self,
         user: &User,
@@ -168,7 +236,17 @@ impl<'a> AuthService<'a> {
         Ok(())
     }
 
-    /// Retrieves a Discord user's information using provided access token
+    /// Retrieves a Discord user's information using provided access token.
+    ///
+    /// Fetches the authenticated user's Discord profile data including their ID, username,
+    /// discriminator, and avatar. Uses the Discord API's "@me" endpoint.
+    ///
+    /// # Arguments
+    /// - `token` - OAuth2 access token for the authenticated user
+    ///
+    /// # Returns
+    /// - `Ok(DiscordUser)` - Successfully retrieved user information
+    /// - `Err(AppError::Network)` - HTTP request failed or response parsing failed
     async fn fetch_discord_user(
         &self,
         token: &StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
@@ -187,18 +265,19 @@ impl<'a> AuthService<'a> {
         Ok(user_info)
     }
 
-    /// Retrieves a user's member information for a specific guild
+    /// Retrieves a user's member information for a specific guild.
     ///
     /// Fetches the user's Discord Member object for the specified guild using the OAuth token.
-    /// The Member object contains the user's roles, nickname, and other guild-specific data.
+    /// The Member object contains the user's roles, nickname, join date, and other guild-specific
+    /// data. Used during role synchronization to update local role associations.
     ///
     /// # Arguments
-    /// - `token`: OAuth access token for the authenticated user
-    /// - `guild_id`: Discord's unique identifier for the guild
+    /// - `token` - OAuth2 access token for the authenticated user
+    /// - `guild_id` - Discord's unique identifier for the guild
     ///
     /// # Returns
-    /// - `Ok(Member)`: Successfully retrieved member information
-    /// - `Err(AppError)`: HTTP request failed or user is not a member of the guild
+    /// - `Ok(Member)` - Successfully retrieved member information
+    /// - `Err(AppError::Network)` - HTTP request failed or user is not a member of the guild
     async fn fetch_guild_member(
         &self,
         token: &StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
@@ -221,7 +300,18 @@ impl<'a> AuthService<'a> {
         Ok(member)
     }
 
-    /// Retrieves a list of guilds the Discord user is a member of
+    /// Retrieves a list of guilds the Discord user is a member of.
+    ///
+    /// Fetches all guilds the authenticated user belongs to from Discord's API. Returns
+    /// partial guild information containing only the guild IDs. Used to determine which
+    /// guilds to sync role data for.
+    ///
+    /// # Arguments
+    /// - `token` - OAuth2 access token for the authenticated user
+    ///
+    /// # Returns
+    /// - `Ok(Vec<PartialGuild>)` - List of guilds the user is a member of
+    /// - `Err(AppError::Network)` - HTTP request failed or response parsing failed
     pub async fn fetch_user_guilds(
         &self,
         token: &StandardTokenResponse<EmptyExtraTokenFields, BasicTokenType>,
