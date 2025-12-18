@@ -129,12 +129,7 @@ impl<'a> FleetCategoryService<'a> {
 
         let categories = repo.get_by_ping_format_id(ping_format_id).await?;
 
-        let categories: Result<Vec<_>, _> = categories
-            .into_iter()
-            .map(FleetCategoryListItem::from_entity)
-            .collect();
-
-        Ok(categories?)
+        Ok(categories)
     }
 
     /// Gets fleet categories that a user can create or manage
@@ -166,10 +161,7 @@ impl<'a> FleetCategoryService<'a> {
                 .collect::<Result<Vec<_>, _>>()?
         } else {
             // Regular users get only categories they can manage
-            let cats = repo.get_manageable_by_user(user_id, guild_id).await?;
-            cats.into_iter()
-                .map(FleetCategoryListItem::from_entity)
-                .collect::<Result<Vec<_>, _>>()?
+            repo.get_manageable_by_user(user_id, guild_id).await?
         };
 
         Ok(categories)

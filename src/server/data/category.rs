@@ -1,3 +1,14 @@
+//! Fleet category repository for database operations.
+//!
+//! This module provides the `FleetCategoryRepository` for managing fleet categories
+//! and their associated access controls. It handles CRUD operations, permission checks,
+//! and enriched queries that join categories with related entities like ping formats,
+//! access roles, ping roles, and channels.
+//!
+//! All methods return param models at the repository boundary, converting SeaORM
+//! entity models internally to prevent database-specific structures from leaking
+//! into service and controller layers.
+
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
     PaginatorTrait, QueryFilter, QueryOrder,
@@ -5,24 +16,44 @@ use sea_orm::{
 use std::collections::HashMap;
 
 use crate::server::model::category::{
-    CreateFleetCategoryParams, FleetCategoryWithCounts, FleetCategoryWithRelations,
-    UpdateFleetCategoryParams,
+    CreateFleetCategoryParams, FleetCategoryListItem, FleetCategoryWithCounts,
+    FleetCategoryWithRelations, UpdateFleetCategoryParams,
 };
 
+/// Repository for fleet category database operations.
+///
+/// Provides methods for creating, reading, updating, and deleting fleet categories,
+/// as well as permission checking and enriched queries with related entities.
 pub struct FleetCategoryRepository<'a> {
+    /// Database connection for executing queries.
     db: &'a DatabaseConnection,
 }
 
 impl<'a> FleetCategoryRepository<'a> {
+    /// Creates a new repository instance.
+    ///
+    /// # Arguments
+    /// - `db`: Database connection for executing queries
     pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
 
-    /// Creates a new fleet category and returns it with related ping format
+    /// Creates a new fleet category with related entities.
+    ///
+    /// Inserts the category along with its access roles, ping roles, and channels.
+    /// This is a transactional operation - if any insert fails, the entire operation
+    /// should be rolled back by the database.
+    ///
+    /// # Arguments
+    /// - `params`: Parameters containing category data and related entity IDs
+    ///
+    /// # Returns
+    /// - `Ok(FleetCategoryListItem)`: The created category as a param model
+    /// - `Err(DbErr)`: Database error during insertion
     pub async fn create(
         &self,
         params: CreateFleetCategoryParams,
-    ) -> Result<entity::fleet_category::Model, DbErr> {
+    ) -> Result<FleetCategoryListItem, DbErr> {
         let category = entity::fleet_category::ActiveModel {
             guild_id: ActiveValue::Set(params.guild_id.to_string()),
             ping_format_id: ActiveValue::Set(params.ping_format_id),
@@ -68,10 +99,23 @@ impl<'a> FleetCategoryRepository<'a> {
             .await?;
         }
 
-        Ok(category)
+        FleetCategoryListItem::from_entity(category)
     }
 
-    /// Gets a fleet category by ID with related ping format and all related entities with enriched data
+    /// Gets a fleet category by ID with all related entities and enriched data.
+    ///
+    /// Fetches the category along with its ping format, access roles, ping roles,
+    /// and channels. Also enriches the roles and channels with display data (name,
+    /// color, position) by joining with Discord guild role and channel tables.
+    /// Results are sorted by position for consistent display ordering.
+    ///
+    /// # Arguments
+    /// - `id`: Fleet category ID
+    ///
+    /// # Returns
+    /// - `Ok(Some(FleetCategoryWithRelations))`: Category with all related data
+    /// - `Ok(None)`: Category not found
+    /// - `Err(DbErr)`: Database error during query
     pub async fn get_by_id(&self, id: i32) -> Result<Option<FleetCategoryWithRelations>, DbErr> {
         let category_result = entity::prelude::FleetCategory::find_by_id(id)
             .find_also_related(entity::prelude::PingFormat)
@@ -199,7 +243,20 @@ impl<'a> FleetCategoryRepository<'a> {
         }
     }
 
-    /// Gets paginated fleet categories for a guild with related ping format and counts
+    /// Gets paginated fleet categories for a guild with counts of related entities.
+    ///
+    /// Retrieves categories ordered by name with related ping formats and counts of
+    /// access roles, ping roles, and channels. This is more efficient than fetching
+    /// full related data when only counts are needed for list views.
+    ///
+    /// # Arguments
+    /// - `guild_id`: Discord guild ID
+    /// - `page`: Page number (0-indexed)
+    /// - `per_page`: Number of items per page
+    ///
+    /// # Returns
+    /// - `Ok((categories, total))`: Tuple of category list and total count
+    /// - `Err(DbErr)`: Database error during query
     pub async fn get_by_guild_id_paginated(
         &self,
         guild_id: u64,
@@ -245,11 +302,23 @@ impl<'a> FleetCategoryRepository<'a> {
         Ok((results, total))
     }
 
-    /// Updates a fleet category's name and duration fields and returns it with related ping format
+    /// Updates a fleet category and replaces all related entities.
+    ///
+    /// Updates the category's core fields (name, ping format, durations) and completely
+    /// replaces all access roles, ping roles, and channels with the new data provided.
+    /// Existing related entities are deleted before inserting new ones.
+    ///
+    /// # Arguments
+    /// - `params`: Parameters containing updated category data and related entity IDs
+    ///
+    /// # Returns
+    /// - `Ok(FleetCategoryListItem)`: The updated category as a param model
+    /// - `Err(DbErr::RecordNotFound)`: Category with specified ID not found
+    /// - `Err(DbErr)`: Database error during update or related entity operations
     pub async fn update(
         &self,
         params: UpdateFleetCategoryParams,
-    ) -> Result<entity::fleet_category::Model, DbErr> {
+    ) -> Result<FleetCategoryListItem, DbErr> {
         let category = entity::prelude::FleetCategory::find_by_id(params.id)
             .one(self.db)
             .await?
@@ -319,10 +388,20 @@ impl<'a> FleetCategoryRepository<'a> {
             .await?;
         }
 
-        Ok(updated_category)
+        FleetCategoryListItem::from_entity(updated_category)
     }
 
-    /// Deletes a fleet category
+    /// Deletes a fleet category and all related entities.
+    ///
+    /// Deletes the category by ID. Related entities (access roles, ping roles, channels)
+    /// are automatically deleted via database cascade constraints.
+    ///
+    /// # Arguments
+    /// - `id`: Fleet category ID to delete
+    ///
+    /// # Returns
+    /// - `Ok(())`: Category successfully deleted
+    /// - `Err(DbErr)`: Database error during deletion
     pub async fn delete(&self, id: i32) -> Result<(), DbErr> {
         entity::prelude::FleetCategory::delete_by_id(id)
             .exec(self.db)
@@ -331,7 +410,18 @@ impl<'a> FleetCategoryRepository<'a> {
         Ok(())
     }
 
-    /// Checks if a fleet category exists and belongs to the specified guild
+    /// Checks if a fleet category exists and belongs to the specified guild.
+    ///
+    /// Used for validation before performing operations that require guild ownership.
+    ///
+    /// # Arguments
+    /// - `id`: Fleet category ID to check
+    /// - `guild_id`: Discord guild ID that should own the category
+    ///
+    /// # Returns
+    /// - `Ok(true)`: Category exists and belongs to the guild
+    /// - `Ok(false)`: Category not found or belongs to a different guild
+    /// - `Err(DbErr)`: Database error during query
     pub async fn exists_in_guild(&self, id: i32, guild_id: u64) -> Result<bool, DbErr> {
         let count = entity::prelude::FleetCategory::find()
             .filter(entity::fleet_category::Column::Id.eq(id))
@@ -342,35 +432,50 @@ impl<'a> FleetCategoryRepository<'a> {
         Ok(count > 0)
     }
 
-    /// Gets fleet categories by ping format ID
+    /// Gets fleet categories that use a specific ping format.
+    ///
+    /// Used to check dependencies before deleting a ping format or to find
+    /// categories that need updating when a ping format changes.
+    ///
+    /// # Arguments
+    /// - `ping_format_id`: Ping format ID to search for
+    ///
+    /// # Returns
+    /// - `Ok(Vec<FleetCategoryListItem>)`: Categories using the specified ping format
+    /// - `Err(DbErr)`: Database error during query
     pub async fn get_by_ping_format_id(
         &self,
         ping_format_id: i32,
-    ) -> Result<Vec<entity::fleet_category::Model>, DbErr> {
-        entity::prelude::FleetCategory::find()
+    ) -> Result<Vec<FleetCategoryListItem>, DbErr> {
+        let categories = entity::prelude::FleetCategory::find()
             .filter(entity::fleet_category::Column::PingFormatId.eq(ping_format_id))
             .all(self.db)
-            .await
+            .await?;
+
+        categories
+            .into_iter()
+            .map(FleetCategoryListItem::from_entity)
+            .collect()
     }
 
-    /// Gets fleet categories that a user can create or manage
+    /// Gets fleet categories that a user can create or manage.
     ///
     /// Returns categories where the user has can_create OR can_manage permission
     /// through their Discord roles. Admins are not handled here - check admin status
-    /// before calling this method.
+    /// before calling this method to grant full access.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID (u64)
-    /// - `guild_id`: Discord guild ID (u64)
+    /// - `user_id`: Discord user ID
+    /// - `guild_id`: Discord guild ID
     ///
     /// # Returns
-    /// - `Ok(Vec<Model>)`: Vector of fleet categories the user can create/manage
+    /// - `Ok(Vec<FleetCategoryListItem>)`: Categories the user can create/manage
     /// - `Err(DbErr)`: Database error during query
     pub async fn get_manageable_by_user(
         &self,
         user_id: u64,
         guild_id: u64,
-    ) -> Result<Vec<entity::fleet_category::Model>, DbErr> {
+    ) -> Result<Vec<FleetCategoryListItem>, DbErr> {
         use sea_orm::Condition;
 
         // First, get all role IDs that the user has in this guild
@@ -405,26 +510,32 @@ impl<'a> FleetCategoryRepository<'a> {
         }
 
         // Get the actual category models for this guild
-        entity::prelude::FleetCategory::find()
+        let categories = entity::prelude::FleetCategory::find()
             .filter(entity::fleet_category::Column::GuildId.eq(guild_id.to_string()))
             .filter(entity::fleet_category::Column::Id.is_in(category_ids))
             .order_by_asc(entity::fleet_category::Column::Name)
             .all(self.db)
-            .await
+            .await?;
+
+        categories
+            .into_iter()
+            .map(FleetCategoryListItem::from_entity)
+            .collect()
     }
 
-    /// Gets fleet category IDs that a user can view
+    /// Gets fleet category IDs that a user can view.
     ///
-    /// Returns category IDs where the user has can_view permission
-    /// through their Discord roles. Admins are not handled here - check admin status
-    /// before calling this method.
+    /// Returns category IDs where the user has can_view permission through their
+    /// Discord roles. Used for filtering fleet lists and category dropdowns.
+    /// Admins are not handled here - check admin status before calling this method
+    /// to grant access to all categories.
     ///
     /// # Arguments
-    /// - `user_id`: Discord user ID (u64)
-    /// - `guild_id`: Discord guild ID (u64)
+    /// - `user_id`: Discord user ID
+    /// - `guild_id`: Discord guild ID
     ///
     /// # Returns
-    /// - `Ok(Vec<i32>)`: Vector of fleet category IDs the user can view
+    /// - `Ok(Vec<i32>)`: Category IDs the user can view
     /// - `Err(DbErr)`: Database error during query
     pub async fn get_viewable_category_ids_by_user(
         &self,
@@ -471,7 +582,20 @@ impl<'a> FleetCategoryRepository<'a> {
         Ok(guild_category_ids)
     }
 
-    /// Gets category IDs where user has create permission
+    /// Gets fleet category IDs that a user can create fleets in.
+    ///
+    /// Returns category IDs where the user has can_create permission through their
+    /// Discord roles. Used for filtering category options when creating new fleets.
+    /// Admins are not handled here - check admin status before calling this method
+    /// to grant access to all categories.
+    ///
+    /// # Arguments
+    /// - `user_id`: Discord user ID
+    /// - `guild_id`: Discord guild ID
+    ///
+    /// # Returns
+    /// - `Ok(Vec<i32>)`: Category IDs the user can create fleets in
+    /// - `Err(DbErr)`: Database error during query
     pub async fn get_creatable_category_ids_by_user(
         &self,
         user_id: u64,
@@ -517,7 +641,20 @@ impl<'a> FleetCategoryRepository<'a> {
         Ok(guild_category_ids)
     }
 
-    /// Gets category IDs where user has manage permission
+    /// Gets fleet category IDs that a user can manage.
+    ///
+    /// Returns category IDs where the user has can_manage permission through their
+    /// Discord roles. Used for filtering categories in management interfaces.
+    /// Admins are not handled here - check admin status before calling this method
+    /// to grant access to all categories.
+    ///
+    /// # Arguments
+    /// - `user_id`: Discord user ID
+    /// - `guild_id`: Discord guild ID
+    ///
+    /// # Returns
+    /// - `Ok(Vec<i32>)`: Category IDs the user can manage
+    /// - `Err(DbErr)`: Database error during query
     pub async fn get_manageable_category_ids_by_user(
         &self,
         user_id: u64,
@@ -563,7 +700,21 @@ impl<'a> FleetCategoryRepository<'a> {
         Ok(guild_category_ids)
     }
 
-    /// Checks if a user has view access to a specific category
+    /// Checks if a user has view access to a specific category.
+    ///
+    /// Verifies that at least one of the user's Discord roles has can_view permission
+    /// for the specified category. Used for authorization checks before displaying
+    /// category data or fleets within a category.
+    ///
+    /// # Arguments
+    /// - `user_id`: Discord user ID
+    /// - `_guild_id`: Discord guild ID (currently unused but kept for API consistency)
+    /// - `category_id`: Fleet category ID to check access for
+    ///
+    /// # Returns
+    /// - `Ok(true)`: User has view access to the category
+    /// - `Ok(false)`: User does not have view access
+    /// - `Err(DbErr)`: Database error during query
     pub async fn user_can_view_category(
         &self,
         user_id: u64,
@@ -594,7 +745,21 @@ impl<'a> FleetCategoryRepository<'a> {
         Ok(access_count > 0)
     }
 
-    /// Checks if a user has create access to a specific category
+    /// Checks if a user has create access to a specific category.
+    ///
+    /// Verifies that at least one of the user's Discord roles has can_create permission
+    /// for the specified category. Used for authorization checks before allowing
+    /// fleet creation in a category.
+    ///
+    /// # Arguments
+    /// - `user_id`: Discord user ID
+    /// - `_guild_id`: Discord guild ID (currently unused but kept for API consistency)
+    /// - `category_id`: Fleet category ID to check access for
+    ///
+    /// # Returns
+    /// - `Ok(true)`: User has create access to the category
+    /// - `Ok(false)`: User does not have create access
+    /// - `Err(DbErr)`: Database error during query
     pub async fn user_can_create_category(
         &self,
         user_id: u64,
@@ -625,7 +790,21 @@ impl<'a> FleetCategoryRepository<'a> {
         Ok(access_count > 0)
     }
 
-    /// Checks if a user has manage access to a specific category
+    /// Checks if a user has manage access to a specific category.
+    ///
+    /// Verifies that at least one of the user's Discord roles has can_manage permission
+    /// for the specified category. Used for authorization checks before allowing
+    /// category updates, deletion, or other administrative operations.
+    ///
+    /// # Arguments
+    /// - `user_id`: Discord user ID
+    /// - `_guild_id`: Discord guild ID (currently unused but kept for API consistency)
+    /// - `category_id`: Fleet category ID to check access for
+    ///
+    /// # Returns
+    /// - `Ok(true)`: User has manage access to the category
+    /// - `Ok(false)`: User does not have manage access
+    /// - `Err(DbErr)`: Database error during query
     pub async fn user_can_manage_category(
         &self,
         user_id: u64,
@@ -656,7 +835,19 @@ impl<'a> FleetCategoryRepository<'a> {
         Ok(access_count > 0)
     }
 
-    /// Gets category details with ping format fields for fleet creation
+    /// Gets category details with all related data for fleet creation.
+    ///
+    /// Alias for `get_by_id` that provides a more semantic name when used in
+    /// the context of fleet creation workflows. Returns the full category with
+    /// ping format and all related entities.
+    ///
+    /// # Arguments
+    /// - `category_id`: Fleet category ID
+    ///
+    /// # Returns
+    /// - `Ok(Some(FleetCategoryWithRelations))`: Category with all related data
+    /// - `Ok(None)`: Category not found
+    /// - `Err(DbErr)`: Database error during query
     pub async fn get_category_details(
         &self,
         category_id: i32,
