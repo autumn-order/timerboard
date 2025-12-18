@@ -450,17 +450,17 @@ static USER_TAG: &str = "user";
 /// the database to retrieve information on the user, returning their user ID & name.
 /// 
 /// # Access Control
-/// - `LoggedIn`: Can only access this route if user is logged in
+/// - `LoggedIn` - Can only access this route if user is logged in
 /// 
 /// # Arguments
-/// - `state`: Application state containing the database connection for character lookup
-/// - `session`: User's session containing their user ID
+/// - `state` - Application state containing the database connection for character lookup
+/// - `session` - User's session containing their user ID
 /// 
 /// # Returns
-/// - `Ok(Some(UserDto))`: User's ID & name
-/// - `Ok(None)`: User not in session or not in database
-/// - `Err(DbErr(_))`: An error occurred retrieving user information from the database
-/// - `Err(SessionErr(_))`: An error occurred getting user ID from session
+/// - `Ok(Some(UserDto))` - User's ID & name
+/// - `Ok(None)` - User not in session or not in database
+/// - `Err(DbErr(_))` - An error occurred retrieving user information from the database
+/// - `Err(SessionErr(_))` - An error occurred getting user ID from session
 #[utoipa::path(
     get,
     path = "/api/user",
@@ -566,8 +566,8 @@ pub enum ConfigError {
     /// the value was rejected.
     ///
     /// # Fields
-    /// - `var`: Name of the environment variable with invalid value
-    /// - `reason`: Explanation of why the value is invalid
+    /// - `var` - Name of the environment variable with invalid value.
+    /// - `reason` - Explanation of why the value is invalid.
     #[error("Invalid value for environment variable {var}: {reason}")]
     InvalidEnvValue {
         /// Name of the environment variable with invalid value.
