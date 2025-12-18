@@ -1,3 +1,11 @@
+//! Fleet notification service for Discord message management.
+//!
+//! This module provides the `FleetNotificationService` for managing Discord notifications
+//! related to fleet events. It orchestrates fleet message posting, updates, and cancellations
+//! across configured Discord channels with role pings and embedded fleet information. The
+//! service also maintains an "upcoming fleets" list message that provides a centralized view
+//! of scheduled events in each channel.
+
 use dioxus_logger::tracing;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serenity::{
@@ -22,24 +30,50 @@ use crate::server::{
     },
 };
 
+/// Service providing Discord notification operations for fleet events.
+///
+/// This struct holds references to the database connection, Discord HTTP client, and
+/// application URL. It provides methods for posting fleet notifications (creation,
+/// reminders, formup), updating existing messages, cancelling fleets, and maintaining
+/// an upcoming fleets list in configured channels.
 pub struct FleetNotificationService<'a> {
+    /// Database connection for accessing fleet and notification data
     db: &'a DatabaseConnection,
+    /// Discord HTTP client for sending and editing messages
     http: Arc<Http>,
+    /// Base application URL for embedding links in notifications
     app_url: String,
 }
 
 impl<'a> FleetNotificationService<'a> {
+    /// Creates a new FleetNotificationService instance.
+    ///
+    /// # Arguments
+    /// - `db` - Reference to the database connection
+    /// - `http` - Arc-wrapped Discord HTTP client for API requests
+    /// - `app_url` - Base URL of the application for embedding in notifications
+    ///
+    /// # Returns
+    /// - `FleetNotificationService` - New service instance
     pub fn new(db: &'a DatabaseConnection, http: Arc<Http>, app_url: String) -> Self {
         Self { db, http, app_url }
     }
 
-    /// Posts fleet creation message to all configured channels
+    /// Posts fleet creation message to all configured channels.
     ///
-    /// Only posts if fleet is not hidden. Stores message IDs in database.
+    /// Creates Discord messages with fleet details in all channels configured for the
+    /// fleet's category. Only posts if the fleet is not hidden. Message IDs are stored
+    /// in the database for later updates or cancellations. Uses blue embed color (0x3498db).
     ///
     /// # Arguments
-    /// - `fleet`: Fleet entity model
-    /// - `field_values`: Map of field_id -> value for ping format fields
+    /// - `fleet` - Fleet domain model containing event details
+    /// - `field_values` - Map of field_id to value for custom ping format fields
+    ///
+    /// # Returns
+    /// - `Ok(())` - Successfully posted creation messages to all channels
+    /// - `Err(AppError::NotFound)` - Fleet category or ping format not found
+    /// - `Err(AppError::InternalError)` - Invalid ID format or timestamp
+    /// - `Err(AppError::Database)` - Database error storing message records
     pub async fn post_fleet_creation(
         &self,
         fleet: &Fleet,
@@ -56,13 +90,22 @@ impl<'a> FleetNotificationService<'a> {
         .await
     }
 
-    /// Posts fleet reminder message as a reply to the creation message
+    /// Posts fleet reminder message as a reply to the creation message.
     ///
-    /// If no creation message exists (fleet was hidden), posts as a new message.
+    /// Creates reminder notifications before fleet time to alert participants. If creation
+    /// messages exist, replies to them. If the fleet was initially hidden (no creation
+    /// messages), posts as new messages. Skips posting if `disable_reminder` is true.
+    /// Uses orange embed color (0xf39c12).
     ///
     /// # Arguments
-    /// - `fleet`: Fleet entity model
-    /// - `field_values`: Map of field_id -> value for ping format fields
+    /// - `fleet` - Fleet domain model containing event details
+    /// - `field_values` - Map of field_id to value for custom ping format fields
+    ///
+    /// # Returns
+    /// - `Ok(())` - Successfully posted reminder messages or skipped (if disabled)
+    /// - `Err(AppError::NotFound)` - Fleet category or ping format not found
+    /// - `Err(AppError::InternalError)` - Invalid ID format or timestamp
+    /// - `Err(AppError::Database)` - Database error retrieving or storing messages
     pub async fn post_fleet_reminder(
         &self,
         fleet: &Fleet,
@@ -91,11 +134,21 @@ impl<'a> FleetNotificationService<'a> {
         .await
     }
 
-    /// Posts fleet form-up message as a reply to the creation/reminder message
+    /// Posts fleet formup message as a reply to existing fleet messages.
+    ///
+    /// Creates formup notifications at fleet time to signal immediate gathering. Replies
+    /// to the most recent existing message (reminder or creation) for each channel.
+    /// Uses red embed color (0xe74c3c) to indicate urgency.
     ///
     /// # Arguments
-    /// - `fleet`: Fleet entity model
-    /// - `field_values`: Map of field_id -> value for ping format fields
+    /// - `fleet` - Fleet domain model containing event details
+    /// - `field_values` - Map of field_id to value for custom ping format fields
+    ///
+    /// # Returns
+    /// - `Ok(())` - Successfully posted formup messages to all channels
+    /// - `Err(AppError::NotFound)` - Fleet category or ping format not found
+    /// - `Err(AppError::InternalError)` - Invalid ID format or timestamp
+    /// - `Err(AppError::Database)` - Database error retrieving or storing messages
     pub async fn post_fleet_formup(
         &self,
         fleet: &Fleet,
@@ -115,11 +168,22 @@ impl<'a> FleetNotificationService<'a> {
         .await
     }
 
-    /// Updates all existing fleet messages with new fleet information
+    /// Updates all existing fleet messages with new fleet information.
+    ///
+    /// Edits all Discord messages associated with the fleet to reflect updated details.
+    /// Continues updating remaining messages even if individual updates fail. Uses blue
+    /// embed color (0x3498db) for updates. Logs errors for failed updates but doesn't
+    /// propagate them to allow partial success.
     ///
     /// # Arguments
-    /// - `fleet`: Updated fleet entity model
-    /// - `field_values`: Map of field_id -> value for ping format fields
+    /// - `fleet` - Updated fleet domain model with current event details
+    /// - `field_values` - Map of field_id to value for custom ping format fields
+    ///
+    /// # Returns
+    /// - `Ok(())` - Successfully updated all messages (or no messages exist)
+    /// - `Err(AppError::NotFound)` - Fleet category or ping format not found
+    /// - `Err(AppError::InternalError)` - Invalid ID format or timestamp
+    /// - `Err(AppError::Database)` - Database error retrieving messages or fields
     pub async fn update_fleet_messages(
         &self,
         fleet: &Fleet,
@@ -212,10 +276,21 @@ impl<'a> FleetNotificationService<'a> {
         Ok(())
     }
 
-    /// Cancels all existing fleet messages by editing them with cancellation notice
+    /// Cancels all existing fleet messages by editing them with cancellation notice.
+    ///
+    /// Edits all Discord messages associated with the fleet to display cancellation
+    /// information. Uses gray embed color (0x95a5a6) and includes cancellation timestamp
+    /// and cancelled-by information. Continues cancelling remaining messages even if
+    /// individual edits fail.
     ///
     /// # Arguments
-    /// - `fleet`: Fleet entity model being cancelled
+    /// - `fleet` - Fleet domain model being cancelled
+    ///
+    /// # Returns
+    /// - `Ok(())` - Successfully cancelled all messages (or no messages exist)
+    /// - `Err(AppError::NotFound)` - Fleet category not found
+    /// - `Err(AppError::InternalError)` - Invalid ID format or timestamp
+    /// - `Err(AppError::Database)` - Database error retrieving messages
     pub async fn cancel_fleet_messages(&self, fleet: &Fleet) -> Result<(), AppError> {
         let message_repo = FleetMessageRepository::new(self.db);
         let category_repo = FleetCategoryRepository::new(self.db);
@@ -313,13 +388,21 @@ impl<'a> FleetNotificationService<'a> {
         Ok(())
     }
 
-    /// Posts or updates the upcoming fleets list for a channel
+    /// Posts or updates the upcoming fleets list for a channel.
     ///
-    /// This creates/updates a single message with a list of all upcoming fleets
-    /// for all categories configured for the channel.
+    /// Creates or updates a single message displaying all upcoming non-hidden fleets
+    /// for categories configured to post in the channel. The list includes links to
+    /// fleet messages and relative timestamps. Intelligently edits the existing list
+    /// if it's still the most recent message, or deletes and reposts if other messages
+    /// have been sent since. Uses Discord blurple color (0x5865F2).
     ///
     /// # Arguments
-    /// - `channel_id_str`: Discord channel ID as string
+    /// - `channel_id_str` - Discord channel ID as string
+    ///
+    /// # Returns
+    /// - `Ok(())` - Successfully posted/updated the upcoming fleets list
+    /// - `Err(AppError::InternalError)` - Invalid channel or message ID format
+    /// - `Err(AppError::Database)` - Database error retrieving fleets or categories
     pub async fn post_upcoming_fleets_list(&self, channel_id_str: &str) -> Result<(), AppError> {
         let channel_id_u64 = channel_id_str
             .parse::<u64>()
@@ -555,15 +638,26 @@ impl<'a> FleetNotificationService<'a> {
         Ok(())
     }
 
-    /// Core notification posting logic
+    /// Core notification posting logic shared by creation, reminder, and formup methods.
+    ///
+    /// Builds Discord messages with role pings and fleet embeds, then posts them to all
+    /// configured channels for the fleet's category. If reference messages are provided,
+    /// replies to the most recent message in each channel. Stores posted message IDs in
+    /// the database for future updates or cancellations.
     ///
     /// # Arguments
-    /// - `fleet`: Fleet entity model
-    /// - `field_values`: Map of field_id -> value for ping format fields
-    /// - `title`: Message title to display above the embed
-    /// - `color`: Embed color
-    /// - `message_type`: Type of message for database storage
-    /// - `reference_messages`: Optional existing messages to reply to
+    /// - `fleet` - Fleet domain model containing event details
+    /// - `field_values` - Map of field_id to value for custom ping format fields
+    /// - `_title` - Deprecated parameter (title is now built from category name and message type)
+    /// - `color` - Embed color as hex integer (e.g., 0x3498db for blue)
+    /// - `message_type` - Type identifier for database ("creation", "reminder", "formup")
+    /// - `reference_messages` - Optional existing messages to reply to
+    ///
+    /// # Returns
+    /// - `Ok(())` - Successfully posted notifications to all channels
+    /// - `Err(AppError::NotFound)` - Fleet category or ping format not found
+    /// - `Err(AppError::InternalError)` - Invalid ID format or timestamp
+    /// - `Err(AppError::Database)` - Database error storing message records
     async fn post_fleet_notification(
         &self,
         fleet: &Fleet,
@@ -708,7 +802,20 @@ impl<'a> FleetNotificationService<'a> {
         Ok(())
     }
 
-    /// Fetches the commander's Discord name (nickname in guild or username fallback)
+    /// Fetches the commander's Discord name from the guild.
+    ///
+    /// Attempts to retrieve the fleet commander's display name from the Discord guild.
+    /// Prefers the guild nickname if set, otherwise falls back to the Discord username.
+    /// If the member cannot be fetched (e.g., they left the guild), returns a fallback
+    /// string with their user ID.
+    ///
+    /// # Arguments
+    /// - `fleet` - Fleet domain model containing commander_id
+    /// - `guild_id` - Discord guild ID as u64 for member lookup
+    ///
+    /// # Returns
+    /// - `Ok(String)` - Commander's nickname, username, or "User {id}" fallback
+    /// - `Err(AppError::InternalError)` - Invalid commander ID format
     async fn get_commander_name(&self, fleet: &Fleet, guild_id: u64) -> Result<String, AppError> {
         let commander_id = fleet
             .commander_id
@@ -736,7 +843,24 @@ impl<'a> FleetNotificationService<'a> {
         }
     }
 
-    /// Builds a Discord embed for a fleet
+    /// Builds a Discord embed for a fleet notification.
+    ///
+    /// Creates a rich embed with fleet details including FC mention, fleet time in both
+    /// UTC and local formats, custom ping format fields, and optional description. The
+    /// embed includes the fleet name as title, application URL as clickable link, and
+    /// a footer with the commander's name and current timestamp.
+    ///
+    /// # Arguments
+    /// - `fleet` - Fleet domain model containing event details
+    /// - `fields` - Ping format field definitions from the database
+    /// - `field_values` - Map of field_id to value for custom fields
+    /// - `color` - Embed color as hex integer
+    /// - `commander_name` - Display name of the fleet commander
+    /// - `app_url` - Base application URL for embed link
+    ///
+    /// # Returns
+    /// - `Ok(CreateEmbed)` - Discord embed ready for posting
+    /// - `Err(AppError::InternalError)` - Invalid commander ID or timestamp format
     async fn build_fleet_embed(
         &self,
         fleet: &Fleet,

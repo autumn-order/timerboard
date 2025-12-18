@@ -1,3 +1,9 @@
+//! Discord API integration services.
+//!
+//! This module provides service abstractions for interacting with the Discord API through
+//! the Serenity library. These services handle Discord-specific operations such as fetching
+//! guild information, managing channels and roles, and synchronizing user access permissions.
+
 pub mod channel;
 pub mod guild;
 pub mod guild_member;
