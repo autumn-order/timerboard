@@ -1,3 +1,9 @@
+//! User domain models and parameters.
+//!
+//! Provides domain models for application users with Discord identity and permission
+//! tracking. Includes parameter types for user creation and updates during authentication
+//! and synchronization operations.
+
 use chrono::{DateTime, Utc};
 
 use crate::model::user::UserDto;
@@ -54,13 +60,14 @@ impl User {
 /// Parameters for upserting a user during authentication or sync.
 ///
 /// Creates new users or updates existing user information. The optional `is_admin`
-/// field preserves existing admin status when None.
+/// field preserves existing admin status when None, allowing updates to name without
+/// modifying permissions.
 #[derive(Debug, Clone)]
 pub struct UpsertUserParam {
-    /// Discord ID of the user.
+    /// Discord ID of the user as a string.
     pub discord_id: String,
     /// Display name of the user.
     pub name: String,
-    /// Optional admin status (None means don't update existing admin status).
+    /// Optional admin status (None preserves existing admin status, Some updates it).
     pub is_admin: Option<bool>,
 }

@@ -1,3 +1,9 @@
+//! Discord guild domain models.
+//!
+//! Provides the domain model for Discord guilds (servers), tracking guild identity,
+//! display properties, and synchronization metadata. Handles conversion between entity
+//! models from the database and domain models used in the service layer.
+
 use chrono::{DateTime, Utc};
 use sea_orm::DbErr;
 

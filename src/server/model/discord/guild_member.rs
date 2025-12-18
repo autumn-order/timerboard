@@ -1,3 +1,9 @@
+//! Discord guild member domain models.
+//!
+//! Provides the domain model for Discord users' guild memberships, tracking user identity
+//! and guild-specific display properties like nicknames. Handles conversion between entity
+//! models from the database and domain models used in the service layer.
+
 use sea_orm::DbErr;
 
 /// Discord user's membership in a guild with identity information.

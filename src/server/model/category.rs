@@ -1,3 +1,9 @@
+//! Fleet category domain models and parameters.
+//!
+//! Provides domain models for fleet categories, which organize fleet operations with
+//! associated ping formats, access controls, notification roles, and channels. Includes
+//! parameter types for create/update operations and models for different query contexts.
+
 use chrono::Duration;
 use sea_orm::DbErr;
 
@@ -7,9 +13,13 @@ use sea_orm::DbErr;
 /// (name, color) is not needed or unavailable.
 #[derive(Debug, Clone)]
 pub struct AccessRoleData {
+    /// Discord role ID as a u64.
     pub role_id: u64,
+    /// Whether the role can view fleets in this category.
     pub can_view: bool,
+    /// Whether the role can create fleets in this category.
     pub can_create: bool,
+    /// Whether the role can manage fleets in this category.
     pub can_manage: bool,
 }
 
@@ -19,16 +29,35 @@ pub struct AccessRoleData {
 /// (name, color, position) for UI presentation.
 #[derive(Debug, Clone)]
 pub struct AccessRole {
+    /// Discord role ID as a u64.
     pub role_id: u64,
+    /// Role display name.
     pub role_name: String,
+    /// Role color in hex format (e.g., "#FF5733").
     pub role_color: String,
+    /// Role position in guild hierarchy.
     pub position: i16,
+    /// Whether the role can view fleets in this category.
     pub can_view: bool,
+    /// Whether the role can create fleets in this category.
     pub can_create: bool,
+    /// Whether the role can manage fleets in this category.
     pub can_manage: bool,
 }
 
 impl AccessRole {
+    /// Converts entity models to a domain model at the repository boundary.
+    ///
+    /// Enriches access role permissions with display properties from the guild role.
+    /// Falls back to defaults if role model is unavailable.
+    ///
+    /// # Arguments
+    /// - `entity` - The fleet category access role entity from the database
+    /// - `role_model` - Optional guild role entity for display properties
+    ///
+    /// # Returns
+    /// - `Ok(AccessRole)` - Successfully converted domain model with enriched data
+    /// - `Err(DbErr::Custom)` - Failed to parse role_id as u64
     pub fn from_entity(
         entity: entity::fleet_category_access_role::Model,
         role_model: Option<entity::discord_guild_role::Model>,
@@ -55,6 +84,10 @@ impl AccessRole {
         })
     }
 
+    /// Converts domain model to DTO for API responses.
+    ///
+    /// # Returns
+    /// - `FleetCategoryAccessRoleDto` - DTO with all access role fields for serialization
     pub fn into_dto(self) -> crate::model::category::FleetCategoryAccessRoleDto {
         crate::model::category::FleetCategoryAccessRoleDto {
             role_id: self.role_id,
@@ -69,6 +102,9 @@ impl AccessRole {
 }
 
 impl From<crate::model::category::FleetCategoryAccessRoleDto> for AccessRoleData {
+    /// Converts a DTO to access role data for service layer operations.
+    ///
+    /// Extracts only the permission flags, discarding display properties.
     fn from(dto: crate::model::category::FleetCategoryAccessRoleDto) -> Self {
         Self {
             role_id: dto.role_id,
@@ -85,13 +121,29 @@ impl From<crate::model::category::FleetCategoryAccessRoleDto> for AccessRoleData
 /// display data for UI presentation.
 #[derive(Debug, Clone)]
 pub struct PingRole {
+    /// Discord role ID as a u64.
     pub role_id: u64,
+    /// Role display name.
     pub role_name: String,
+    /// Role color in hex format (e.g., "#FF5733").
     pub role_color: String,
+    /// Role position in guild hierarchy.
     pub position: i16,
 }
 
 impl PingRole {
+    /// Converts entity models to a domain model at the repository boundary.
+    ///
+    /// Enriches ping role data with display properties from the guild role.
+    /// Falls back to defaults if role model is unavailable.
+    ///
+    /// # Arguments
+    /// - `entity` - The fleet category ping role entity from the database
+    /// - `role_model` - Optional guild role entity for display properties
+    ///
+    /// # Returns
+    /// - `Ok(PingRole)` - Successfully converted domain model with enriched data
+    /// - `Err(DbErr::Custom)` - Failed to parse role_id as u64
     pub fn from_entity(
         entity: entity::fleet_category_ping_role::Model,
         role_model: Option<entity::discord_guild_role::Model>,
@@ -115,6 +167,10 @@ impl PingRole {
         })
     }
 
+    /// Converts domain model to DTO for API responses.
+    ///
+    /// # Returns
+    /// - `FleetCategoryPingRoleDto` - DTO with all ping role fields for serialization
     pub fn into_dto(self) -> crate::model::category::FleetCategoryPingRoleDto {
         crate::model::category::FleetCategoryPingRoleDto {
             role_id: self.role_id,
@@ -131,12 +187,27 @@ impl PingRole {
 /// data for UI presentation.
 #[derive(Debug, Clone)]
 pub struct Channel {
+    /// Discord channel ID as a u64.
     pub channel_id: u64,
+    /// Channel display name.
     pub channel_name: String,
+    /// Channel position in guild's channel list.
     pub position: i32,
 }
 
 impl Channel {
+    /// Converts entity models to a domain model at the repository boundary.
+    ///
+    /// Enriches channel association with display properties from the guild channel.
+    /// Falls back to defaults if channel model is unavailable.
+    ///
+    /// # Arguments
+    /// - `entity` - The fleet category channel entity from the database
+    /// - `channel_model` - Optional guild channel entity for display properties
+    ///
+    /// # Returns
+    /// - `Ok(Channel)` - Successfully converted domain model with enriched data
+    /// - `Err(DbErr::Custom)` - Failed to parse channel_id as u64
     pub fn from_entity(
         entity: entity::fleet_category_channel::Model,
         channel_model: Option<entity::discord_guild_channel::Model>,
@@ -156,6 +227,10 @@ impl Channel {
         })
     }
 
+    /// Converts domain model to DTO for API responses.
+    ///
+    /// # Returns
+    /// - `FleetCategoryChannelDto` - DTO with all channel fields for serialization
     pub fn into_dto(self) -> crate::model::category::FleetCategoryChannelDto {
         crate::model::category::FleetCategoryChannelDto {
             channel_id: self.channel_id,
@@ -242,17 +317,27 @@ impl UpdateFleetCategoryParams {
 /// Raw repository result containing the category and all related entities with
 /// optional guild role/channel data for enrichment.
 #[derive(Debug, Clone)]
+/// Fleet category with all related entity data loaded.
+///
+/// Used internally to hold entity models before conversion to domain models.
+/// Contains the category, ping format, and all related roles and channels with
+/// their display properties.
 pub struct FleetCategoryWithRelations {
+    /// The fleet category entity.
     pub category: entity::fleet_category::Model,
+    /// The ping format entity if available.
     pub ping_format: Option<entity::ping_format::Model>,
+    /// Access roles with their guild role entities for display properties.
     pub access_roles: Vec<(
         entity::fleet_category_access_role::Model,
         Option<entity::discord_guild_role::Model>,
     )>,
+    /// Ping roles with their guild role entities for display properties.
     pub ping_roles: Vec<(
         entity::fleet_category_ping_role::Model,
         Option<entity::discord_guild_role::Model>,
     )>,
+    /// Channels with their guild channel entities for display properties.
     pub channels: Vec<(
         entity::fleet_category_channel::Model,
         Option<entity::discord_guild_channel::Model>,
@@ -264,11 +349,21 @@ pub struct FleetCategoryWithRelations {
 /// Repository result for paginated category listings, including counts of
 /// associated roles and channels without loading full relationship data.
 #[derive(Debug, Clone)]
+/// Fleet category with aggregate counts instead of full related data.
+///
+/// Used for list views where only counts are needed, avoiding expensive
+/// relationship loading. Contains the category, ping format, and counts
+/// of related entities.
 pub struct FleetCategoryWithCounts {
+    /// The fleet category entity.
     pub category: entity::fleet_category::Model,
+    /// The ping format entity if available.
     pub ping_format: Option<entity::ping_format::Model>,
+    /// Count of access roles for this category.
     pub access_roles_count: usize,
+    /// Count of ping roles for this category.
     pub ping_roles_count: usize,
+    /// Count of channels for this category.
     pub channels_count: usize,
 }
 
@@ -292,6 +387,17 @@ pub struct FleetCategory {
 }
 
 impl FleetCategory {
+    /// Converts entity models with relations to a domain model.
+    ///
+    /// Transforms all related entity models to their domain representations,
+    /// enriching with display properties where available.
+    ///
+    /// # Arguments
+    /// - `data` - Fleet category with all related entity data
+    ///
+    /// # Returns
+    /// - `Ok(FleetCategory)` - Successfully converted domain model with all relations
+    /// - `Err(DbErr::Custom)` - Failed to parse IDs or convert related entities
     pub fn from_with_relations(data: FleetCategoryWithRelations) -> Result<Self, DbErr> {
         let guild_id = data
             .category
@@ -344,6 +450,10 @@ impl FleetCategory {
         })
     }
 
+    /// Converts domain model to DTO for API responses.
+    ///
+    /// # Returns
+    /// - `FleetCategoryDto` - DTO with all fleet category fields and relations for serialization
     pub fn into_dto(self) -> crate::model::category::FleetCategoryDto {
         crate::model::category::FleetCategoryDto {
             id: self.id,
@@ -389,6 +499,14 @@ pub struct FleetCategoryListItem {
 }
 
 impl FleetCategoryListItem {
+    /// Converts entity model with counts to a domain model for list views.
+    ///
+    /// # Arguments
+    /// - `data` - Fleet category entity with aggregate counts
+    ///
+    /// # Returns
+    /// - `Ok(FleetCategoryListItem)` - Successfully converted list item domain model
+    /// - `Err(DbErr::Custom)` - Failed to parse guild_id as u64
     pub fn from_with_counts(data: FleetCategoryWithCounts) -> Result<Self, DbErr> {
         let guild_id = data
             .category
@@ -444,6 +562,10 @@ impl FleetCategoryListItem {
         })
     }
 
+    /// Converts domain model to DTO for API responses.
+    ///
+    /// # Returns
+    /// - `FleetCategoryListItemDto` - DTO with fleet category summary and counts for serialization
     pub fn into_dto(self) -> crate::model::category::FleetCategoryListItemDto {
         crate::model::category::FleetCategoryListItemDto {
             id: self.id,
@@ -465,15 +587,28 @@ impl FleetCategoryListItem {
 ///
 /// Includes the category list along with pagination information for UI display.
 #[derive(Debug, Clone)]
+/// Paginated list of fleet categories with metadata.
+///
+/// Contains a page of fleet category list items along with pagination metadata
+/// for building paginated UI views.
 pub struct PaginatedFleetCategories {
+    /// Fleet category list items for the current page.
     pub categories: Vec<FleetCategoryListItem>,
+    /// Total number of fleet categories across all pages.
     pub total: u64,
+    /// Current page number (0-indexed).
     pub page: u64,
+    /// Number of items per page.
     pub per_page: u64,
+    /// Total number of pages available.
     pub total_pages: u64,
 }
 
 impl PaginatedFleetCategories {
+    /// Converts domain model to DTO for API responses.
+    ///
+    /// # Returns
+    /// - `PaginatedFleetCategoriesDto` - DTO with paginated categories and metadata for serialization
     pub fn into_dto(self) -> crate::model::category::PaginatedFleetCategoriesDto {
         crate::model::category::PaginatedFleetCategoriesDto {
             categories: self.categories.into_iter().map(|c| c.into_dto()).collect(),

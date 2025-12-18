@@ -1,3 +1,9 @@
+//! Discord guild role domain models.
+//!
+//! Provides the domain model for Discord roles within guilds, tracking role identity,
+//! display properties, and hierarchy position. Handles conversion between entity models
+//! from the database and domain models used in the service layer.
+
 use sea_orm::DbErr;
 
 /// Discord role within a guild with display properties and hierarchy position.

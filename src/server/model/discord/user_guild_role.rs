@@ -1,3 +1,9 @@
+//! User-role association domain models for Discord guilds.
+//!
+//! Provides the domain model for the many-to-many relationship between Discord users
+//! and roles within guilds. Handles conversion between entity models from the database
+//! and domain models used in the service layer.
+
 use sea_orm::DbErr;
 
 /// User's membership in a Discord role within a guild.

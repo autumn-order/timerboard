@@ -1,3 +1,9 @@
+//! Discord guild channel domain models.
+//!
+//! Provides the domain model for Discord channels within guilds, tracking channel
+//! identity, display properties, and position for ordering. Handles conversion between
+//! entity models from the database and domain models used in the service layer.
+
 use crate::model::discord::DiscordGuildChannelDto;
 use sea_orm::DbErr;
 
