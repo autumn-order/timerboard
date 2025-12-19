@@ -1,3 +1,4 @@
+use entity::prelude::*;
 use sea_orm::{sea_query::TableCreateStatement, EntityTrait, Schema};
 
 use crate::{context::TestContext, error::TestError};
@@ -56,6 +57,65 @@ impl TestBuilder {
         let schema = Schema::new(sea_orm::DbBackend::Sqlite);
         self.tables.push(schema.create_table_from_entity(entity));
         self
+    }
+
+    /// Adds all tables required for fleet operations.
+    ///
+    /// This convenience method adds the following tables in dependency order:
+    /// - User
+    /// - DiscordGuild
+    /// - PingFormat
+    /// - FleetCategory
+    /// - Fleet
+    ///
+    /// Use this when testing fleet-related functionality that doesn't involve
+    /// fleet messages. For tests involving fleet messages, use `with_fleet_message_tables()`.
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let test = TestBuilder::new()
+    ///     .with_fleet_tables()
+    ///     .build()
+    ///     .await?;
+    /// ```
+    pub fn with_fleet_tables(self) -> Self {
+        self.with_table(User)
+            .with_table(DiscordGuild)
+            .with_table(PingFormat)
+            .with_table(FleetCategory)
+            .with_table(Fleet)
+    }
+
+    /// Adds all tables required for fleet message operations.
+    ///
+    /// This convenience method adds the following tables in dependency order:
+    /// - User
+    /// - DiscordGuild
+    /// - PingFormat
+    /// - FleetCategory
+    /// - Fleet
+    /// - FleetMessage
+    ///
+    /// Use this when testing fleet message functionality. This is equivalent to
+    /// calling `with_fleet_tables()` followed by `with_table(FleetMessage)`.
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let test = TestBuilder::new()
+    ///     .with_fleet_message_tables()
+    ///     .build()
+    ///     .await?;
+    /// ```
+    pub fn with_fleet_message_tables(self) -> Self {
+        self.with_fleet_tables().with_table(FleetMessage)
     }
 
     /// Builds and initializes the test context with configured tables.

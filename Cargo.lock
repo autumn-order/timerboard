@@ -6830,8 +6830,11 @@ dependencies = [
 name = "test-utils"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "entity",
  "sea-orm",
  "thiserror 2.0.17",
+ "tokio",
 ]
 
 [[package]]

@@ -847,6 +847,105 @@ async fn fails_for_nonexistent_main_character() -> Result<(), AppError> {
 
 ---
 
+## Test Factories
+
+To reduce boilerplate and improve test maintainability, we use factory methods from the `test-utils` crate for creating test entities with sensible defaults.
+
+### Factory Usage
+
+**Basic entity creation:**
+
+```rust
+use test_utils::factory;
+
+#[tokio::test]
+async fn test_example() -> Result<(), DbErr> {
+    let test = TestBuilder::new()
+        .with_fleet_message_tables()
+        .build()
+        .await
+        .unwrap();
+    let db = test.db.as_ref().unwrap();
+
+    // Create individual entities with defaults
+    let user = factory::user::create_user(db).await?;
+    let guild = factory::discord_guild::create_guild(db).await?;
+    
+    Ok(())
+}
+```
+
+**Creating entity hierarchies:**
+
+```rust
+// Create a complete fleet hierarchy with all dependencies
+let (user, guild, ping_format, category, fleet) =
+    factory::helpers::create_fleet_with_dependencies(db).await?;
+```
+
+**Customizing entities:**
+
+```rust
+use test_utils::factory::user::UserFactory;
+
+// Create admin user with custom values
+let admin = UserFactory::new(db)
+    .discord_id("123456789")
+    .name("AdminUser")
+    .admin(true)
+    .build()
+    .await?;
+```
+
+**Reusing dependencies:**
+
+```rust
+// Create first fleet with all dependencies
+let (user, _guild, _ping_format, category, fleet1) =
+    factory::helpers::create_fleet_with_dependencies(db).await?;
+
+// Create second fleet using same category and commander
+let fleet2 = factory::fleet::create_fleet(db, category.id, &user.discord_id).await?;
+```
+
+### Table Setup Convenience Methods
+
+The `TestBuilder` provides convenience methods for common table groupings:
+
+```rust
+// For fleet-related tests (User, Guild, PingFormat, Category, Fleet)
+let test = TestBuilder::new()
+    .with_fleet_tables()
+    .build()
+    .await
+    .unwrap();
+
+// For fleet message tests (includes FleetMessage table)
+let test = TestBuilder::new()
+    .with_fleet_message_tables()
+    .build()
+    .await
+    .unwrap();
+```
+
+### Available Factories
+
+- `factory::user` - Create user entities
+- `factory::discord_guild` - Create Discord guild entities  
+- `factory::ping_format` - Create ping format entities
+- `factory::fleet_category` - Create fleet category entities
+- `factory::fleet` - Create fleet entities
+- `factory::helpers` - Composite creation methods for entity hierarchies
+
+### Benefits
+
+- **Reduced boilerplate**: Tests focus on behavior, not setup
+- **Maintainability**: Entity structure changes only require factory updates
+- **Consistency**: All tests use the same entity creation patterns
+- **Readability**: Clear intent with descriptive factory methods
+
+---
+
 # Logging
 
 - We import `dioxus_logger::tracing` for logging, then using `tracing::info!` macros to log information

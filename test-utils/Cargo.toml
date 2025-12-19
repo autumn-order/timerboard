@@ -9,9 +9,14 @@ name = "test_utils"
 path = "src/lib.rs"
 
 [dependencies]
+chrono = "0.4.42"
+entity = { path = "../entity" }
 sea-orm = { workspace = true, features = [
   "runtime-tokio-rustls",
   "sqlx-sqlite",
   "with-chrono"
 ] }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "1.48.0", features = ["macros", "rt"] }
