@@ -98,6 +98,7 @@ async fn main() {
 
     axum::serve(
         listener,
+        // Include connect info for tower_governor rate limiting
         router.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .await
