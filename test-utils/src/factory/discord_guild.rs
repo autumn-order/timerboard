@@ -48,7 +48,7 @@ impl<'a> DiscordGuildFactory<'a> {
         let id = next_id();
         Self {
             db,
-            guild_id: format!("guild_{}", id),
+            guild_id: id.to_string(),
             name: format!("Guild {}", id),
             icon_hash: None,
         }

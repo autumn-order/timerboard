@@ -49,7 +49,7 @@ impl<'a> UserFactory<'a> {
         let id = next_id();
         Self {
             db,
-            discord_id: format!("user_{}", id),
+            discord_id: id.to_string(),
             name: format!("User {}", id),
             admin: false,
         }
@@ -128,6 +128,30 @@ impl<'a> UserFactory<'a> {
 /// ```
 pub async fn create_user(db: &DatabaseConnection) -> Result<entity::user::Model, DbErr> {
     UserFactory::new(db).build().await
+}
+
+/// Creates a user with a specific numeric Discord ID.
+///
+/// Shorthand for `UserFactory::new(db).discord_id(discord_id).build().await`.
+///
+/// # Arguments
+/// - `db` - Database connection
+/// - `discord_id` - Discord ID as string or number
+///
+/// # Returns
+/// - `Ok(entity::user::Model)` - Created user entity
+/// - `Err(DbErr)` - Database error during insert
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let user = create_user(db, "123456789").await?;
+/// ```
+pub async fn create_user_with_id(
+    db: &DatabaseConnection,
+    discord_id: impl Into<String>,
+) -> Result<entity::user::Model, DbErr> {
+    UserFactory::new(db).discord_id(discord_id).build().await
 }
 
 #[cfg(test)]

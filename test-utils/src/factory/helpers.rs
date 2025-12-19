@@ -98,3 +98,74 @@ pub async fn create_fleet_for_user(
 
     Ok((guild, ping_format, category, fleet))
 }
+
+/// Creates a guild with all dependencies but no fleet.
+///
+/// This is a convenience method that creates:
+/// 1. User
+/// 2. Discord Guild
+/// 3. Ping Format
+///
+/// Useful when you need to set up guild infrastructure before creating
+/// multiple categories or fleets.
+///
+/// # Arguments
+/// - `db` - Database connection
+///
+/// # Returns
+/// - `Ok((user, guild, ping_format))` - Tuple of created entities
+/// - `Err(DbErr)` - Database error during creation
+pub async fn create_guild_dependencies(
+    db: &DatabaseConnection,
+) -> Result<
+    (
+        entity::user::Model,
+        entity::discord_guild::Model,
+        entity::ping_format::Model,
+    ),
+    DbErr,
+> {
+    let user = crate::factory::user::create_user(db).await?;
+    let guild = crate::factory::discord_guild::create_guild(db).await?;
+    let ping_format = crate::factory::ping_format::create_ping_format(db, &guild.guild_id).await?;
+
+    Ok((user, guild, ping_format))
+}
+
+/// Creates fleet dependencies without creating the actual fleet.
+///
+/// This is a convenience method that creates:
+/// 1. User (as fleet commander)
+/// 2. Discord Guild
+/// 3. Ping Format
+/// 4. Fleet Category
+///
+/// Useful when you need to create the infrastructure before creating
+/// a fleet with custom parameters.
+///
+/// # Arguments
+/// - `db` - Database connection
+///
+/// # Returns
+/// - `Ok((user, guild, ping_format, category))` - Tuple of created entities
+/// - `Err(DbErr)` - Database error during creation
+pub async fn create_fleet_dependencies(
+    db: &DatabaseConnection,
+) -> Result<
+    (
+        entity::user::Model,
+        entity::discord_guild::Model,
+        entity::ping_format::Model,
+        entity::fleet_category::Model,
+    ),
+    DbErr,
+> {
+    let user = crate::factory::user::create_user(db).await?;
+    let guild = crate::factory::discord_guild::create_guild(db).await?;
+    let ping_format = crate::factory::ping_format::create_ping_format(db, &guild.guild_id).await?;
+    let category =
+        crate::factory::fleet_category::create_category(db, &guild.guild_id, ping_format.id)
+            .await?;
+
+    Ok((user, guild, ping_format, category))
+}

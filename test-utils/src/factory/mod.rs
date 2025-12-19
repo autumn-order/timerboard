@@ -59,4 +59,5 @@ pub mod fleet;
 pub mod fleet_category;
 pub mod helpers;
 pub mod ping_format;
+pub mod ping_format_field;
 pub mod user;

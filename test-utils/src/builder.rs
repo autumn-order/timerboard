@@ -86,8 +86,10 @@ impl TestBuilder {
         self.with_table(User)
             .with_table(DiscordGuild)
             .with_table(PingFormat)
+            .with_table(PingFormatField)
             .with_table(FleetCategory)
             .with_table(Fleet)
+            .with_table(FleetFieldValue)
     }
 
     /// Adds all tables required for fleet message operations.
