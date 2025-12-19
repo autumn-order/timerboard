@@ -10,8 +10,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
-/// Time-to-live for admin codes in seconds.
-const ADMIN_CODE_TTL_SECONDS: u64 = 60;
+/// Default time-to-live for admin codes in seconds.
+const DEFAULT_ADMIN_CODE_TTL_SECONDS: u64 = 60;
 
 /// Stored admin code with expiration timestamp.
 ///
@@ -26,17 +26,18 @@ struct AdminCode {
 }
 
 impl AdminCode {
-    /// Creates a new admin code with 60-second TTL.
+    /// Creates a new admin code with specified TTL.
     ///
     /// # Arguments
     /// - `code` - The verification code string
+    /// - `ttl_seconds` - Time-to-live in seconds before the code expires
     ///
     /// # Returns
-    /// - `AdminCode` - New admin code instance that expires in 60 seconds
-    fn new(code: String) -> Self {
+    /// - `AdminCode` - New admin code instance that expires after specified duration
+    fn new(code: String, ttl_seconds: u64) -> Self {
         Self {
             code,
-            expires_at: Instant::now() + Duration::from_secs(ADMIN_CODE_TTL_SECONDS),
+            expires_at: Instant::now() + Duration::from_secs(ttl_seconds),
         }
     }
 
@@ -77,10 +78,12 @@ impl AdminCode {
 pub struct AdminCodeService {
     /// The currently active admin code, if any.
     code: Arc<RwLock<Option<AdminCode>>>,
+    /// Time-to-live for generated codes in seconds.
+    ttl_seconds: u64,
 }
 
 impl AdminCodeService {
-    /// Creates a new AdminCodeService instance.
+    /// Creates a new AdminCodeService instance with default 60-second TTL.
     ///
     /// Initializes the service with no active admin code. Codes must be explicitly
     /// generated via the `generate` method.
@@ -88,23 +91,48 @@ impl AdminCodeService {
     /// # Returns
     /// - `AdminCodeService` - New service instance with no active code
     pub fn new() -> Self {
+        Self::with_ttl(DEFAULT_ADMIN_CODE_TTL_SECONDS)
+    }
+
+    /// Creates a new AdminCodeService instance with custom TTL.
+    ///
+    /// Primarily used for testing to avoid long delays. Production code should
+    /// use `new()` which defaults to 60-second TTL.
+    ///
+    /// # Arguments
+    /// - `ttl_seconds` - Time-to-live in seconds for generated codes
+    ///
+    /// # Returns
+    /// - `AdminCodeService` - New service instance with specified TTL
+    #[cfg(test)]
+    pub fn with_ttl(ttl_seconds: u64) -> Self {
         Self {
             code: Arc::new(RwLock::new(None)),
+            ttl_seconds,
         }
     }
 
-    /// Generates a new random admin code and stores it with a 60-second TTL.
+    #[cfg(not(test))]
+    fn with_ttl(ttl_seconds: u64) -> Self {
+        Self {
+            code: Arc::new(RwLock::new(None)),
+            ttl_seconds,
+        }
+    }
+
+    /// Generates a new random admin code and stores it with configured TTL.
     ///
     /// Creates a cryptographically secure random 32-character alphanumeric string
     /// and stores it in memory. Any previously generated code is replaced. The code
-    /// can be validated once using `validate_and_consume` and expires after 60 seconds.
-    /// Used during server startup when no admin user exists.
+    /// can be validated once using `validate_and_consume` and expires after the
+    /// configured TTL (default 60 seconds). Used during server startup when no admin
+    /// user exists.
     ///
     /// # Returns
     /// - `String` - The generated 32-character admin verification code
     pub async fn generate(&self) -> String {
         let code_string = Self::generate_random_code();
-        let admin_code = AdminCode::new(code_string.clone());
+        let admin_code = AdminCode::new(code_string.clone(), self.ttl_seconds);
         *self.code.write().await = Some(admin_code);
         code_string
     }
@@ -309,14 +337,14 @@ mod tests {
     /// Expected: Ok with code valid initially and expired after TTL
     #[tokio::test]
     async fn test_code_expires_after_ttl() {
-        let service = AdminCodeService::new();
+        let service = AdminCodeService::with_ttl(1); // Use 1 second TTL for testing
         let code = service.generate().await;
 
         // Code should be valid initially
         assert!(service.has_valid_code().await);
 
-        // Wait for code to expire (61 seconds)
-        sleep(Duration::from_secs(ADMIN_CODE_TTL_SECONDS + 1)).await;
+        // Wait for code to expire (2 seconds)
+        sleep(Duration::from_secs(2)).await;
 
         // Code should be expired and automatically invalidated
         assert!(!service.has_valid_code().await);
@@ -330,11 +358,11 @@ mod tests {
     /// Expected: Ok with validation failing for expired code
     #[tokio::test]
     async fn test_expired_code_validation_fails() {
-        let service = AdminCodeService::new();
+        let service = AdminCodeService::with_ttl(1); // Use 1 second TTL for testing
         let code = service.generate().await;
 
-        // Wait for code to expire
-        sleep(Duration::from_secs(ADMIN_CODE_TTL_SECONDS + 1)).await;
+        // Wait for code to expire (2 seconds)
+        sleep(Duration::from_secs(2)).await;
 
         // Expired code should fail validation
         assert!(!service.validate_and_consume(&code).await);

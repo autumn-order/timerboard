@@ -41,6 +41,7 @@ impl TestContext {
             Some(ref db) => Ok(db),
             None => {
                 let db = Database::connect("sqlite::memory:").await?;
+
                 Ok(self.db.insert(db))
             }
         }

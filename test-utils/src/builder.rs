@@ -85,9 +85,14 @@ impl TestBuilder {
     pub fn with_fleet_tables(self) -> Self {
         self.with_table(User)
             .with_table(DiscordGuild)
+            .with_table(DiscordGuildRole)
+            .with_table(DiscordGuildChannel)
             .with_table(PingFormat)
             .with_table(PingFormatField)
             .with_table(FleetCategory)
+            .with_table(FleetCategoryAccessRole)
+            .with_table(FleetCategoryPingRole)
+            .with_table(FleetCategoryChannel)
             .with_table(Fleet)
             .with_table(FleetFieldValue)
     }
