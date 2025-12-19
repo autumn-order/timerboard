@@ -53,11 +53,13 @@ impl<'a> UserRepository<'a> {
             update_columns.push(entity::user::Column::Admin);
         }
 
+        let now = Utc::now();
         let entity = entity::prelude::User::insert(entity::user::ActiveModel {
             discord_id: ActiveValue::Set(param.discord_id),
             name: ActiveValue::Set(param.name),
             admin: ActiveValue::Set(param.is_admin.unwrap_or(false)),
-            ..Default::default()
+            last_guild_sync_at: ActiveValue::Set(now),
+            last_role_sync_at: ActiveValue::Set(now),
         })
         .on_conflict(
             OnConflict::column(entity::user::Column::DiscordId)
