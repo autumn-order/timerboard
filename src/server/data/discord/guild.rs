@@ -49,11 +49,15 @@ impl<'a> DiscordGuildRepository<'a> {
     /// - `Ok(DiscordGuild)` - The upserted guild as a domain model
     /// - `Err(DbErr)` - Database error during upsert operation
     pub async fn upsert(&self, guild: Guild) -> Result<DiscordGuild, DbErr> {
+        // Use Unix epoch (1970-01-01) as default for new guilds to indicate they need syncing
+        let default_last_sync =
+            chrono::DateTime::from_timestamp(0, 0).expect("Unix epoch should be valid");
+
         let entity = entity::prelude::DiscordGuild::insert(entity::discord_guild::ActiveModel {
             guild_id: ActiveValue::Set(guild.id.get().to_string()),
             name: ActiveValue::Set(guild.name),
             icon_hash: ActiveValue::Set(guild.icon_hash.map(|i| i.to_string())),
-            last_sync_at: ActiveValue::NotSet,
+            last_sync_at: ActiveValue::Set(default_last_sync),
         })
         .on_conflict(
             OnConflict::column(entity::discord_guild::Column::GuildId)

@@ -3,10 +3,7 @@ use crate::server::{
     model::category::{AccessRoleData, CreateFleetCategoryParams, UpdateFleetCategoryParams},
 };
 use chrono::Duration;
-use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
-    PaginatorTrait, QueryFilter,
-};
+use sea_orm::{ColumnTrait, DbErr, EntityTrait, PaginatorTrait, QueryFilter};
 use test_utils::{builder::TestBuilder, factory};
 
 mod create;

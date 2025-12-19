@@ -16,6 +16,8 @@ sea-orm = { workspace = true, features = [
   "sqlx-sqlite",
   "with-chrono"
 ] }
+serde_json = { workspace = true }
+serenity = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

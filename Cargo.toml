@@ -10,6 +10,8 @@ members = [".", "entity", "migration", "test-utils"]
 
 [workspace.dependencies]
 sea-orm = { version = "2.0.0-rc.11" }
+serde_json = { version = "1.0.145" }
+serenity = { version = "0.12.4" }
 thiserror = { version = "2.0.17" }
 
 [dependencies]
@@ -37,8 +39,8 @@ sea-orm = { workspace = true, features = [
   "with-chrono"
 ], optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = { version = "1.0.145", optional = true }
-serenity = { version = "0.12.4", optional = true }
+serde_json = { workspace = true, optional = true }
+serenity = { workspace = true, optional = true }
 test-utils = { path = "test-utils", optional = true }
 thiserror = { workspace = true, optional = true }
 time = { version = "0.3.44", optional = true }

@@ -37,3 +37,4 @@ pub mod builder;
 pub mod context;
 pub mod error;
 pub mod factory;
+pub mod serenity;

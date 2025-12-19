@@ -6833,6 +6833,8 @@ dependencies = [
  "chrono",
  "entity",
  "sea-orm",
+ "serde_json",
+ "serenity",
  "thiserror 2.0.17",
  "tokio",
 ]
