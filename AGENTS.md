@@ -765,9 +765,10 @@ async fn updates_new_character_without_faction() -> Result<(), TestError> {
 }
 ```
 
-### Inline Tests (Unit Tests)
+### Inline Tests (Minor Unit Tests)
 
-We use inline tests for unit testing, keeping the test module in the same file of the methods under test. But, we do swap to a folder & file-based unit test structure if the file we are testing begins to near `500 lines` in length.
+We use inline tests for unit testing small helper methods, keeping the test module in the same file of the methods under test. For instances of larger objects such as repositories, we would prefer folder and file tests instead so as to not make the file
+of the methods being tested too lengthy.
 
 - Use `mod test` as the root
 - For each method, add a new mod, e.g. `mod user`
@@ -781,7 +782,7 @@ Example:
 mod test {
     use super::*;
 
-    mod get_user {
+    mod create_user {
         use super::*;
         
         /// Tests creating a new user.
@@ -802,7 +803,7 @@ mod test {
 }
 ```
 
-### Folder Tests (Integration Tests)
+### Folder & File Tests (Unit & Integration Tests)
 
 We use folder & file-based test structure for integration tests and for unit tests if the file we are doing inline unit tests in begins to near reaching over `500 lines`.
 
@@ -868,8 +869,8 @@ async fn test_example() -> Result<(), DbErr> {
     let db = test.db.as_ref().unwrap();
 
     // Create individual entities with defaults
-    let user = factory::user::create_user(db).await?;
-    let guild = factory::discord_guild::create_guild(db).await?;
+    let user = factory::create_user(db).await?;
+    let guild = factory::create_guild(db).await?;
     
     Ok(())
 }
@@ -905,7 +906,7 @@ let (user, _guild, _ping_format, category, fleet1) =
     factory::helpers::create_fleet_with_dependencies(db).await?;
 
 // Create second fleet using same category and commander
-let fleet2 = factory::fleet::create_fleet(db, category.id, &user.discord_id).await?;
+let fleet2 = factory::create_fleet(db, category.id, &user.discord_id).await?;
 ```
 
 ### Table Setup Convenience Methods

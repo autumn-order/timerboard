@@ -7,6 +7,9 @@
 
 pub mod field;
 
+#[cfg(test)]
+mod test;
+
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
     PaginatorTrait, QueryFilter, QueryOrder,
