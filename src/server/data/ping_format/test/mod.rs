@@ -1,6 +1,7 @@
 mod create;
 mod delete;
 mod exists_in_guild;
+mod field;
 mod get_all_by_guild_paginated;
 mod get_fleet_category_count;
 mod update;
