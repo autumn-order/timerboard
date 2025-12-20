@@ -33,6 +33,7 @@ pub mod fleet_category;
 pub mod ping_format;
 pub mod ping_format_field;
 pub mod user;
+pub mod user_discord_guild_role;
 
 pub use discord_guild::{
     entity as discord_guild_entity, entity_builder as discord_guild_entity_builder,
@@ -52,3 +53,7 @@ pub use ping_format_field::{
     entity as ping_format_field_entity, entity_builder as ping_format_field_entity_builder,
 };
 pub use user::{entity as user_entity, entity_builder as user_entity_builder};
+pub use user_discord_guild_role::{
+    entity as user_discord_guild_role_entity,
+    entity_builder as user_discord_guild_role_entity_builder,
+};

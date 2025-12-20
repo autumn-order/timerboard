@@ -59,6 +59,7 @@
 //! - `ping_format` - Create ping format entities
 //! - `fleet_category` - Create fleet category entities
 //! - `fleet` - Create fleet entities
+//! - `user_discord_guild_role` - Create user-guild-role relationship entities
 //! - `helpers` - Convenience methods for creating entities with dependencies
 
 pub mod discord_guild;
@@ -70,6 +71,7 @@ pub mod helpers;
 pub mod ping_format;
 pub mod ping_format_field;
 pub mod user;
+pub mod user_discord_guild_role;
 
 // Re-export commonly used factory functions for concise usage
 pub use discord_guild::create_guild;
@@ -79,3 +81,4 @@ pub use fleet::create_fleet;
 pub use fleet_category::create_category;
 pub use ping_format::create_ping_format;
 pub use user::create_user;
+pub use user_discord_guild_role::{create_user_guild_role, create_user_guild_roles};
