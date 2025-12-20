@@ -515,10 +515,6 @@ impl<'a> FleetNotificationPosting<'a> {
             }
         }
 
-        // Discord doesn't separate space between embed as expected with "\n\n"
-        // So we use "\n** **" to newline an invisible character
-        content.push_str("\n** **");
-
         // Post to all configured channels
         for (channel, _) in &category_data.channels {
             let channel_id_u64 = channel
