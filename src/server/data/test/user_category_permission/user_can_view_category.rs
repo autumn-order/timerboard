@@ -15,7 +15,6 @@ use crate::server::data::category::FleetCategoryRepository;
 async fn returns_true_when_user_has_view_permission() -> Result<(), DbErr> {
     let test = TestBuilder::new()
         .with_fleet_tables()
-        .with_table(entity::prelude::UserDiscordGuildRole)
         .build()
         .await
         .unwrap();
@@ -75,7 +74,6 @@ async fn returns_true_when_user_has_view_permission() -> Result<(), DbErr> {
 async fn returns_false_when_user_lacks_view_permission() -> Result<(), DbErr> {
     let test = TestBuilder::new()
         .with_fleet_tables()
-        .with_table(entity::prelude::UserDiscordGuildRole)
         .build()
         .await
         .unwrap();
@@ -134,7 +132,6 @@ async fn returns_false_when_user_lacks_view_permission() -> Result<(), DbErr> {
 async fn returns_false_when_role_has_view_disabled() -> Result<(), DbErr> {
     let test = TestBuilder::new()
         .with_fleet_tables()
-        .with_table(entity::prelude::UserDiscordGuildRole)
         .build()
         .await
         .unwrap();
@@ -194,7 +191,6 @@ async fn returns_false_when_role_has_view_disabled() -> Result<(), DbErr> {
 async fn returns_false_when_user_has_no_roles() -> Result<(), DbErr> {
     let test = TestBuilder::new()
         .with_fleet_tables()
-        .with_table(entity::prelude::UserDiscordGuildRole)
         .build()
         .await
         .unwrap();

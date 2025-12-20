@@ -7,7 +7,8 @@
 
 use crate::server::model::category::FleetCategoryListItem;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    sea_query::Condition, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait,
+    QueryFilter, QueryOrder,
 };
 
 /// Repository for user category permission operations.
@@ -336,9 +337,9 @@ impl<'a> UserCategoryPermissionRepository<'a> {
 
     /// Checks if a user has create access to a specific category.
     ///
-    /// Verifies that at least one of the user's Discord roles has can_create permission
-    /// for the specified category. Used for authorization checks before allowing
-    /// fleet creation in a category.
+    /// Verifies that at least one of the user's Discord roles has can_create or can_manage
+    /// permission for the specified category. Manage permission implicitly grants create access.
+    /// Used for authorization checks before allowing fleet creation in a category.
     ///
     /// # Arguments
     /// - `user_id` - Discord user ID
@@ -346,8 +347,8 @@ impl<'a> UserCategoryPermissionRepository<'a> {
     /// - `category_id` - Fleet category ID to check access for
     ///
     /// # Returns
-    /// - `Ok(true)` - User has create access to the category
-    /// - `Ok(false)` - User does not have create access
+    /// - `Ok(true)` - User has create or manage access to the category
+    /// - `Ok(false)` - User does not have create or manage access
     /// - `Err(DbErr)` - Database error during query
     pub async fn user_can_create_category(
         &self,
@@ -368,11 +369,16 @@ impl<'a> UserCategoryPermissionRepository<'a> {
             return Ok(false);
         }
 
-        // Check if any of the user's roles have create access to this category
+        // Check if any of the user's roles have create or manage access to this category
+        // Manage permission implicitly grants create access
         let access_count = entity::prelude::FleetCategoryAccessRole::find()
             .filter(entity::fleet_category_access_role::Column::FleetCategoryId.eq(category_id))
             .filter(entity::fleet_category_access_role::Column::RoleId.is_in(user_role_ids))
-            .filter(entity::fleet_category_access_role::Column::CanCreate.eq(true))
+            .filter(
+                Condition::any()
+                    .add(entity::fleet_category_access_role::Column::CanCreate.eq(true))
+                    .add(entity::fleet_category_access_role::Column::CanManage.eq(true)),
+            )
             .count(self.db)
             .await?;
 

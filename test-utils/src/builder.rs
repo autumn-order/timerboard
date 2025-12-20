@@ -87,6 +87,7 @@ impl TestBuilder {
             .with_table(DiscordGuild)
             .with_table(DiscordGuildRole)
             .with_table(DiscordGuildChannel)
+            .with_table(UserDiscordGuildRole)
             .with_table(PingFormat)
             .with_table(PingFormatField)
             .with_table(FleetCategory)

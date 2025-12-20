@@ -141,4 +141,23 @@ impl TestContext {
             }
         }
     }
+
+    /// Gets or creates both database and session references.
+    ///
+    /// Convenience method for tests that need both database and session access.
+    /// Initializes both if they don't exist, then returns immutable references to both.
+    /// This avoids borrow checker issues when calling `database()` and `session()` separately.
+    ///
+    /// # Returns
+    /// - `Ok((&DatabaseConnection, &Session))` - References to both database and session
+    /// - `Err(TestError::Database)` - Failed to initialize database or session
+    pub async fn db_and_session(&mut self) -> Result<(&DatabaseConnection, &Session), TestError> {
+        // Initialize both (these methods are idempotent)
+        self.database().await?;
+        self.session().await?;
+
+        // Now return immutable references to the initialized fields
+        // This works because we've dropped the mutable borrows from above
+        Ok((self.db.as_ref().unwrap(), self.session.as_ref().unwrap()))
+    }
 }
