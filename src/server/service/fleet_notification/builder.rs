@@ -11,7 +11,10 @@ use serenity::{
 };
 use std::sync::Arc;
 
-use crate::server::{error::AppError, model::fleet::Fleet};
+use crate::server::{
+    error::{internal::InternalError, AppError},
+    model::{fleet::Fleet, ping_format::PingFormatField},
+};
 
 /// Service struct for accessing builder methods.
 pub struct FleetNotificationBuilder {
@@ -51,15 +54,14 @@ impl FleetNotificationBuilder {
         fleet: &Fleet,
         guild_id: u64,
     ) -> Result<String, AppError> {
-        let commander_id = fleet
-            .commander_id
-            .parse::<u64>()
-            .map_err(|e| AppError::InternalError(format!("Invalid commander ID: {}", e)))?;
-
         let guild_id = GuildId::new(guild_id);
 
         // Try to fetch member from guild to get nickname
-        match self.http.get_member(guild_id, commander_id.into()).await {
+        match self
+            .http
+            .get_member(guild_id, fleet.commander_id.into())
+            .await
+        {
             Ok(member) => {
                 // Use nickname if available, otherwise use Discord username
                 Ok(member.nick.unwrap_or_else(|| member.user.name.clone()))
@@ -67,12 +69,12 @@ impl FleetNotificationBuilder {
             Err(e) => {
                 tracing::warn!(
                     "Failed to fetch commander {} from guild {}: {}",
-                    commander_id,
+                    fleet.commander_id,
                     guild_id,
                     e
                 );
                 // Fallback to just the ID
-                Ok(format!("User {}", commander_id))
+                Ok(format!("User {}", fleet.commander_id))
             }
         }
     }
@@ -98,27 +100,26 @@ impl FleetNotificationBuilder {
     pub async fn build_fleet_embed(
         &self,
         fleet: &Fleet,
-        fields: &[entity::ping_format_field::Model],
+        fields: &[PingFormatField],
         field_values: &std::collections::HashMap<i32, String>,
         color: u32,
         commander_name: &str,
         app_url: &str,
     ) -> Result<CreateEmbed, AppError> {
-        let commander_id = fleet
-            .commander_id
-            .parse::<u64>()
-            .map_err(|e| AppError::InternalError(format!("Invalid commander ID: {}", e)))?;
-
         let mut embed = CreateEmbed::new()
             .title(&fleet.name)
             .url(app_url)
             .color(color)
-            .field("FC", format!("<@{}>", commander_id), false);
+            .field("FC", format!("<@{}>", fleet.commander_id), false);
 
         // Use current time for "sent at" timestamp
         let now = chrono::Utc::now();
-        let timestamp = Timestamp::from_unix_timestamp(now.timestamp())
-            .map_err(|e| AppError::InternalError(format!("Invalid timestamp: {}", e)))?;
+        let timestamp = Timestamp::from_unix_timestamp(now.timestamp()).map_err(|e| {
+            AppError::InternalError(InternalError::InvalidDiscordTimestamp {
+                timestamp: now.timestamp(),
+                reason: e.to_string(),
+            })
+        })?;
 
         embed = embed
             .field(

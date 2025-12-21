@@ -235,7 +235,13 @@ async fn process_reminders(
                             .map(|fv| (fv.field_id, fv.value))
                             .collect();
 
-                        let fleet_param = Fleet::from_entity(fleet.clone());
+                        let Ok(fleet_param) = Fleet::from_entity(fleet.clone()) else {
+                            tracing::error!(
+                                "Failed to convert fleet entity to Fleet domain model, skipping fleet reminder for fleet ID: {}",
+                                fleet.id
+                            );
+                            continue;
+                        };
 
                         if let Err(e) = notification_service
                             .post_fleet_reminder(&fleet_param, &field_values_map)
@@ -324,7 +330,13 @@ async fn process_formups(
                     .map(|fv| (fv.field_id, fv.value))
                     .collect();
 
-                let fleet_param = Fleet::from_entity(fleet.clone());
+                let Ok(fleet_param) = Fleet::from_entity(fleet.clone()) else {
+                    tracing::error!(
+                        "Failed to convert fleet entity to Fleet domain model, skipping form-up notification for fleet ID: {}",
+                        fleet.id
+                    );
+                    continue;
+                };
 
                 if let Err(e) = notification_service
                     .post_fleet_formup(&fleet_param, &field_values_map)

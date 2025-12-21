@@ -5,7 +5,7 @@
 //! cancellation notices when fleets are cancelled.
 
 use dioxus_logger::tracing;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::DatabaseConnection;
 use serenity::{
     all::{ChannelId, CreateEmbed, EditMessage, MessageId, Timestamp},
     http::Http,
@@ -13,9 +13,13 @@ use serenity::{
 use std::sync::Arc;
 
 use crate::server::{
-    data::{category::FleetCategoryRepository, fleet_message::FleetMessageRepository},
-    error::AppError,
+    data::{
+        category::FleetCategoryRepository, fleet_message::FleetMessageRepository,
+        ping_format::field::PingFormatFieldRepository,
+    },
+    error::{internal::InternalError, AppError},
     model::fleet::Fleet,
+    util::parse::parse_u64_from_string,
 };
 
 use super::builder::FleetNotificationBuilder;
@@ -65,6 +69,7 @@ impl<'a> FleetNotificationUpdate<'a> {
         app_url: &str,
     ) -> Result<(), AppError> {
         let message_repo = FleetMessageRepository::new(self.db);
+        let ping_format_field_repo = PingFormatFieldRepository::new(self.db);
         let category_repo = FleetCategoryRepository::new(self.db);
 
         // Get all existing messages for this fleet
@@ -76,25 +81,20 @@ impl<'a> FleetNotificationUpdate<'a> {
 
         // Get category data
         let category_data = category_repo
-            .get_by_id(fleet.category_id)
+            .find_by_id(fleet.category_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Fleet category not found".to_string()))?;
 
         // Get guild_id for fetching commander name
-        let guild_id = category_data
-            .category
-            .guild_id
-            .parse::<u64>()
-            .map_err(|e| AppError::InternalError(format!("Invalid guild_id: {}", e)))?;
+        let guild_id = parse_u64_from_string(category_data.category.guild_id)?;
 
         // Get ping format fields
         let ping_format = category_data
             .ping_format
             .ok_or_else(|| AppError::NotFound("Ping format not found".to_string()))?;
 
-        let fields = entity::prelude::PingFormatField::find()
-            .filter(entity::ping_format_field::Column::PingFormatId.eq(ping_format.id))
-            .all(self.db)
+        let fields = ping_format_field_repo
+            .get_by_ping_format_id(ping_format.id)
             .await?;
 
         // Fetch commander name from Discord
@@ -115,17 +115,8 @@ impl<'a> FleetNotificationUpdate<'a> {
 
         // Update each message
         for message in messages {
-            let channel_id = message
-                .channel_id
-                .parse::<u64>()
-                .map_err(|e| AppError::InternalError(format!("Invalid channel ID: {}", e)))?;
-            let msg_id = message
-                .message_id
-                .parse::<u64>()
-                .map_err(|e| AppError::InternalError(format!("Invalid message ID: {}", e)))?;
-
-            let channel_id = ChannelId::new(channel_id);
-            let msg_id = MessageId::new(msg_id);
+            let channel_id = ChannelId::new(message.channel_id);
+            let msg_id = MessageId::new(message.message_id);
 
             let edit_builder = EditMessage::new().embed(embed.clone());
 
@@ -180,29 +171,24 @@ impl<'a> FleetNotificationUpdate<'a> {
 
         // Get category data for guild_id
         let category_data = category_repo
-            .get_by_id(fleet.category_id)
+            .find_by_id(fleet.category_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Fleet category not found".to_string()))?;
 
-        let guild_id = category_data
-            .category
-            .guild_id
-            .parse::<u64>()
-            .map_err(|e| AppError::InternalError(format!("Invalid guild_id: {}", e)))?;
+        let guild_id = parse_u64_from_string(category_data.category.guild_id)?;
 
         // Fetch commander name from Discord
         let builder = FleetNotificationBuilder::new(self.http.clone());
         let commander_name = builder.get_commander_name(fleet, guild_id).await?;
 
-        let commander_id = fleet
-            .commander_id
-            .parse::<u64>()
-            .map_err(|e| AppError::InternalError(format!("Invalid commander ID: {}", e)))?;
-
         // Build cancellation embed
         let now = chrono::Utc::now();
-        let timestamp = Timestamp::from_unix_timestamp(now.timestamp())
-            .map_err(|e| AppError::InternalError(format!("Invalid timestamp: {}", e)))?;
+        let timestamp = Timestamp::from_unix_timestamp(now.timestamp()).map_err(|e| {
+            AppError::InternalError(InternalError::InvalidDiscordTimestamp {
+                timestamp: now.timestamp(),
+                reason: e.to_string(),
+            })
+        })?;
 
         let embed = CreateEmbed::new()
             .title(format!(".:{}  Cancelled:.", category_data.category.name))
@@ -210,7 +196,7 @@ impl<'a> FleetNotificationUpdate<'a> {
             .description(format!(
                 "{} posted by <@{}>, **{}**, scheduled for **{} UTC** (<t:{}:F>) was cancelled.",
                 category_data.category.name,
-                commander_id,
+                fleet.commander_id,
                 fleet.name,
                 fleet.fleet_time.format("%Y-%m-%d %H:%M"),
                 fleet.fleet_time.timestamp()
@@ -223,17 +209,8 @@ impl<'a> FleetNotificationUpdate<'a> {
 
         // Update each message with cancellation notice
         for message in messages {
-            let channel_id = message
-                .channel_id
-                .parse::<u64>()
-                .map_err(|e| AppError::InternalError(format!("Invalid channel ID: {}", e)))?;
-            let msg_id = message
-                .message_id
-                .parse::<u64>()
-                .map_err(|e| AppError::InternalError(format!("Invalid message ID: {}", e)))?;
-
-            let channel_id = ChannelId::new(channel_id);
-            let msg_id = MessageId::new(msg_id);
+            let channel_id = ChannelId::new(message.channel_id);
+            let msg_id = MessageId::new(message.message_id);
 
             // Clear content and set cancellation embed
             let edit_builder = EditMessage::new().content("").embed(embed.clone());

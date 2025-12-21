@@ -164,9 +164,7 @@ pub async fn callback(
 
     let new_user = auth_service.callback(params.0.code, set_admin).await?;
 
-    auth_session
-        .set_user_id(new_user.discord_id.clone())
-        .await?;
+    auth_session.set_user_id(new_user.discord_id).await?;
 
     Ok(Redirect::permanent("/"))
 }
@@ -237,13 +235,9 @@ pub async fn get_user(
     let auth_session = AuthSession::new(&session);
     let user_service = UserService::new(&state.db);
 
-    let Some(user_id_str) = auth_session.get_user_id().await? else {
+    let Some(user_id) = auth_session.get_user_id().await? else {
         return Err(AuthError::UserNotInSession.into());
     };
-
-    let user_id = user_id_str.parse::<u64>().map_err(|e| {
-        AppError::InternalError(format!("Failed to parse user_id from session: {}", e))
-    })?;
 
     let param = crate::server::model::user::GetUserParam {
         discord_id: user_id,
@@ -253,11 +247,7 @@ pub async fn get_user(
         return Err(AuthError::UserNotInDatabase(user_id).into());
     };
 
-    let user_dto = user
-        .into_dto()
-        .map_err(|e| AppError::InternalError(format!("Failed to convert user to DTO: {}", e)))?;
-
-    Ok((StatusCode::OK, Json(user_dto)))
+    Ok((StatusCode::OK, Json(user.into_dto())))
 }
 
 async fn validate_csrf<'a>(

@@ -4,7 +4,7 @@
 
 use crate::{
     model::ping_format::{PaginatedPingFormatsDto, PingFormatDto, PingFormatFieldDto},
-    server::error::AppError,
+    server::{error::AppError, util::parse::parse_u64_from_string},
 };
 
 /// Ping format template for structuring fleet notification messages.
@@ -32,10 +32,7 @@ impl PingFormat {
     /// - `Err(AppError::ParseStringId)` - Failed to parse Discord channel or message ID
     ///   stored as string to u64
     pub fn from_entity(entity: entity::ping_format::Model) -> Result<Self, AppError> {
-        let guild_id = entity
-            .guild_id
-            .parse::<u64>()
-            .map_err(|_| AppError::ParseStringId(entity.guild_id))?;
+        let guild_id = parse_u64_from_string(entity.guild_id)?;
 
         Ok(Self {
             id: entity.id,
@@ -210,20 +207,20 @@ impl PaginatedPingFormats {
     /// # Returns
     /// - `Ok(PaginatedPingFormatsDto)` - Successfully converted all formats
     /// - `Err(AppError::ParseStringId)` - Failed to parse guild_id for at least one format
-    pub fn into_dto(self) -> Result<PaginatedPingFormatsDto, AppError> {
+    pub fn into_dto(self) -> PaginatedPingFormatsDto {
         let ping_formats: Vec<PingFormatDto> = self
             .ping_formats
             .into_iter()
             .map(|pf| pf.into_dto())
             .collect();
 
-        Ok(PaginatedPingFormatsDto {
+        PaginatedPingFormatsDto {
             ping_formats,
             total: self.total,
             page: self.page,
             per_page: self.per_page,
             total_pages: self.total_pages,
-        })
+        }
     }
 }
 

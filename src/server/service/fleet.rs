@@ -17,16 +17,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::{
-    model::fleet::{
-        CreateFleetDto, FleetDto, FleetListItemDto, PaginatedFleetsDto, UpdateFleetDto,
-    },
+    model::fleet::{FleetDto, FleetListItemDto, PaginatedFleetsDto, UpdateFleetDto},
     server::{
         data::{
-            fleet::FleetRepository, user_category_permission::UserCategoryPermissionRepository,
+            category::FleetCategoryRepository, discord::DiscordGuildMemberRepository,
+            fleet::FleetRepository, ping_format::field::PingFormatFieldRepository,
+            user::UserRepository, user_category_permission::UserCategoryPermissionRepository,
         },
         error::AppError,
-        model::fleet::{CreateFleetParams, GetPaginatedFleetsByGuildParam, UpdateFleetParams},
+        model::fleet::{CreateFleetParam, GetPaginatedFleetsByGuildParam, UpdateFleetParam},
         service::fleet_notification::FleetNotificationService,
+        util::parse::parse_u64_from_string,
     },
 };
 
@@ -68,49 +69,31 @@ impl<'a> FleetService<'a> {
     /// - `Err(AppError::NotFound(_))` - Category not found
     /// - `Err(AppError::InternalError(_))` - Discord notification or data fetch failed
     /// - `Err(AppError::Database(_))` - Database operation failed
-    pub async fn create(&self, dto: CreateFleetDto, is_admin: bool) -> Result<FleetDto, AppError> {
-        let repo = FleetRepository::new(self.db);
-
-        // Parse the fleet time from "YYYY-MM-DD HH:MM" format
-        let fleet_time = Self::parse_fleet_time(&dto.fleet_time).map_err(|e| *e)?;
+    pub async fn create(
+        &self,
+        param: CreateFleetParam,
+        is_admin: bool,
+    ) -> Result<FleetDto, AppError> {
+        let fleet_repo = FleetRepository::new(self.db);
 
         // Validate fleet time doesn't conflict with existing fleets in the same category
-        self.validate_fleet_time_conflict(dto.category_id, fleet_time, None)
+        self.validate_fleet_time_conflict(param.category_id, param.fleet_time, None)
             .await?;
 
-        // Create the fleet
-        let params = CreateFleetParams {
-            category_id: dto.category_id,
-            name: dto.name.clone(),
-            commander_id: dto.commander_id,
-            fleet_time,
-            description: dto.description.clone(),
-            field_values: dto.field_values.clone(),
-            hidden: dto.hidden,
-            disable_reminder: dto.disable_reminder,
-        };
-        let fleet = repo.create(params).await?;
+        let field_values = param.field_values.clone();
+        let fleet = fleet_repo.create(param).await?;
 
         // Post fleet creation notification to Discord
         let notification_service =
             FleetNotificationService::new(self.db, self.discord_http.clone(), self.app_url.clone());
         notification_service
-            .post_fleet_creation(&fleet, &dto.field_values)
+            .post_fleet_creation(&fleet, &field_values)
             .await?;
 
         // Fetch the full fleet data with enriched information
         // Get guild_id from the category
-        let category = entity::prelude::FleetCategory::find_by_id(dto.category_id)
-            .one(self.db)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Category not found".to_string()))?;
 
-        let guild_id = category
-            .guild_id
-            .parse::<u64>()
-            .map_err(|e| AppError::InternalError(format!("Failed to parse guild_id: {}", e)))?;
-
-        self.get_by_id(fleet.id, guild_id, dto.commander_id, is_admin)
+        self.get_by_id(fleet.id, fleet.commander_id, is_admin)
             .await?
             .ok_or_else(|| AppError::NotFound("Fleet not found after creation".to_string()))
     }
@@ -130,37 +113,37 @@ impl<'a> FleetService<'a> {
     /// - `Ok(Some(FleetDto))` - Fleet with enriched data (user has permission to view)
     /// - `Ok(None)` - Fleet not found or user lacks permission to view it
     /// - `Err(AppError::NotFound(_))` - Related entity (category, commander) not found
-    /// - `Err(AppError::InternalError(_))` - Failed to parse IDs or fetch guild member
     /// - `Err(AppError::Database(_))` - Database operation failed
     pub async fn get_by_id(
         &self,
         id: i32,
-        guild_id: u64,
         user_id: u64,
         is_admin: bool,
     ) -> Result<Option<FleetDto>, AppError> {
-        let repo = FleetRepository::new(self.db);
+        let user_repo = UserRepository::new(self.db);
+        let category_repo = FleetCategoryRepository::new(self.db);
+        let ping_format_field_repo = PingFormatFieldRepository::new(self.db);
+        let fleet_repo = FleetRepository::new(self.db);
+        let member_repo = DiscordGuildMemberRepository::new(self.db);
 
-        let result = repo.get_by_id(id).await?;
+        let result = fleet_repo.get_by_id(id).await?;
 
         if let Some((fleet, field_values_by_id)) = result {
-            // Fetch category
-            let category = entity::prelude::FleetCategory::find_by_id(fleet.category_id)
-                .one(self.db)
-                .await?
-                .ok_or_else(|| AppError::NotFound("Category not found".to_string()))?;
+            let Some(category) = category_repo.find_by_id(id).await?.map(|c| c.category) else {
+                return Err(AppError::NotFound("Category not found".to_string()));
+            };
 
             // Check if user has any permission to view this category (view, create, or manage)
             if !is_admin {
                 let permission_repo = UserCategoryPermissionRepository::new(self.db);
                 let can_view = permission_repo
-                    .user_can_view_category(user_id, guild_id, fleet.category_id)
+                    .user_can_view_category(user_id, fleet.category_id)
                     .await?;
                 let can_create = permission_repo
-                    .user_can_create_category(user_id, guild_id, fleet.category_id)
+                    .user_can_create_category(user_id, fleet.category_id)
                     .await?;
                 let can_manage = permission_repo
-                    .user_can_manage_category(user_id, guild_id, fleet.category_id)
+                    .user_can_manage_category(user_id, fleet.category_id)
                     .await?;
 
                 if !can_view && !can_create && !can_manage {
@@ -197,15 +180,13 @@ impl<'a> FleetService<'a> {
             }
 
             // Fetch commander
-            let commander = entity::prelude::User::find_by_id(&fleet.commander_id)
-                .one(self.db)
-                .await?
-                .ok_or_else(|| AppError::NotFound("Commander not found".to_string()))?;
+            let Some(commander) = user_repo.find_by_id(fleet.commander_id).await? else {
+                return Err(AppError::NotFound("Fleet commander not found".to_string()));
+            };
 
             // Fetch field names for the ping format
-            let fields = entity::prelude::PingFormatField::find()
-                .filter(entity::ping_format_field::Column::PingFormatId.eq(category.ping_format_id))
-                .all(self.db)
+            let fields = ping_format_field_repo
+                .get_by_ping_format_id(category.ping_format_id)
                 .await?;
 
             let field_name_map: HashMap<i32, String> =
@@ -221,27 +202,24 @@ impl<'a> FleetService<'a> {
                 })
                 .collect();
 
-            let commander_id = commander
-                .discord_id
-                .parse::<u64>()
-                .map_err(|e| AppError::InternalError(format!("Invalid commander_id: {}", e)))?;
+            let category_guild_id = parse_u64_from_string(category.guild_id)?;
 
             // Fetch commander nickname from guild
-            use crate::server::data::discord::DiscordGuildMemberRepository;
-            let member_repo = DiscordGuildMemberRepository::new(self.db);
-            let commander_display_name =
-                if let Ok(Some(member)) = member_repo.get_member(commander_id, guild_id).await {
-                    member.nickname.unwrap_or(member.username)
-                } else {
-                    commander.name.clone()
-                };
+            let commander_display_name = if let Ok(Some(member)) = member_repo
+                .get_member(commander.discord_id, category_guild_id)
+                .await
+            {
+                member.nickname.unwrap_or(member.username)
+            } else {
+                commander.name.clone()
+            };
 
             Ok(Some(FleetDto {
                 id: fleet.id,
                 category_id: fleet.category_id,
                 category_name: category.name,
                 name: fleet.name,
-                commander_id,
+                commander_id: commander.discord_id,
                 commander_name: commander_display_name,
                 fleet_time: fleet.fleet_time,
                 description: fleet.description,
@@ -271,7 +249,9 @@ impl<'a> FleetService<'a> {
         &self,
         params: GetPaginatedFleetsByGuildParam,
     ) -> Result<PaginatedFleetsDto, AppError> {
-        let repo = FleetRepository::new(self.db);
+        let user_repo = UserRepository::new(self.db);
+        let category_repo = FleetCategoryRepository::new(self.db);
+        let fleet_repo = FleetRepository::new(self.db);
         let permission_repo = UserCategoryPermissionRepository::new(self.db);
 
         // Get viewable category IDs for non-admin users
@@ -302,7 +282,7 @@ impl<'a> FleetService<'a> {
             Some(combined.into_iter().collect::<Vec<i32>>())
         };
 
-        let (fleets, total) = repo
+        let (fleets, total) = fleet_repo
             .get_paginated_by_guild(
                 params.guild_id,
                 params.page,
@@ -360,26 +340,17 @@ impl<'a> FleetService<'a> {
                 }
             }
             // Fetch category
-            let category = entity::prelude::FleetCategory::find_by_id(fleet.category_id)
-                .one(self.db)
-                .await?;
+            let category = category_repo.find_by_id(fleet.category_id).await?;
 
             // Fetch commander
-            let commander = entity::prelude::User::find_by_id(&fleet.commander_id)
-                .one(self.db)
-                .await?;
+            let commander = user_repo.find_by_id(fleet.commander_id).await?;
 
             if let (Some(category), Some(commander)) = (category, commander) {
-                let commander_id = commander
-                    .discord_id
-                    .parse::<u64>()
-                    .map_err(|e| AppError::InternalError(format!("Invalid commander_id: {}", e)))?;
-
                 // Fetch commander nickname from guild
-                use crate::server::data::discord::DiscordGuildMemberRepository;
                 let member_repo = DiscordGuildMemberRepository::new(self.db);
-                let commander_display_name = if let Ok(Some(member)) =
-                    member_repo.get_member(commander_id, params.guild_id).await
+                let commander_display_name = if let Ok(Some(member)) = member_repo
+                    .get_member(commander.discord_id, params.guild_id)
+                    .await
                 {
                     member.nickname.unwrap_or(member.username)
                 } else {
@@ -389,9 +360,9 @@ impl<'a> FleetService<'a> {
                 fleet_list.push(FleetListItemDto {
                     id: fleet.id,
                     category_id: fleet.category_id,
-                    category_name: category.name,
+                    category_name: category.category.name,
                     name: fleet.name,
-                    commander_id,
+                    commander_id: commander.discord_id,
                     commander_name: commander_display_name,
                     fleet_time: fleet.fleet_time,
                     hidden: fleet.hidden,
@@ -437,10 +408,11 @@ impl<'a> FleetService<'a> {
         is_admin: bool,
         dto: UpdateFleetDto,
     ) -> Result<FleetDto, AppError> {
-        let repo = FleetRepository::new(self.db);
+        let category_repo = FleetCategoryRepository::new(self.db);
+        let fleet_repo = FleetRepository::new(self.db);
 
         // Get the current fleet to verify it belongs to the guild and get original time
-        let result = repo.get_by_id(id).await?;
+        let result = fleet_repo.get_by_id(id).await?;
         if let Some((fleet, _)) = result {
             // Parse the fleet time with original time for validation
             let original_time = fleet.fleet_time;
@@ -452,15 +424,10 @@ impl<'a> FleetService<'a> {
             self.validate_fleet_time_conflict(dto.category_id, new_fleet_time, Some(id))
                 .await?;
             // Fetch old category to verify guild
-            let old_category = entity::prelude::FleetCategory::find_by_id(fleet.category_id)
-                .one(self.db)
-                .await?;
+            let old_category = category_repo.find_by_id(fleet.category_id).await?;
 
             if let Some(old_category) = old_category {
-                let category_guild_id = old_category
-                    .guild_id
-                    .parse::<u64>()
-                    .map_err(|e| AppError::InternalError(format!("Invalid guild_id: {}", e)))?;
+                let category_guild_id = parse_u64_from_string(old_category.category.guild_id)?;
 
                 if category_guild_id != guild_id {
                     return Err(AppError::NotFound("Fleet not found".to_string()));
@@ -468,15 +435,13 @@ impl<'a> FleetService<'a> {
 
                 // If category is being changed, validate the new category belongs to the same guild
                 if dto.category_id != fleet.category_id {
-                    let new_category = entity::prelude::FleetCategory::find_by_id(dto.category_id)
-                        .one(self.db)
-                        .await?
-                        .ok_or_else(|| AppError::NotFound("New category not found".to_string()))?;
+                    let Some(new_category) = category_repo.find_by_id(dto.category_id).await?
+                    else {
+                        return Err(AppError::NotFound("New category not found".to_string()));
+                    };
 
-                    let new_category_guild_id = new_category
-                        .guild_id
-                        .parse::<u64>()
-                        .map_err(|e| AppError::InternalError(format!("Invalid guild_id: {}", e)))?;
+                    let new_category_guild_id =
+                        parse_u64_from_string(new_category.category.guild_id)?;
 
                     if new_category_guild_id != guild_id {
                         return Err(AppError::BadRequest(
@@ -486,7 +451,7 @@ impl<'a> FleetService<'a> {
                 }
 
                 // Update the fleet
-                let params = UpdateFleetParams {
+                let params = UpdateFleetParam {
                     id,
                     category_id: Some(dto.category_id),
                     name: Some(dto.name.clone()),
@@ -496,7 +461,7 @@ impl<'a> FleetService<'a> {
                     hidden: Some(dto.hidden),
                     disable_reminder: Some(dto.disable_reminder),
                 };
-                let updated_fleet = repo.update(params).await?;
+                let updated_fleet = fleet_repo.update(params).await?;
 
                 // Update Discord messages with new fleet information
                 let notification_service = FleetNotificationService::new(
@@ -510,7 +475,7 @@ impl<'a> FleetService<'a> {
 
                 // Fetch the updated fleet data with enriched information
                 return self
-                    .get_by_id(id, guild_id, user_id, is_admin)
+                    .get_by_id(id, user_id, is_admin)
                     .await?
                     .ok_or_else(|| AppError::NotFound("Fleet not found after update".to_string()));
             }
@@ -534,22 +499,18 @@ impl<'a> FleetService<'a> {
     /// - `Err(AppError::InternalError(_))` - Discord notification cancellation failed
     /// - `Err(AppError::Database(_))` - Database operation failed
     pub async fn delete(&self, id: i32, guild_id: u64) -> Result<bool, AppError> {
-        let repo = FleetRepository::new(self.db);
+        let category_repo = FleetCategoryRepository::new(self.db);
+        let fleet_repo = FleetRepository::new(self.db);
 
         // Check if fleet exists and belongs to the guild
-        let result = repo.get_by_id(id).await?;
+        let result = fleet_repo.get_by_id(id).await?;
 
         if let Some((fleet, _)) = result {
             // Fetch category to verify guild
-            let category = entity::prelude::FleetCategory::find_by_id(fleet.category_id)
-                .one(self.db)
-                .await?;
+            let category = category_repo.find_by_id(fleet.category_id).await?;
 
             if let Some(category) = category {
-                let category_guild_id = category
-                    .guild_id
-                    .parse::<u64>()
-                    .map_err(|e| AppError::InternalError(format!("Invalid guild_id: {}", e)))?;
+                let category_guild_id = parse_u64_from_string(category.category.guild_id)?;
 
                 if category_guild_id == guild_id {
                     // Cancel Discord messages before deleting
@@ -560,29 +521,13 @@ impl<'a> FleetService<'a> {
                     );
                     notification_service.cancel_fleet_messages(&fleet).await?;
 
-                    repo.delete(id).await?;
+                    fleet_repo.delete(id).await?;
                     return Ok(true);
                 }
             }
         }
 
         Ok(false)
-    }
-
-    /// Parses fleet time from string format with validation.
-    ///
-    /// Accepts "YYYY-MM-DD HH:MM" format or "now" (case-insensitive). Validates the
-    /// time is not more than 2 minutes in the past to account for form fill time and
-    /// clock skew.
-    ///
-    /// # Arguments
-    /// - `time_str` - Time string in format "YYYY-MM-DD HH:MM" or "now"
-    ///
-    /// # Returns
-    /// - `Ok(DateTime<Utc>)` - Parsed and validated datetime
-    /// - `Err(AppError::BadRequest(_))` - Invalid format or time too far in past
-    fn parse_fleet_time(time_str: &str) -> Result<DateTime<Utc>, Box<AppError>> {
-        Self::parse_fleet_time_with_min(time_str, None)
     }
 
     /// Parses fleet time with optional minimum time constraint for updates.

@@ -10,7 +10,10 @@ use serenity::all::Role;
 
 use crate::{
     model::discord::{DiscordGuildRoleDto, PaginatedDiscordGuildRolesDto},
-    server::{data::discord::DiscordGuildRoleRepository, error::AppError},
+    server::{
+        data::discord::DiscordGuildRoleRepository, error::AppError,
+        util::parse::parse_u64_from_string,
+    },
 };
 
 /// Service for managing Discord guild roles.
@@ -115,12 +118,9 @@ impl<'a> DiscordGuildRoleService<'a> {
         let role_dtos: Result<Vec<DiscordGuildRoleDto>, AppError> = roles
             .into_iter()
             .map(|role| {
-                let guild_id = role.guild_id.parse::<u64>().map_err(|e| {
-                    AppError::InternalError(format!("Failed to parse guild_id: {}", e))
-                })?;
-                let role_id = role.role_id.parse::<u64>().map_err(|e| {
-                    AppError::InternalError(format!("Failed to parse role_id: {}", e))
-                })?;
+                let guild_id = parse_u64_from_string(role.guild_id)?;
+                let role_id = parse_u64_from_string(role.role_id)?;
+
                 Ok(DiscordGuildRoleDto {
                     guild_id,
                     role_id,

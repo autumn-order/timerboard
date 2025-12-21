@@ -10,6 +10,8 @@
 //! - Discord OAuth2 and bot credentials
 //! - Discord API endpoint URLs
 
+use axum::http::HeaderValue;
+
 use crate::server::error::{config::ConfigError, AppError};
 
 /// Discord OAuth2 authorization endpoint URL.
@@ -39,6 +41,10 @@ pub struct Config {
     /// Full application URL including protocol and domain (e.g., "https://example.com").
     /// Used for generating callback URLs and links in Discord embeds.
     pub app_url: String,
+
+    /// The `app_url` parsed as a `HeaderValue` for the purposes of setting a cors origin
+    /// in the router.
+    pub cors_origin: HeaderValue,
 
     /// Discord application client ID from the Discord Developer Portal.
     pub discord_client_id: String,
@@ -89,10 +95,19 @@ impl Config {
             .map_err(|_| ConfigError::MissingEnvVar("DOMAIN".to_string()))?;
         let app_url = format!("{}://{}", protocol, domain);
 
+        let cors_origin =
+            app_url
+                .parse::<HeaderValue>()
+                .map_err(|e| ConfigError::InvalidEnvValue {
+                    var: "app_url (PROTOCOL and DOMAIN)".to_string(),
+                    reason: format!("Cannot be used as HTTP header value: {}", e),
+                })?;
+
         Ok(Self {
             database_url: std::env::var("DATABASE_URL")
                 .map_err(|_| ConfigError::MissingEnvVar("DATABASE_URL".to_string()))?,
             app_url,
+            cors_origin,
             discord_client_id: std::env::var("DISCORD_CLIENT_ID")
                 .map_err(|_| ConfigError::MissingEnvVar("DISCORD_CLIENT_ID".to_string()))?,
             discord_client_secret: std::env::var("DISCORD_CLIENT_SECRET")

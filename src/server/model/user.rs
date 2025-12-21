@@ -6,7 +6,10 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::model::user::{PaginatedUsersDto, UserDto};
+use crate::{
+    model::user::{PaginatedUsersDto, UserDto},
+    server::{error::AppError, util::parse::parse_u64_from_string},
+};
 
 /// User with Discord identity, permissions, and sync metadata.
 ///
@@ -14,8 +17,8 @@ use crate::model::user::{PaginatedUsersDto, UserDto};
 /// guild memberships and role assignments were last synchronized.
 #[derive(Debug, Clone, PartialEq)]
 pub struct User {
-    /// Discord ID of the user (stored as String in database).
-    pub discord_id: String,
+    /// Discord ID of the user
+    pub discord_id: u64,
     /// Display name of the user.
     pub name: String,
     /// Whether the user has admin privileges.
@@ -34,17 +37,12 @@ impl User {
     ///
     /// # Returns
     /// - `UserDto` - The converted user DTO with discord_id as u64
-    pub fn into_dto(self) -> Result<UserDto, String> {
-        let discord_id = self
-            .discord_id
-            .parse::<u64>()
-            .map_err(|e| format!("Failed to parse discord_id: {}", e))?;
-
-        Ok(UserDto {
-            discord_id,
+    pub fn into_dto(self) -> UserDto {
+        UserDto {
+            discord_id: self.discord_id,
             name: self.name,
             admin: self.admin,
-        })
+        }
     }
 
     /// Converts an entity model to a user domain model at the repository boundary.
@@ -53,15 +51,19 @@ impl User {
     /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `User` - The converted user domain model
-    pub fn from_entity(entity: entity::user::Model) -> Self {
-        Self {
-            discord_id: entity.discord_id,
+    /// - `Ok(User)` - The converted user domain model
+    /// - `Err(AppError::InternalError(ParseStringId))` - Failed to convert stored user
+    ///   Discord ID from String to u64
+    pub fn from_entity(entity: entity::user::Model) -> Result<Self, AppError> {
+        let discord_id = parse_u64_from_string(entity.discord_id)?;
+
+        Ok(Self {
+            discord_id: discord_id,
             name: entity.name,
             admin: entity.admin,
             last_guild_sync_at: entity.last_guild_sync_at,
             last_role_sync_at: entity.last_role_sync_at,
-        }
+        })
     }
 }
 
@@ -72,8 +74,8 @@ impl User {
 /// modifying permissions.
 #[derive(Debug, Clone)]
 pub struct UpsertUserParam {
-    /// Discord ID of the user as a string.
-    pub discord_id: String,
+    /// Discord ID of the user
+    pub discord_id: u64,
     /// Display name of the user.
     pub name: String,
     /// Optional admin status (None preserves existing admin status, Some updates it).
@@ -108,20 +110,16 @@ impl PaginatedUsers {
     /// # Returns
     /// - `Ok(PaginatedUsersDto)` - Successfully converted all users
     /// - `Err(String)` - Failed to parse discord_id for at least one user
-    pub fn into_dto(self) -> Result<PaginatedUsersDto, String> {
-        let users = self
-            .users
-            .into_iter()
-            .map(|u| u.into_dto())
-            .collect::<Result<Vec<UserDto>, String>>()?;
+    pub fn into_dto(self) -> PaginatedUsersDto {
+        let users = self.users.into_iter().map(|u| u.into_dto()).collect();
 
-        Ok(PaginatedUsersDto {
+        PaginatedUsersDto {
             users,
             total: self.total,
             page: self.page,
             per_page: self.per_page,
             total_pages: self.total_pages,
-        })
+        }
     }
 }
 

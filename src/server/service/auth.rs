@@ -131,7 +131,7 @@ impl<'a> AuthService<'a> {
         let admin_update = if set_admin { Some(true) } else { None };
         let new_user = user_repo
             .upsert(UpsertUserParam {
-                discord_id: user.id.get().to_string(),
+                discord_id: user.id.get(),
                 name: user.name,
                 is_admin: admin_update,
             })
@@ -222,11 +222,6 @@ impl<'a> AuthService<'a> {
         let guild_repo = DiscordGuildRepository::new(self.db);
         let bot_guilds = guild_repo.get_all().await?;
 
-        let user_id = user
-            .discord_id
-            .parse::<u64>()
-            .map_err(|e| AppError::InternalError(format!("Failed to parse user_id: {}", e)))?;
-
         let user_role_service = UserDiscordGuildRoleService::new(self.db);
         for guild in user_guilds {
             if bot_guilds
@@ -234,7 +229,10 @@ impl<'a> AuthService<'a> {
                 .any(|bot_guild| bot_guild.guild_id == guild.id.get())
             {
                 if let Ok(member) = self.fetch_guild_member(token, guild.id).await {
-                    if let Err(e) = user_role_service.sync_user_roles(user_id, &member).await {
+                    if let Err(e) = user_role_service
+                        .sync_user_roles(user.discord_id, &member)
+                        .await
+                    {
                         tracing::warn!(
                             "Failed to sync roles for user {} in guild {}: {:?}",
                             user.discord_id,
@@ -247,7 +245,9 @@ impl<'a> AuthService<'a> {
         }
 
         let user_repo = UserRepository::new(self.db);
-        user_repo.update_role_sync_timestamp(user_id).await?;
+        user_repo
+            .update_role_sync_timestamp(user.discord_id)
+            .await?;
 
         Ok(())
     }

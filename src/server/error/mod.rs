@@ -7,6 +7,7 @@
 
 pub mod auth;
 pub mod config;
+pub mod internal;
 
 use axum::{
     http::StatusCode,
@@ -18,7 +19,7 @@ use thiserror::Error;
 
 use crate::{
     model::api::ErrorDto,
-    server::error::{auth::AuthError, config::ConfigError},
+    server::error::{auth::AuthError, config::ConfigError, internal::InternalError},
 };
 
 /// Top-level application error type.
@@ -42,6 +43,13 @@ pub enum AppError {
     /// (401 Unauthorized, 403 Forbidden, etc.).
     #[error(transparent)]
     AuthErr(#[from] AuthError),
+
+    /// An error occurred internally within our application
+    ///
+    /// Results in 500 Internal Server Error. The provided message is logged
+    /// but a generic message is returned to the client.
+    #[error(transparent)]
+    InternalError(#[from] InternalError),
 
     /// Database operation error from SeaORM.
     ///
@@ -98,23 +106,6 @@ pub enum AppError {
     /// - Message describing what was invalid about the request
     #[error("{0}")]
     BadRequest(String),
-
-    /// Internal server error with custom message.
-    ///
-    /// Results in 500 Internal Server Error. The provided message is logged
-    /// but a generic message is returned to the client.
-    ///
-    /// # Fields
-    /// - Detailed error message for server-side logging
-    #[error("{0}")]
-    InternalError(String),
-
-    /// Failure to parse id from String
-    ///
-    /// Results a in 500 Internal Server Error with a generic message returned
-    /// to client.
-    #[error("Failed to parse ID from String: {0}")]
-    ParseStringId(String),
 }
 
 /// Manual conversion from serenity::Error to AppError.
@@ -169,7 +160,7 @@ impl IntoResponse for AppError {
 /// This struct logs the error message and returns a generic "Internal server error" message
 /// to the client to avoid leaking implementation details. Used as a fallback for errors that
 /// don't have specific HTTP response mappings.
-pub struct InternalServerError<E>(pub E);
+struct InternalServerError<E>(pub E);
 
 /// Converts wrapped errors into 500 Internal Server Error responses.
 ///

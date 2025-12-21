@@ -61,7 +61,7 @@ impl<'a> FleetCategoryService<'a> {
 
         // Fetch full category with relations
         let full_result = repo
-            .get_by_id(category.id)
+            .find_by_id(category.id)
             .await?
             .ok_or_else(|| AppError::NotFound("Category not found after creation".to_string()))?;
 
@@ -84,7 +84,7 @@ impl<'a> FleetCategoryService<'a> {
     pub async fn get_by_id(&self, id: i32) -> Result<Option<FleetCategory>, AppError> {
         let repo = FleetCategoryRepository::new(self.db);
 
-        let result = repo.get_by_id(id).await?;
+        let result = repo.find_by_id(id).await?;
 
         result
             .map(FleetCategory::from_with_relations)
@@ -167,7 +167,7 @@ impl<'a> FleetCategoryService<'a> {
         let _category = repo.update(params.clone()).await?;
 
         // Fetch full category with relations
-        let full_result = repo.get_by_id(params.id).await?;
+        let full_result = repo.find_by_id(params.id).await?;
 
         full_result
             .map(FleetCategory::from_with_relations)

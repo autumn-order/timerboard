@@ -4,6 +4,8 @@
 
 use chrono::{DateTime, Utc};
 
+use crate::server::{error::AppError, util::parse::parse_u64_from_string};
+
 /// Discord message posted for fleet notifications.
 ///
 /// Tracks messages posted for fleet events such as creation announcements, reminders,
@@ -14,10 +16,10 @@ pub struct FleetMessage {
     pub id: i32,
     /// ID of the fleet this message belongs to.
     pub fleet_id: i32,
-    /// Discord channel ID where the message was posted (stored as String).
-    pub channel_id: String,
-    /// Discord message ID (stored as String).
-    pub message_id: String,
+    /// Discord channel ID where the message was posted
+    pub channel_id: u64,
+    /// Discord message ID
+    pub message_id: u64,
     /// Type of message (e.g., "creation", "reminder", "formup").
     pub message_type: String,
     /// Timestamp when the message record was created.
@@ -32,15 +34,18 @@ impl FleetMessage {
     ///
     /// # Returns
     /// - `FleetMessage` - The converted fleet message domain model
-    pub fn from_entity(entity: entity::fleet_message::Model) -> Self {
-        Self {
+    pub fn from_entity(entity: entity::fleet_message::Model) -> Result<Self, AppError> {
+        let channel_id = parse_u64_from_string(entity.channel_id)?;
+        let message_id = parse_u64_from_string(entity.message_id)?;
+
+        Ok(Self {
             id: entity.id,
             fleet_id: entity.fleet_id,
-            channel_id: entity.channel_id,
-            message_id: entity.message_id,
+            channel_id,
+            message_id,
             message_type: entity.message_type,
             created_at: entity.created_at,
-        }
+        })
     }
 }
 

@@ -4,8 +4,12 @@
 //! It handles user creation, updates, queries, and admin status management with proper
 //! conversion between entity models and parameter models at the infrastructure boundary.
 
-use crate::server::model::user::{UpsertUserParam, User};
+use crate::server::{
+    error::AppError,
+    model::user::{UpsertUserParam, User},
+};
 use chrono::Utc;
+use dioxus_logger::tracing;
 use migration::OnConflict;
 use sea_orm::{
     ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait, QueryFilter,
@@ -44,7 +48,7 @@ impl<'a> UserRepository<'a> {
     /// # Returns
     /// - `Ok(User)` - The created or updated user
     /// - `Err(DbErr)` - Database error during insert or update
-    pub async fn upsert(&self, param: UpsertUserParam) -> Result<User, DbErr> {
+    pub async fn upsert(&self, param: UpsertUserParam) -> Result<User, AppError> {
         // Build list of columns to update on conflict
         let mut update_columns = vec![entity::user::Column::Name];
 
@@ -55,7 +59,7 @@ impl<'a> UserRepository<'a> {
 
         let now = Utc::now();
         let entity = entity::prelude::User::insert(entity::user::ActiveModel {
-            discord_id: ActiveValue::Set(param.discord_id),
+            discord_id: ActiveValue::Set(param.discord_id.to_string()),
             name: ActiveValue::Set(param.name),
             admin: ActiveValue::Set(param.is_admin.unwrap_or(false)),
             last_guild_sync_at: ActiveValue::Set(now),
@@ -69,10 +73,10 @@ impl<'a> UserRepository<'a> {
         .exec_with_returning(self.db)
         .await?;
 
-        Ok(User::from_entity(entity))
+        Ok(User::from_entity(entity)?)
     }
 
-    /// Finds a user by their Discord ID.
+    /// Finds a user by ID.
     ///
     /// Queries the database for a user with the specified Discord ID and returns
     /// their full information if found.
@@ -84,12 +88,12 @@ impl<'a> UserRepository<'a> {
     /// - `Ok(Some(User))` - User found with full data
     /// - `Ok(None)` - No user found with that Discord ID
     /// - `Err(DbErr)` - Database error during query
-    pub async fn find_by_discord_id(&self, user_id: u64) -> Result<Option<User>, DbErr> {
+    pub async fn find_by_id(&self, user_id: u64) -> Result<Option<User>, AppError> {
         let entity = entity::prelude::User::find_by_id(user_id.to_string())
             .one(self.db)
             .await?;
 
-        Ok(entity.map(User::from_entity))
+        Ok(entity.map(User::from_entity).transpose()?)
     }
 
     /// Checks if any admin users exist in the database.
@@ -187,7 +191,16 @@ impl<'a> UserRepository<'a> {
 
         let total = paginator.num_pages().await?;
         let entities = paginator.fetch_page(page).await?;
-        let users = entities.into_iter().map(User::from_entity).collect();
+        let users = entities
+            .into_iter()
+            .filter_map(|entity| match User::from_entity(entity) {
+                Ok(user) => Some(user),
+                Err(e) => {
+                    tracing::error!("Failed to convert user entity to domain model: {}", e);
+                    None
+                }
+            })
+            .collect();
 
         Ok((users, total))
     }
@@ -207,7 +220,16 @@ impl<'a> UserRepository<'a> {
             .all(self.db)
             .await?;
 
-        Ok(entities.into_iter().map(User::from_entity).collect())
+        Ok(entities
+            .into_iter()
+            .filter_map(|entity| match User::from_entity(entity) {
+                Ok(user) => Some(user),
+                Err(e) => {
+                    tracing::error!("Failed to convert user entity to domain model: {}", e);
+                    None
+                }
+            })
+            .collect())
     }
 
     /// Sets admin status for a user.

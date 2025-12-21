@@ -4,6 +4,8 @@
 //! It handles creation messages, reminder messages, formup messages, and the upcoming
 //! fleets list that displays all scheduled events in a channel.
 
+use std::collections::HashMap;
+
 use dioxus_logger::tracing;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serenity::{
@@ -17,7 +19,7 @@ use std::sync::Arc;
 use crate::server::{
     data::{
         category::FleetCategoryRepository, channel_fleet_list::ChannelFleetListRepository,
-        fleet_message::FleetMessageRepository,
+        fleet_message::FleetMessageRepository, ping_format::field::PingFormatFieldRepository,
     },
     error::AppError,
     model::{
@@ -25,6 +27,7 @@ use crate::server::{
         fleet::Fleet,
         fleet_message::{CreateFleetMessageParam, FleetMessage},
     },
+    util::parse::parse_u64_from_string,
 };
 
 use super::builder::FleetNotificationBuilder;
@@ -427,7 +430,7 @@ impl<'a> FleetNotificationPosting<'a> {
     async fn post_fleet_notification(
         &self,
         fleet: &Fleet,
-        field_values: &std::collections::HashMap<i32, String>,
+        field_values: &HashMap<i32, String>,
         _title: Option<&str>, // Deprecated - title is now built from category name and message type
         color: u32,
         message_type: &str,
@@ -438,30 +441,25 @@ impl<'a> FleetNotificationPosting<'a> {
             return Ok(());
         }
 
+        let ping_format_field_repo = PingFormatFieldRepository::new(self.db);
         let category_repo = FleetCategoryRepository::new(self.db);
         let message_repo = FleetMessageRepository::new(self.db);
 
         // Get category with channels and ping roles
-        let category_data = category_repo
-            .get_by_id(fleet.category_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Fleet category not found".to_string()))?;
+        let Some(category_data) = category_repo.find_by_id(fleet.category_id).await? else {
+            return Err(AppError::NotFound("Fleet category not found".to_string()));
+        };
 
         // Get guild_id for fetching commander name
-        let guild_id = category_data
-            .category
-            .guild_id
-            .parse::<u64>()
-            .map_err(|e| AppError::InternalError(format!("Invalid guild_id: {}", e)))?;
+        let guild_id = parse_u64_from_string(category_data.category.guild_id)?;
 
         // Get ping format fields for the category
-        let ping_format = category_data
-            .ping_format
-            .ok_or_else(|| AppError::NotFound("Ping format not found".to_string()))?;
+        let Some(ping_format) = category_data.ping_format else {
+            return Err(AppError::NotFound("Ping format not found".to_string()));
+        };
 
-        let fields = entity::prelude::PingFormatField::find()
-            .filter(entity::ping_format_field::Column::PingFormatId.eq(ping_format.id))
-            .all(self.db)
+        let fields = ping_format_field_repo
+            .get_by_ping_format_id(ping_format.id)
             .await?;
 
         // Fetch commander name from Discord
@@ -494,10 +492,7 @@ impl<'a> FleetNotificationPosting<'a> {
         // Build ping content with title
         let mut content = format!("{}\n\n", title);
         for (ping_role, _) in &category_data.ping_roles {
-            let role_id = ping_role
-                .role_id
-                .parse::<u64>()
-                .map_err(|e| AppError::InternalError(format!("Invalid role ID: {}", e)))?;
+            let role_id = parse_u64_from_string(ping_role.role_id.clone())?;
 
             // @everyone role has the same ID as the guild - use @everyone instead of <@&guild_id>
             if role_id == guild_id {
@@ -509,10 +504,7 @@ impl<'a> FleetNotificationPosting<'a> {
 
         // Post to all configured channels
         for (channel, _) in &category_data.channels {
-            let channel_id_u64 = channel
-                .channel_id
-                .parse::<u64>()
-                .map_err(|e| AppError::InternalError(format!("Invalid channel ID: {}", e)))?;
+            let channel_id_u64 = parse_u64_from_string(channel.channel_id.clone())?;
 
             let channel_id = ChannelId::new(channel_id_u64);
 
@@ -520,7 +512,7 @@ impl<'a> FleetNotificationPosting<'a> {
             let reference_msg = reference_messages.as_ref().and_then(|messages| {
                 messages
                     .iter()
-                    .filter(|m| m.channel_id == channel_id_u64.to_string())
+                    .filter(|m| m.channel_id == channel_id_u64)
                     .max_by_key(|m| &m.created_at)
             });
 
@@ -528,10 +520,7 @@ impl<'a> FleetNotificationPosting<'a> {
 
             // If reference message exists, reply to it
             if let Some(ref_msg) = reference_msg {
-                let msg_id = ref_msg
-                    .message_id
-                    .parse::<u64>()
-                    .map_err(|e| AppError::InternalError(format!("Invalid message ID: {}", e)))?;
+                let msg_id = parse_u64_from_string(ref_msg.message_id.to_string())?;
                 message = message.reference_message(MessageReference::from((
                     channel_id,
                     MessageId::new(msg_id),

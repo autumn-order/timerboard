@@ -49,7 +49,7 @@ impl<'a> UserService<'a> {
     /// - `Err(AppError::Database)` - Database error during query
     pub async fn get_user(&self, param: GetUserParam) -> Result<Option<User>, AppError> {
         let user_repo = UserRepository::new(self.db);
-        let user = user_repo.find_by_discord_id(param.discord_id).await?;
+        let user = user_repo.find_by_id(param.discord_id).await?;
         Ok(user)
     }
 
@@ -112,7 +112,7 @@ impl<'a> UserService<'a> {
         let user_repo = UserRepository::new(self.db);
 
         // Verify user exists
-        let user = user_repo.find_by_discord_id(param.discord_id).await?;
+        let user = user_repo.find_by_id(param.discord_id).await?;
         if user.is_none() {
             return Err(AppError::NotFound("User not found".to_string()));
         }
@@ -140,7 +140,7 @@ impl<'a> UserService<'a> {
         let user_repo = UserRepository::new(self.db);
 
         // Verify user exists
-        let user = user_repo.find_by_discord_id(param.discord_id).await?;
+        let user = user_repo.find_by_id(param.discord_id).await?;
         if user.is_none() {
             return Err(AppError::NotFound("User not found".to_string()));
         }
@@ -173,7 +173,7 @@ impl<'a> UserService<'a> {
         let guild_repo = DiscordGuildRepository::new(self.db);
 
         // Check if user is admin
-        let user = user_repo.find_by_discord_id(param.discord_id).await?;
+        let user = user_repo.find_by_id(param.discord_id).await?;
         let is_admin = user.map(|u| u.admin).unwrap_or(false);
 
         // If admin, return all guilds; otherwise return only user's guilds

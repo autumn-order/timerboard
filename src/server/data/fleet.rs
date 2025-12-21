@@ -7,13 +7,17 @@
 //! boundary.
 
 use chrono::Utc;
+use dioxus_logger::tracing;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait,
 };
 use std::collections::HashMap;
 
-use crate::server::model::fleet::{CreateFleetParams, Fleet, UpdateFleetParams};
+use crate::server::{
+    error::AppError,
+    model::fleet::{CreateFleetParam, Fleet, UpdateFleetParam},
+};
 
 /// Repository providing database operations for fleet management.
 ///
@@ -46,17 +50,18 @@ impl<'a> FleetRepository<'a> {
     ///
     /// # Returns
     /// - `Ok(Fleet)` - The created fleet with generated ID
-    /// - `Err(DbErr)` - Database error during insert operation (including foreign key violations)
-    pub async fn create(&self, params: CreateFleetParams) -> Result<Fleet, DbErr> {
+    /// - `Err(AppError::Database)` - Database error during insert operation (including foreign key violations)
+    /// - `Err(AppError::InternalError(ParseStringId))` - Failed to parse ID from String
+    pub async fn create(&self, param: CreateFleetParam) -> Result<Fleet, AppError> {
         // Create the fleet
         let entity = entity::fleet::ActiveModel {
-            category_id: ActiveValue::Set(params.category_id),
-            name: ActiveValue::Set(params.name),
-            commander_id: ActiveValue::Set(params.commander_id.to_string()),
-            fleet_time: ActiveValue::Set(params.fleet_time),
-            description: ActiveValue::Set(params.description),
-            hidden: ActiveValue::Set(params.hidden),
-            disable_reminder: ActiveValue::Set(params.disable_reminder),
+            category_id: ActiveValue::Set(param.category_id),
+            name: ActiveValue::Set(param.name),
+            commander_id: ActiveValue::Set(param.commander_id.to_string()),
+            fleet_time: ActiveValue::Set(param.fleet_time),
+            description: ActiveValue::Set(param.description),
+            hidden: ActiveValue::Set(param.hidden),
+            disable_reminder: ActiveValue::Set(param.disable_reminder),
             created_at: ActiveValue::Set(Utc::now()),
             ..Default::default()
         }
@@ -64,7 +69,7 @@ impl<'a> FleetRepository<'a> {
         .await?;
 
         // Insert field values
-        for (field_id, value) in params.field_values {
+        for (field_id, value) in param.field_values {
             entity::fleet_field_value::ActiveModel {
                 fleet_id: ActiveValue::Set(entity.id),
                 field_id: ActiveValue::Set(field_id),
@@ -74,7 +79,7 @@ impl<'a> FleetRepository<'a> {
             .await?;
         }
 
-        Ok(Fleet::from_entity(entity))
+        Ok(Fleet::from_entity(entity)?)
     }
 
     /// Gets a fleet by ID with its field values.
@@ -89,8 +94,12 @@ impl<'a> FleetRepository<'a> {
     /// # Returns
     /// - `Ok(Some((fleet, field_values)))` - Fleet param and map of field_id to value
     /// - `Ok(None)` - No fleet found with that ID
-    /// - `Err(DbErr)` - Database error during query
-    pub async fn get_by_id(&self, id: i32) -> Result<Option<(Fleet, HashMap<i32, String>)>, DbErr> {
+    /// - `Err(AppError::Database)` - Database error during query
+    /// - `Err(AppError::InternalError(ParseStringId))` - Failed to parse ID from String
+    pub async fn get_by_id(
+        &self,
+        id: i32,
+    ) -> Result<Option<(Fleet, HashMap<i32, String>)>, AppError> {
         let entity = entity::prelude::Fleet::find_by_id(id).one(self.db).await?;
 
         if let Some(entity) = entity {
@@ -102,7 +111,7 @@ impl<'a> FleetRepository<'a> {
                 .map(|fv| (fv.field_id, fv.value))
                 .collect();
 
-            Ok(Some((Fleet::from_entity(entity), field_values)))
+            Ok(Some((Fleet::from_entity(entity)?, field_values)))
         } else {
             Ok(None)
         }
@@ -163,7 +172,16 @@ impl<'a> FleetRepository<'a> {
         let paginator = query.paginate(self.db, per_page);
         let total = paginator.num_items().await?;
         let entities = paginator.fetch_page(page).await?;
-        let fleets = entities.into_iter().map(Fleet::from_entity).collect();
+        let fleets = entities
+            .into_iter()
+            .filter_map(|entity| match Fleet::from_entity(entity) {
+                Ok(fleet) => Some(fleet),
+                Err(e) => {
+                    tracing::error!("Failed to convert fleet entity to domain model: {}", e);
+                    None
+                }
+            })
+            .collect();
 
         Ok((fleets, total))
     }
@@ -199,7 +217,8 @@ impl<'a> FleetRepository<'a> {
     /// - `Ok(Fleet)` - The updated fleet with new values
     /// - `Err(DbErr::RecordNotFound)` - No fleet exists with the specified ID
     /// - `Err(DbErr)` - Other database error during update operation
-    pub async fn update(&self, params: UpdateFleetParams) -> Result<Fleet, DbErr> {
+    /// - `Err(AppError::InternalError(ParseStringId))` - Failed to parse ID from String
+    pub async fn update(&self, params: UpdateFleetParam) -> Result<Fleet, AppError> {
         let id = params.id;
         let fleet = entity::prelude::Fleet::find_by_id(id)
             .one(self.db)
@@ -249,6 +268,6 @@ impl<'a> FleetRepository<'a> {
             }
         }
 
-        Ok(Fleet::from_entity(updated_fleet))
+        Ok(Fleet::from_entity(updated_fleet)?)
     }
 }

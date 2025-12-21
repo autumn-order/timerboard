@@ -156,9 +156,7 @@ pub async fn get_ping_formats(
     };
 
     let ping_formats = service.get_paginated(param).await?;
-    let dto = ping_formats.into_dto().map_err(|e| {
-        AppError::InternalError(format!("Failed to convert ping formats to DTO: {}", e))
-    })?;
+    let dto = ping_formats.into_dto();
 
     Ok((StatusCode::OK, Json(dto)))
 }

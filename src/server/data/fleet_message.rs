@@ -6,11 +6,15 @@
 //! queries with proper conversion between entity models and parameter models at the
 //! infrastructure boundary.
 
+use dioxus_logger::tracing;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
 };
 
-use crate::server::model::fleet_message::{CreateFleetMessageParam, FleetMessage};
+use crate::server::{
+    error::AppError,
+    model::fleet_message::{CreateFleetMessageParam, FleetMessage},
+};
 
 /// Repository providing database operations for fleet message management.
 ///
@@ -45,7 +49,8 @@ impl<'a> FleetMessageRepository<'a> {
     /// # Returns
     /// - `Ok(FleetMessageParam)` - The created fleet message record with generated ID
     /// - `Err(DbErr)` - Database error during insert operation (including foreign key violation)
-    pub async fn create(&self, param: CreateFleetMessageParam) -> Result<FleetMessage, DbErr> {
+    /// - `Err(AppError::InternalError(ParseStringId))` - Failed to parse ID from String
+    pub async fn create(&self, param: CreateFleetMessageParam) -> Result<FleetMessage, AppError> {
         let entity = entity::fleet_message::ActiveModel {
             fleet_id: ActiveValue::Set(param.fleet_id),
             channel_id: ActiveValue::Set(param.channel_id.to_string()),
@@ -57,7 +62,7 @@ impl<'a> FleetMessageRepository<'a> {
         .insert(self.db)
         .await?;
 
-        Ok(FleetMessage::from_entity(entity))
+        Ok(FleetMessage::from_entity(entity)?)
     }
 
     /// Gets all messages for a fleet.
@@ -80,7 +85,16 @@ impl<'a> FleetMessageRepository<'a> {
 
         Ok(entities
             .into_iter()
-            .map(FleetMessage::from_entity)
+            .filter_map(|entity| match FleetMessage::from_entity(entity) {
+                Ok(message) => Some(message),
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to convert fleet message entity to domain model: {}",
+                        e
+                    );
+                    None
+                }
+            })
             .collect())
     }
 }

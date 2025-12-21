@@ -5,7 +5,7 @@
 //! and Swagger UI is configured to provide interactive API documentation at `/api/docs`.
 
 use axum::{
-    http::{header, HeaderValue, Method},
+    http::{header, Method},
     Router,
 };
 use tower_governor::{
@@ -256,15 +256,9 @@ pub fn router(config: &Config) -> Result<Router<AppState>, AppError> {
         api_router
     };
 
-    // Parse app_url into HeaderValue for CORS configuration
-    let origin = config
-        .app_url
-        .parse::<HeaderValue>()
-        .map_err(|e| AppError::InternalError(format!("Failed to parse app_url: {}", e)))?;
-
     // Configure CORS layer
     let cors = CorsLayer::new()
-        .allow_origin(origin)
+        .allow_origin(config.cors_origin.clone())
         .allow_methods([
             Method::GET,
             Method::POST,

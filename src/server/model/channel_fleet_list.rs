@@ -4,7 +4,7 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::server::error::AppError;
+use crate::server::{error::AppError, util::parse::parse_u64_from_string};
 
 /// Pinned fleet list message in a Discord channel.
 ///
@@ -37,15 +37,8 @@ impl ChannelFleetList {
     /// - `Err(AppError::ParseStringId)` - Failed to parse Discord channel or message ID stored as
     ///   string to u64
     pub fn from_entity(entity: entity::channel_fleet_list::Model) -> Result<Self, AppError> {
-        let channel_id = entity
-            .channel_id
-            .parse::<u64>()
-            .map_err(|_| AppError::ParseStringId(entity.channel_id))?;
-
-        let message_id = entity
-            .message_id
-            .parse::<u64>()
-            .map_err(|_| AppError::ParseStringId(entity.message_id))?;
+        let channel_id = parse_u64_from_string(entity.channel_id)?;
+        let message_id = parse_u64_from_string(entity.message_id)?;
 
         Ok(Self {
             id: entity.id,

@@ -308,7 +308,6 @@ impl<'a> UserCategoryPermissionRepository<'a> {
     pub async fn user_can_view_category(
         &self,
         user_id: u64,
-        _guild_id: u64,
         category_id: i32,
     ) -> Result<bool, DbErr> {
         // First, get all role IDs that the user has in this guild
@@ -353,7 +352,6 @@ impl<'a> UserCategoryPermissionRepository<'a> {
     pub async fn user_can_create_category(
         &self,
         user_id: u64,
-        _guild_id: u64,
         category_id: i32,
     ) -> Result<bool, DbErr> {
         // First, get all role IDs that the user has in this guild
@@ -403,7 +401,6 @@ impl<'a> UserCategoryPermissionRepository<'a> {
     pub async fn user_can_manage_category(
         &self,
         user_id: u64,
-        _guild_id: u64,
         category_id: i32,
     ) -> Result<bool, DbErr> {
         // First, get all role IDs that the user has in this guild

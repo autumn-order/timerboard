@@ -23,4 +23,21 @@ pub enum ConfigError {
     /// - Name of the missing environment variable
     #[error("Missing required environment variable: {0}")]
     MissingEnvVar(String),
+
+    /// Environment variable value is invalid or malformed.
+    ///
+    /// The environment variable is set but contains a value that cannot be parsed or
+    /// is not within acceptable bounds. The `reason` field provides details about why
+    /// the value was rejected.
+    ///
+    /// # Fields
+    /// - `var` - Name of the environment variable with invalid value.
+    /// - `reason` - Explanation of why the value is invalid.
+    #[error("Invalid value for environment variable {var}: {reason}")]
+    InvalidEnvValue {
+        /// Name of the environment variable with invalid value.
+        var: String,
+        /// Explanation of why the value is invalid.
+        reason: String,
+    },
 }

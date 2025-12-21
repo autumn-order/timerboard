@@ -8,7 +8,7 @@ use sea_orm::DatabaseConnection;
 use tower_sessions::Session;
 
 use crate::server::{
-    data::user::UserRepository,
+    data::{user::UserRepository, user_category_permission::UserCategoryPermissionRepository},
     error::{auth::AuthError, AppError},
     middleware::session::AuthSession,
     model::user::User,
@@ -75,23 +75,20 @@ impl<'a> AuthGuard<'a> {
     /// # Returns
     /// - `Ok(User)` - User has all required permissions
     /// - `Err(AuthError::UserNotInSession)` - No user ID found in session
-    /// - `Err(AppError::InternalError)` - Failed to parse user ID from session
+    /// - `Err(AppError::InternalError(ParseStringId))` - Failed to parse user ID from session
     /// - `Err(AuthError::UserNotInDatabase)` - User ID in session not found in database
     /// - `Err(AuthError::AccessDenied)` - User lacks one or more required permissions
     /// - `Err(DbErr(_))` - Database error during permission checks
     pub async fn require(&self, permissions: &[Permission]) -> Result<User, AppError> {
         let auth_session = AuthSession::new(self.session);
         let user_repo = UserRepository::new(self.db);
+        let permission_repo = UserCategoryPermissionRepository::new(self.db);
 
-        let Some(user_id_str) = auth_session.get_user_id().await? else {
+        let Some(user_id) = auth_session.get_user_id().await? else {
             return Err(AuthError::UserNotInSession.into());
         };
 
-        let user_id = user_id_str.parse::<u64>().map_err(|e| {
-            AppError::InternalError(format!("Failed to parse user_id from session: {}", e))
-        })?;
-
-        let Some(user) = user_repo.find_by_discord_id(user_id).await? else {
+        let Some(user) = user_repo.find_by_id(user_id).await? else {
             return Err(AuthError::UserNotInDatabase(user_id).into());
         };
 
@@ -101,7 +98,7 @@ impl<'a> AuthGuard<'a> {
                     if !user.admin {
                         return Err(AuthError::AccessDenied(
                             user_id,
-                            "User attempted to add bot to Discord server but doesn't have required admin permissions".to_string()
+                            "User attempted to access admin-gated route but did not have sufficient permissions".to_string()
                         ).into());
                     }
                 }
@@ -112,11 +109,8 @@ impl<'a> AuthGuard<'a> {
                     }
 
                     // Check if user has view access to this category
-                    use crate::server::data::user_category_permission::UserCategoryPermissionRepository;
-                    let permission_repo = UserCategoryPermissionRepository::new(self.db);
-
                     let has_access = permission_repo
-                        .user_can_view_category(user_id, *guild_id, *category_id)
+                        .user_can_view_category(user_id, *category_id)
                         .await?;
 
                     if !has_access {
@@ -137,11 +131,8 @@ impl<'a> AuthGuard<'a> {
                     }
 
                     // Check if user has create access to this category
-                    use crate::server::data::user_category_permission::UserCategoryPermissionRepository;
-                    let permission_repo = UserCategoryPermissionRepository::new(self.db);
-
                     let has_access = permission_repo
-                        .user_can_create_category(user_id, *guild_id, *category_id)
+                        .user_can_create_category(user_id, *category_id)
                         .await?;
 
                     if !has_access {

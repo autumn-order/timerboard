@@ -16,7 +16,7 @@
 
 use tower_sessions::Session;
 
-use crate::server::error::AppError;
+use crate::server::{error::AppError, util::parse::parse_u64_from_string};
 
 // Session key constants
 const SESSION_AUTH_USER_ID: &str = "auth:user";
@@ -66,8 +66,10 @@ impl<'a> AuthSession<'a> {
     /// # Returns
     /// - `Ok(())` - User ID successfully stored
     /// - `Err(AppError::SessionErr(_))` - Failed to store in session
-    pub async fn set_user_id(&self, user_id: String) -> Result<(), AppError> {
-        self.session.insert(SESSION_AUTH_USER_ID, user_id).await?;
+    pub async fn set_user_id(&self, user_id: u64) -> Result<(), AppError> {
+        self.session
+            .insert(SESSION_AUTH_USER_ID, user_id.to_string())
+            .await?;
         Ok(())
     }
 
@@ -79,9 +81,14 @@ impl<'a> AuthSession<'a> {
     /// - `Ok(Some(user_id))` - User is logged in, returns their Discord ID
     /// - `Ok(None)` - No user in session (not logged in)
     /// - `Err(AppError::SessionErr(_))` - Failed to access session
-    pub async fn get_user_id(&self) -> Result<Option<String>, AppError> {
-        let user_id = self.session.get::<String>(SESSION_AUTH_USER_ID).await?;
-        Ok(user_id)
+    pub async fn get_user_id(&self) -> Result<Option<u64>, AppError> {
+        let Some(user_id_str) = self.session.get::<String>(SESSION_AUTH_USER_ID).await? else {
+            return Ok(None);
+        };
+
+        let user_id = parse_u64_from_string(user_id_str)?;
+
+        Ok(Some(user_id))
     }
 
     /// Checks if a user is currently logged in.

@@ -22,6 +22,7 @@ use crate::{
         },
         error::{auth::AuthError, AppError},
         middleware::auth::{AuthGuard, Permission},
+        model::fleet::{CreateFleetParam, GetPaginatedFleetsByGuildParam},
         service::fleet::FleetService,
         state::AppState,
     },
@@ -87,7 +88,7 @@ pub async fn get_category_details(
 
     let category_repo = FleetCategoryRepository::new(&state.db);
     let category_with_relations = category_repo
-        .get_category_details(category_id)
+        .find_by_id(category_id)
         .await?
         .ok_or_else(|| AppError::NotFound("Category not found".to_string()))?;
 
@@ -270,13 +271,15 @@ pub async fn create_fleet(
     Path(guild_id): Path<u64>,
     Json(dto): Json<CreateFleetDto>,
 ) -> Result<impl IntoResponse, AppError> {
+    let fleet_service =
+        FleetService::new(&state.db, state.discord_http.clone(), state.app_url.clone());
+
     let user = AuthGuard::new(&state.db, &session)
         .require(&[Permission::CategoryCreate(guild_id, dto.category_id)])
         .await?;
 
-    let fleet_service =
-        FleetService::new(&state.db, state.discord_http.clone(), state.app_url.clone());
-    let fleet = fleet_service.create(dto, user.admin).await?;
+    let param = CreateFleetParam::from_dto(dto);
+    let fleet = fleet_service.create(param, user.admin).await?;
 
     Ok((StatusCode::CREATED, Json(fleet)))
 }
@@ -328,19 +331,15 @@ pub async fn create_fleet(
 pub async fn get_fleet(
     State(state): State<AppState>,
     session: Session,
-    Path((guild_id, fleet_id)): Path<(u64, i32)>,
+    Path((_guild_id, fleet_id)): Path<(u64, i32)>,
 ) -> Result<impl IntoResponse, AppError> {
     let user = AuthGuard::new(&state.db, &session).require(&[]).await?;
 
-    let user_id = user
-        .discord_id
-        .parse::<u64>()
-        .map_err(|e| AppError::InternalError(format!("Invalid user discord_id: {}", e)))?;
-
     let fleet_service =
         FleetService::new(&state.db, state.discord_http.clone(), state.app_url.clone());
+
     let fleet = fleet_service
-        .get_by_id(fleet_id, guild_id, user_id, user.admin)
+        .get_by_id(fleet_id, user.discord_id, user.admin)
         .await?
         .ok_or_else(|| AppError::NotFound("Fleet not found".to_string()))?;
 
@@ -399,23 +398,16 @@ pub async fn get_fleets(
 ) -> Result<impl IntoResponse, AppError> {
     let user = AuthGuard::new(&state.db, &session).require(&[]).await?;
 
-    let user_id = user
-        .discord_id
-        .parse::<u64>()
-        .map_err(|e| AppError::InternalError(format!("Invalid user discord_id: {}", e)))?;
-
     let fleet_service =
         FleetService::new(&state.db, state.discord_http.clone(), state.app_url.clone());
     let fleets = fleet_service
-        .get_paginated_by_guild(
-            crate::server::model::fleet::GetPaginatedFleetsByGuildParam {
-                guild_id,
-                user_id,
-                is_admin: user.admin,
-                page: pagination.page,
-                per_page: pagination.per_page,
-            },
-        )
+        .get_paginated_by_guild(GetPaginatedFleetsByGuildParam {
+            guild_id,
+            user_id: user.discord_id,
+            is_admin: user.admin,
+            page: pagination.page,
+            per_page: pagination.per_page,
+        })
         .await?;
 
     Ok((StatusCode::OK, Json(fleets)))
@@ -481,38 +473,33 @@ pub async fn update_fleet(
 ) -> Result<impl IntoResponse, AppError> {
     let user = AuthGuard::new(&state.db, &session).require(&[]).await?;
 
-    let user_id = user
-        .discord_id
-        .parse::<u64>()
-        .map_err(|e| AppError::InternalError(format!("Invalid user discord_id: {}", e)))?;
-
     // Get the fleet to check category and commander
     let fleet_service =
         FleetService::new(&state.db, state.discord_http.clone(), state.app_url.clone());
     let fleet = fleet_service
-        .get_by_id(fleet_id, guild_id, user_id, user.admin)
+        .get_by_id(fleet_id, user.discord_id, user.admin)
         .await?
         .ok_or_else(|| AppError::NotFound("Fleet not found".to_string()))?;
 
     // Check if user is admin, has manage permission, or is the fleet commander
-    let can_manage = if user.admin || user_id == fleet.commander_id {
+    let can_manage = if user.admin || user.discord_id == fleet.commander_id {
         true
     } else {
         let permission_repo = UserCategoryPermissionRepository::new(&state.db);
         permission_repo
-            .user_can_manage_category(user_id, guild_id, fleet.category_id)
+            .user_can_manage_category(user.discord_id, fleet.category_id)
             .await?
     };
 
     if !can_manage {
         return Err(AppError::AuthErr(AuthError::AccessDenied(
-            user_id,
+            user.discord_id,
             "You don't have permission to edit this fleet".to_string(),
         )));
     }
 
     let updated_fleet = fleet_service
-        .update(fleet_id, guild_id, user_id, user.admin, dto)
+        .update(fleet_id, guild_id, user.discord_id, user.admin, dto)
         .await?;
 
     Ok((StatusCode::OK, Json(updated_fleet)))
@@ -570,32 +557,27 @@ pub async fn delete_fleet(
 ) -> Result<impl IntoResponse, AppError> {
     let user = AuthGuard::new(&state.db, &session).require(&[]).await?;
 
-    let user_id = user
-        .discord_id
-        .parse::<u64>()
-        .map_err(|e| AppError::InternalError(format!("Invalid user discord_id: {}", e)))?;
-
     // Get the fleet to check category and commander
     let fleet_service =
         FleetService::new(&state.db, state.discord_http.clone(), state.app_url.clone());
     let fleet = fleet_service
-        .get_by_id(fleet_id, guild_id, user_id, user.admin)
+        .get_by_id(fleet_id, user.discord_id, user.admin)
         .await?
         .ok_or_else(|| AppError::NotFound("Fleet not found".to_string()))?;
 
     // Check if user is admin, has manage permission, or is the fleet commander
-    let can_manage = if user.admin || user_id == fleet.commander_id {
+    let can_manage = if user.admin || user.discord_id == fleet.commander_id {
         true
     } else {
         let permission_repo = UserCategoryPermissionRepository::new(&state.db);
         permission_repo
-            .user_can_manage_category(user_id, guild_id, fleet.category_id)
+            .user_can_manage_category(user.discord_id, fleet.category_id)
             .await?
     };
 
     if !can_manage {
         return Err(AppError::AuthErr(AuthError::AccessDenied(
-            user_id,
+            user.discord_id,
             "You don't have permission to delete this fleet".to_string(),
         )));
     }

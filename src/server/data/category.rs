@@ -102,7 +102,7 @@ impl<'a> FleetCategoryRepository<'a> {
         FleetCategoryListItem::from_entity(category)
     }
 
-    /// Gets a fleet category by ID with all related entities and enriched data.
+    /// Finds a fleet category by ID with all related entities and enriched data.
     ///
     /// Fetches the category along with its ping format, access roles, ping roles,
     /// and channels. Also enriches the roles and channels with display data (name,
@@ -116,7 +116,7 @@ impl<'a> FleetCategoryRepository<'a> {
     /// - `Ok(Some(FleetCategoryWithRelations))` - Category with all related data
     /// - `Ok(None)` - Category not found
     /// - `Err(DbErr)` - Database error during query
-    pub async fn get_by_id(&self, id: i32) -> Result<Option<FleetCategoryWithRelations>, DbErr> {
+    pub async fn find_by_id(&self, id: i32) -> Result<Option<FleetCategoryWithRelations>, DbErr> {
         let category_result = entity::prelude::FleetCategory::find_by_id(id)
             .find_also_related(entity::prelude::PingFormat)
             .one(self.db)
@@ -456,12 +456,5 @@ impl<'a> FleetCategoryRepository<'a> {
             .into_iter()
             .map(FleetCategoryListItem::from_entity)
             .collect()
-    }
-
-    pub async fn get_category_details(
-        &self,
-        category_id: i32,
-    ) -> Result<Option<FleetCategoryWithRelations>, DbErr> {
-        self.get_by_id(category_id).await
     }
 }

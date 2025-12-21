@@ -54,13 +54,8 @@ pub async fn get_user_guilds(
     let auth_guard = AuthGuard::new(&state.db, &session);
     let user = auth_guard.require(&[]).await?;
 
-    let user_id = user
-        .discord_id
-        .parse::<u64>()
-        .map_err(|e| AppError::InternalError(format!("Failed to parse user discord_id: {}", e)))?;
-
     let param = GetUserParam {
-        discord_id: user_id,
+        discord_id: user.discord_id,
     };
 
     let user_service = UserService::new(&state.db);
@@ -109,14 +104,9 @@ pub async fn get_user_manageable_categories(
     let auth_guard = AuthGuard::new(&state.db, &session);
     let user = auth_guard.require(&[]).await?;
 
-    let user_id = user
-        .discord_id
-        .parse::<u64>()
-        .map_err(|e| AppError::InternalError(format!("Failed to parse user discord_id: {}", e)))?;
-
     let category_service = FleetCategoryService::new(&state.db);
     let categories = category_service
-        .get_manageable_by_user(user_id, guild_id, user.admin)
+        .get_manageable_by_user(user.discord_id, guild_id, user.admin)
         .await?;
 
     let categories_dto: Vec<_> = categories.into_iter().map(|c| c.into_dto()).collect();

@@ -139,11 +139,8 @@ pub async fn get_all_users(
     };
 
     let paginated_users = user_service.get_all_users(param).await?;
-    let dto = paginated_users
-        .into_dto()
-        .map_err(|e| AppError::InternalError(format!("Failed to convert users to DTO: {}", e)))?;
 
-    Ok(Json(dto))
+    Ok(Json(paginated_users.into_dto()))
 }
 
 /// Get all admin users.
@@ -183,11 +180,7 @@ pub async fn get_all_admins(
     let _ = auth_guard.require(&[Permission::Admin]).await?;
 
     let admins = user_service.get_all_admins().await?;
-    let admin_dtos = admins
-        .into_iter()
-        .map(|u| u.into_dto())
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| AppError::InternalError(format!("Failed to convert admins to DTO: {}", e)))?;
+    let admin_dtos: Vec<UserDto> = admins.into_iter().map(|u| u.into_dto()).collect();
 
     Ok(Json(admin_dtos))
 }
@@ -290,12 +283,8 @@ pub async fn remove_admin(
 
     let requester = auth_guard.require(&[Permission::Admin]).await?;
 
-    let requester_id = requester.discord_id.parse::<u64>().map_err(|e| {
-        AppError::InternalError(format!("Failed to parse requester discord_id: {}", e))
-    })?;
-
     // Prevent self-deletion
-    if user_id == requester_id {
+    if user_id == requester.discord_id {
         return Err(AppError::BadRequest(
             "You cannot remove your own admin privileges".to_string(),
         ));

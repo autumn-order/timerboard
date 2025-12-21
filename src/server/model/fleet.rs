@@ -5,6 +5,11 @@
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 
+use crate::{
+    model::fleet::CreateFleetDto,
+    server::{error::AppError, util::parse::parse_u64_from_string},
+};
+
 /// Fleet operation with scheduling, commander, and configuration details.
 ///
 /// Tracks fleet category, commander, scheduled time, visibility settings, and
@@ -17,8 +22,8 @@ pub struct Fleet {
     pub category_id: i32,
     /// Name of the fleet operation.
     pub name: String,
-    /// Discord ID of the fleet commander (stored as String).
-    pub commander_id: String,
+    /// Discord ID of the fleet commander
+    pub commander_id: u64,
     /// Scheduled time for the fleet operation.
     pub fleet_time: DateTime<Utc>,
     /// Optional description of the fleet operation.
@@ -39,18 +44,20 @@ impl Fleet {
     ///
     /// # Returns
     /// - `Fleet` - The converted fleet domain model
-    pub fn from_entity(entity: entity::fleet::Model) -> Self {
-        Self {
+    pub fn from_entity(entity: entity::fleet::Model) -> Result<Self, AppError> {
+        let commander_id = parse_u64_from_string(entity.commander_id)?;
+
+        Ok(Self {
             id: entity.id,
             category_id: entity.category_id,
             name: entity.name,
-            commander_id: entity.commander_id,
+            commander_id: commander_id,
             fleet_time: entity.fleet_time,
             description: entity.description,
             hidden: entity.hidden,
             disable_reminder: entity.disable_reminder,
             created_at: entity.created_at,
-        }
+        })
     }
 }
 
@@ -59,7 +66,7 @@ impl Fleet {
 /// Includes initial configuration, custom field values for the ping format,
 /// and visibility/reminder settings.
 #[derive(Debug, Clone)]
-pub struct CreateFleetParams {
+pub struct CreateFleetParam {
     /// ID of the fleet category this fleet belongs to.
     pub category_id: i32,
     /// Name of the fleet operation.
@@ -78,12 +85,32 @@ pub struct CreateFleetParams {
     pub disable_reminder: bool,
 }
 
+impl CreateFleetParam {
+    pub fn from_dto(dto: CreateFleetDto) -> Self {
+        // Parse the fleet_time string into DateTime<Utc>
+        let fleet_time = chrono::NaiveDateTime::parse_from_str(&dto.fleet_time, "%Y-%m-%d %H:%M")
+            .unwrap() // We need to change this DTO to serialize/deserialize using chrono instead of strings
+            .and_utc();
+
+        CreateFleetParam {
+            category_id: dto.category_id,
+            name: dto.name,
+            commander_id: dto.commander_id,
+            fleet_time,
+            description: dto.description,
+            field_values: dto.field_values,
+            hidden: dto.hidden,
+            disable_reminder: dto.disable_reminder,
+        }
+    }
+}
+
 /// Parameters for updating an existing fleet operation.
 ///
 /// All fields are optional - only provided fields will be updated. The field_values
 /// map, if provided, completely replaces all existing field values.
 #[derive(Debug, Clone)]
-pub struct UpdateFleetParams {
+pub struct UpdateFleetParam {
     /// ID of the fleet to update.
     pub id: i32,
     /// New fleet category ID if changing categories.
