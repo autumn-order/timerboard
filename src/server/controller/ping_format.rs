@@ -99,9 +99,7 @@ pub async fn create_ping_format(
     };
 
     let ping_format = service.create(param).await?;
-    let dto = ping_format.into_dto().map_err(|e| {
-        AppError::InternalError(format!("Failed to convert ping format to DTO: {}", e))
-    })?;
+    let dto = ping_format.into_dto();
 
     Ok((StatusCode::CREATED, Json(dto)))
 }
@@ -233,9 +231,7 @@ pub async fn update_ping_format(
 
     match ping_format {
         Some(pf) => {
-            let dto = pf.into_dto().map_err(|e| {
-                AppError::InternalError(format!("Failed to convert ping format to DTO: {}", e))
-            })?;
+            let dto = pf.into_dto();
             Ok((StatusCode::OK, Json(dto)))
         }
         None => Ok((

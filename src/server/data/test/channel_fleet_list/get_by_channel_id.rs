@@ -7,7 +7,7 @@ use super::*;
 ///
 /// Expected: Ok(Some(channel_fleet_list))
 #[tokio::test]
-async fn returns_channel_fleet_list() -> Result<(), DbErr> {
+async fn returns_channel_fleet_list() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::ChannelFleetList)
         .build()
@@ -15,14 +15,14 @@ async fn returns_channel_fleet_list() -> Result<(), DbErr> {
         .unwrap();
     let db = test.db.as_ref().unwrap();
 
-    let channel_id = "123456789";
-    let message_id = "987654321";
+    let channel_id = 123456789u64;
+    let message_id = 987654321u64;
 
     // Create a channel fleet list record
     let repo = ChannelFleetListRepository::new(db);
     repo.upsert(UpsertChannelFleetListParam {
-        channel_id: channel_id.to_string(),
-        message_id: message_id.to_string(),
+        channel_id,
+        message_id,
     })
     .await?;
 
@@ -46,7 +46,7 @@ async fn returns_channel_fleet_list() -> Result<(), DbErr> {
 ///
 /// Expected: Ok(None)
 #[tokio::test]
-async fn returns_none_for_nonexistent_channel() -> Result<(), DbErr> {
+async fn returns_none_for_nonexistent_channel() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::ChannelFleetList)
         .build()
@@ -55,7 +55,7 @@ async fn returns_none_for_nonexistent_channel() -> Result<(), DbErr> {
     let db = test.db.as_ref().unwrap();
 
     let repo = ChannelFleetListRepository::new(db);
-    let result = repo.get_by_channel_id("999999999").await;
+    let result = repo.get_by_channel_id(999999999u64).await;
 
     assert!(result.is_ok());
     assert!(result.unwrap().is_none());
@@ -70,7 +70,7 @@ async fn returns_none_for_nonexistent_channel() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with only the record for the queried channel
 #[tokio::test]
-async fn returns_only_record_for_specified_channel() -> Result<(), DbErr> {
+async fn returns_only_record_for_specified_channel() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::ChannelFleetList)
         .build()
@@ -81,18 +81,18 @@ async fn returns_only_record_for_specified_channel() -> Result<(), DbErr> {
     let repo = ChannelFleetListRepository::new(db);
 
     // Create records for two different channels
-    let channel1_id = "111111111";
-    let channel2_id = "222222222";
+    let channel1_id = 111111111u64;
+    let channel2_id = 222222222u64;
 
     repo.upsert(UpsertChannelFleetListParam {
-        channel_id: channel1_id.to_string(),
-        message_id: "msg1".to_string(),
+        channel_id: channel1_id,
+        message_id: 111111111u64,
     })
     .await?;
 
     repo.upsert(UpsertChannelFleetListParam {
-        channel_id: channel2_id.to_string(),
-        message_id: "msg2".to_string(),
+        channel_id: channel2_id,
+        message_id: 222222222u64,
     })
     .await?;
 
@@ -102,7 +102,7 @@ async fn returns_only_record_for_specified_channel() -> Result<(), DbErr> {
     assert!(result.is_ok());
     let channel_fleet_list = result.unwrap().unwrap();
     assert_eq!(channel_fleet_list.channel_id, channel1_id);
-    assert_eq!(channel_fleet_list.message_id, "msg1");
+    assert_eq!(channel_fleet_list.message_id, 111111111u64);
 
     Ok(())
 }

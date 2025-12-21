@@ -7,7 +7,7 @@ use super::*;
 ///
 /// Expected: Ok with updated ping format
 #[tokio::test]
-async fn updates_ping_format_name() -> Result<(), DbErr> {
+async fn updates_ping_format_name() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)
@@ -31,7 +31,7 @@ async fn updates_ping_format_name() -> Result<(), DbErr> {
     let updated = result.unwrap();
     assert_eq!(updated.id, ping_format.id);
     assert_eq!(updated.name, "Updated Name");
-    assert_eq!(updated.guild_id, ping_format.guild_id);
+    assert_eq!(updated.guild_id.to_string(), guild.guild_id);
 
     // Verify update persisted in database
     let db_format = entity::prelude::PingFormat::find_by_id(ping_format.id)
@@ -50,7 +50,7 @@ async fn updates_ping_format_name() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with each format updated independently
 #[tokio::test]
-async fn updates_multiple_formats_independently() -> Result<(), DbErr> {
+async fn updates_multiple_formats_independently() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)
@@ -102,7 +102,7 @@ async fn updates_multiple_formats_independently() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with empty name accepted
 #[tokio::test]
-async fn updates_format_to_empty_name() -> Result<(), DbErr> {
+async fn updates_format_to_empty_name() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)
@@ -136,7 +136,7 @@ async fn updates_format_to_empty_name() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with full name preserved
 #[tokio::test]
-async fn updates_format_to_long_name() -> Result<(), DbErr> {
+async fn updates_format_to_long_name() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)
@@ -172,7 +172,7 @@ async fn updates_format_to_long_name() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with name unchanged
 #[tokio::test]
-async fn updates_format_with_same_name() -> Result<(), DbErr> {
+async fn updates_format_with_same_name() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)
@@ -209,7 +209,7 @@ async fn updates_format_with_same_name() -> Result<(), DbErr> {
 ///
 /// Expected: Err with RecordNotFound
 #[tokio::test]
-async fn fails_for_nonexistent_format() -> Result<(), DbErr> {
+async fn fails_for_nonexistent_format() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)
@@ -228,8 +228,8 @@ async fn fails_for_nonexistent_format() -> Result<(), DbErr> {
 
     assert!(result.is_err());
     match result.unwrap_err() {
-        DbErr::RecordNotFound(_) => {}
-        e => panic!("Expected RecordNotFound, got: {:?}", e),
+        AppError::NotFound(_) => {}
+        e => panic!("Expected NotFound, got: {:?}", e),
     }
 
     Ok(())
@@ -242,7 +242,7 @@ async fn fails_for_nonexistent_format() -> Result<(), DbErr> {
 ///
 /// Expected: Err with RecordNotFound
 #[tokio::test]
-async fn fails_for_deleted_format() -> Result<(), DbErr> {
+async fn fails_for_deleted_format() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)
@@ -271,8 +271,8 @@ async fn fails_for_deleted_format() -> Result<(), DbErr> {
 
     assert!(result.is_err());
     match result.unwrap_err() {
-        DbErr::RecordNotFound(_) => {}
-        e => panic!("Expected RecordNotFound, got: {:?}", e),
+        AppError::NotFound(_) => {}
+        e => panic!("Expected NotFound, got: {:?}", e),
     }
 
     Ok(())
@@ -285,7 +285,7 @@ async fn fails_for_deleted_format() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with only name changed
 #[tokio::test]
-async fn preserves_guild_id_on_update() -> Result<(), DbErr> {
+async fn preserves_guild_id_on_update() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)
@@ -306,7 +306,7 @@ async fn preserves_guild_id_on_update() -> Result<(), DbErr> {
         })
         .await?;
 
-    assert_eq!(updated.guild_id, original_guild_id);
+    assert_eq!(updated.guild_id.to_string(), original_guild_id);
     assert_eq!(updated.id, ping_format.id);
 
     Ok(())

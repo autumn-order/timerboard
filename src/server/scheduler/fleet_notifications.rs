@@ -382,7 +382,20 @@ async fn process_upcoming_fleets_lists(
         .await?;
 
     // Get unique channel IDs
-    let mut channel_ids: Vec<String> = channels.into_iter().map(|c| c.channel_id).collect();
+    let mut channel_ids: Vec<u64> = channels
+        .into_iter()
+        .filter_map(|c| {
+            let id = c.channel_id;
+            match id.parse::<u64>() {
+                Ok(parsed_id) => Some(parsed_id),
+                Err(e) => {
+                    tracing::error!("Failed to parse Discord channel_id '{}': {}", id, e);
+                    None
+                }
+            }
+        })
+        .collect();
+
     channel_ids.sort();
     channel_ids.dedup();
 
@@ -395,7 +408,7 @@ async fn process_upcoming_fleets_lists(
 
     for channel_id in channel_ids {
         if let Err(e) = notification_service
-            .post_upcoming_fleets_list(&channel_id)
+            .post_upcoming_fleets_list(channel_id)
             .await
         {
             tracing::error!(

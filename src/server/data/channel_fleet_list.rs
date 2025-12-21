@@ -8,10 +8,13 @@
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };
 
-use crate::server::model::channel_fleet_list::{ChannelFleetList, UpsertChannelFleetListParam};
+use crate::server::{
+    error::AppError,
+    model::channel_fleet_list::{ChannelFleetList, UpsertChannelFleetListParam},
+};
 
 /// Repository providing database operations for channel fleet list management.
 ///
@@ -49,14 +52,14 @@ impl<'a> ChannelFleetListRepository<'a> {
     /// - `Err(AppError)` - Database error during query
     pub async fn get_by_channel_id(
         &self,
-        channel_id: &str,
-    ) -> Result<Option<ChannelFleetList>, DbErr> {
+        channel_id: u64,
+    ) -> Result<Option<ChannelFleetList>, AppError> {
         let entity = entity::prelude::ChannelFleetList::find()
-            .filter(entity::channel_fleet_list::Column::ChannelId.eq(channel_id))
+            .filter(entity::channel_fleet_list::Column::ChannelId.eq(channel_id.to_string()))
             .one(self.db)
             .await?;
 
-        Ok(entity.map(ChannelFleetList::from_entity))
+        Ok(entity.map(ChannelFleetList::from_entity).transpose()?)
     }
 
     /// Creates or updates the fleet list message for a channel.
@@ -75,9 +78,9 @@ impl<'a> ChannelFleetListRepository<'a> {
     pub async fn upsert(
         &self,
         param: UpsertChannelFleetListParam,
-    ) -> Result<ChannelFleetList, DbErr> {
+    ) -> Result<ChannelFleetList, AppError> {
         // Check if record exists
-        let existing = self.get_by_channel_id(&param.channel_id).await?;
+        let existing = self.get_by_channel_id(param.channel_id).await?;
 
         let now = Utc::now();
 
@@ -86,8 +89,8 @@ impl<'a> ChannelFleetListRepository<'a> {
             let active: entity::channel_fleet_list::ActiveModel =
                 entity::channel_fleet_list::ActiveModel {
                     id: ActiveValue::Set(existing.id),
-                    channel_id: ActiveValue::Set(existing.channel_id),
-                    message_id: ActiveValue::Set(param.message_id),
+                    channel_id: ActiveValue::Set(existing.channel_id.to_string()),
+                    message_id: ActiveValue::Set(param.message_id.to_string()),
                     last_message_at: ActiveValue::Set(now),
                     created_at: ActiveValue::Set(existing.created_at),
                     updated_at: ActiveValue::Set(now),
@@ -97,8 +100,8 @@ impl<'a> ChannelFleetListRepository<'a> {
             // Create new record
             let new_record = entity::channel_fleet_list::ActiveModel {
                 id: ActiveValue::NotSet,
-                channel_id: ActiveValue::Set(param.channel_id),
-                message_id: ActiveValue::Set(param.message_id),
+                channel_id: ActiveValue::Set(param.channel_id.to_string()),
+                message_id: ActiveValue::Set(param.message_id.to_string()),
                 last_message_at: ActiveValue::Set(now),
                 created_at: ActiveValue::Set(now),
                 updated_at: ActiveValue::Set(now),
@@ -106,6 +109,6 @@ impl<'a> ChannelFleetListRepository<'a> {
             new_record.insert(self.db).await?
         };
 
-        Ok(ChannelFleetList::from_entity(entity))
+        Ok(ChannelFleetList::from_entity(entity)?)
     }
 }

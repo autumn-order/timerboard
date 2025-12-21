@@ -2,7 +2,10 @@
 //!
 //! Defines ping format and field models that structure fleet notification messages.
 
-use crate::model::ping_format::{PingFormatDto, PingFormatFieldDto};
+use crate::{
+    model::ping_format::{PaginatedPingFormatsDto, PingFormatDto, PingFormatFieldDto},
+    server::error::AppError,
+};
 
 /// Ping format template for structuring fleet notification messages.
 ///
@@ -12,51 +15,33 @@ use crate::model::ping_format::{PingFormatDto, PingFormatFieldDto};
 pub struct PingFormat {
     /// Unique identifier for the ping format.
     pub id: i32,
-    /// Discord guild ID (stored as String in database).
-    pub guild_id: String,
+    /// Discord guild ID.
+    pub guild_id: u64,
     /// Name of the ping format.
     pub name: String,
 }
 
 impl PingFormat {
-    /// Converts the ping format domain model to a DTO for API responses.
-    ///
-    /// # Arguments
-    /// - `fields` - Vector of ping format field DTOs
-    /// - `fleet_category_count` - Number of fleet categories using this format
-    /// - `fleet_category_names` - Names of fleet categories using this format
-    ///
-    /// # Returns
-    /// - `PingFormatDto` - The converted ping format DTO with guild_id as u64
-    pub fn into_dto(
-        self,
-        fields: Vec<PingFormatFieldDto>,
-        fleet_category_count: u64,
-        fleet_category_names: Vec<String>,
-    ) -> PingFormatDto {
-        PingFormatDto {
-            id: self.id,
-            guild_id: self.guild_id.parse().unwrap_or(0),
-            name: self.name,
-            fields,
-            fleet_category_count,
-            fleet_category_names,
-        }
-    }
-
     /// Converts an entity model to a ping format domain model at the repository boundary.
     ///
     /// # Arguments
     /// - `entity` - The entity model from the database
     ///
     /// # Returns
-    /// - `PingFormat` - The converted ping format domain model
-    pub fn from_entity(entity: entity::ping_format::Model) -> Self {
-        Self {
+    /// - `Ok(PingFormat)` - The converted ping format domain model
+    /// - `Err(AppError::ParseStringId)` - Failed to parse Discord channel or message ID
+    ///   stored as string to u64
+    pub fn from_entity(entity: entity::ping_format::Model) -> Result<Self, AppError> {
+        let guild_id = entity
+            .guild_id
+            .parse::<u64>()
+            .map_err(|_| AppError::ParseStringId(entity.guild_id))?;
+
+        Ok(Self {
             id: entity.id,
-            guild_id: entity.guild_id,
+            guild_id: guild_id,
             name: entity.name,
-        }
+        })
     }
 }
 
@@ -183,25 +168,18 @@ impl PingFormatWithFields {
     /// returns an error.
     ///
     /// # Returns
-    /// - `Ok(PingFormatDto)` - Successfully converted DTO
-    /// - `Err(String)` - Failed to parse guild_id
-    pub fn into_dto(self) -> Result<crate::model::ping_format::PingFormatDto, String> {
-        let guild_id = self
-            .ping_format
-            .guild_id
-            .parse::<u64>()
-            .map_err(|e| format!("Failed to parse guild_id: {}", e))?;
-
+    /// - `PingFormatDto` - Ping format DTO for API responses
+    pub fn into_dto(self) -> PingFormatDto {
         let field_dtos = self.fields.into_iter().map(|f| f.into_dto()).collect();
 
-        Ok(crate::model::ping_format::PingFormatDto {
+        PingFormatDto {
             id: self.ping_format.id,
-            guild_id,
+            guild_id: self.ping_format.guild_id,
             name: self.ping_format.name,
             fields: field_dtos,
             fleet_category_count: self.fleet_category_count,
             fleet_category_names: self.fleet_category_names,
-        })
+        }
     }
 }
 
@@ -231,15 +209,15 @@ impl PaginatedPingFormats {
     ///
     /// # Returns
     /// - `Ok(PaginatedPingFormatsDto)` - Successfully converted all formats
-    /// - `Err(String)` - Failed to parse guild_id for at least one format
-    pub fn into_dto(self) -> Result<crate::model::ping_format::PaginatedPingFormatsDto, String> {
-        let ping_formats = self
+    /// - `Err(AppError::ParseStringId)` - Failed to parse guild_id for at least one format
+    pub fn into_dto(self) -> Result<PaginatedPingFormatsDto, AppError> {
+        let ping_formats: Vec<PingFormatDto> = self
             .ping_formats
             .into_iter()
             .map(|pf| pf.into_dto())
-            .collect::<Result<Vec<_>, String>>()?;
+            .collect();
 
-        Ok(crate::model::ping_format::PaginatedPingFormatsDto {
+        Ok(PaginatedPingFormatsDto {
             ping_formats,
             total: self.total,
             page: self.page,

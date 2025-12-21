@@ -7,7 +7,7 @@ use super::*;
 ///
 /// Expected: Ok with ping format created
 #[tokio::test]
-async fn creates_ping_format() -> Result<(), DbErr> {
+async fn creates_ping_format() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)
@@ -29,7 +29,7 @@ async fn creates_ping_format() -> Result<(), DbErr> {
     assert!(result.is_ok());
     let ping_format = result.unwrap();
     assert_eq!(ping_format.name, "Test Format");
-    assert_eq!(ping_format.guild_id, guild.guild_id);
+    assert_eq!(ping_format.guild_id.to_string(), guild.guild_id);
     assert!(ping_format.id > 0);
 
     // Verify ping format exists in database
@@ -49,7 +49,7 @@ async fn creates_ping_format() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with multiple formats created
 #[tokio::test]
-async fn creates_multiple_formats_for_same_guild() -> Result<(), DbErr> {
+async fn creates_multiple_formats_for_same_guild() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)
@@ -102,7 +102,7 @@ async fn creates_multiple_formats_for_same_guild() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with formats created for different guilds
 #[tokio::test]
-async fn creates_formats_for_different_guilds() -> Result<(), DbErr> {
+async fn creates_formats_for_different_guilds() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)
@@ -130,8 +130,8 @@ async fn creates_formats_for_different_guilds() -> Result<(), DbErr> {
         .await?;
 
     assert_ne!(format1.id, format2.id);
-    assert_eq!(format1.guild_id, guild1.guild_id);
-    assert_eq!(format2.guild_id, guild2.guild_id);
+    assert_eq!(format1.guild_id.to_string(), guild1.guild_id);
+    assert_eq!(format2.guild_id.to_string(), guild2.guild_id);
     assert_ne!(format1.guild_id, format2.guild_id);
 
     Ok(())
@@ -144,7 +144,7 @@ async fn creates_formats_for_different_guilds() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with empty name accepted
 #[tokio::test]
-async fn creates_format_with_empty_name() -> Result<(), DbErr> {
+async fn creates_format_with_empty_name() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)
@@ -177,7 +177,7 @@ async fn creates_format_with_empty_name() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with full name preserved
 #[tokio::test]
-async fn creates_format_with_long_name() -> Result<(), DbErr> {
+async fn creates_format_with_long_name() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)
@@ -212,7 +212,7 @@ async fn creates_format_with_long_name() -> Result<(), DbErr> {
 ///
 /// Expected: Err with foreign key constraint error
 #[tokio::test]
-async fn fails_for_nonexistent_guild() -> Result<(), DbErr> {
+async fn fails_for_nonexistent_guild() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(DiscordGuild)
         .with_table(PingFormat)

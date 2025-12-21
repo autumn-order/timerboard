@@ -15,7 +15,10 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder,
 };
 
-use crate::server::model::ping_format::{CreatePingFormatParam, PingFormat, UpdatePingFormatParam};
+use crate::server::{
+    error::AppError,
+    model::ping_format::{CreatePingFormatParam, PingFormat, UpdatePingFormatParam},
+};
 
 /// Repository providing database operations for ping format management.
 ///
@@ -48,7 +51,7 @@ impl<'a> PingFormatRepository<'a> {
     /// # Returns
     /// - `Ok(PingFormat)` - The created ping format with generated ID
     /// - `Err(DbErr)` - Database error during insert operation
-    pub async fn create(&self, param: CreatePingFormatParam) -> Result<PingFormat, DbErr> {
+    pub async fn create(&self, param: CreatePingFormatParam) -> Result<PingFormat, AppError> {
         let entity = entity::ping_format::ActiveModel {
             guild_id: ActiveValue::Set(param.guild_id.to_string()),
             name: ActiveValue::Set(param.name),
@@ -57,7 +60,7 @@ impl<'a> PingFormatRepository<'a> {
         .insert(self.db)
         .await?;
 
-        Ok(PingFormat::from_entity(entity))
+        Ok(PingFormat::from_entity(entity)?)
     }
 
     /// Gets paginated ping formats for a guild.
@@ -87,7 +90,15 @@ impl<'a> PingFormatRepository<'a> {
 
         let total = paginator.num_items().await?;
         let entities = paginator.fetch_page(page).await?;
-        let ping_formats = entities.into_iter().map(PingFormat::from_entity).collect();
+        let ping_formats = entities
+            .into_iter()
+            .filter_map(|entity| match PingFormat::from_entity(entity) {
+                Ok(format) => Some(format),
+                // from_entity method handles error logging for failure to
+                // parse Discord channel/message ID from string internally
+                Err(_) => None,
+            })
+            .collect();
 
         Ok((ping_formats, total))
     }
@@ -103,12 +114,13 @@ impl<'a> PingFormatRepository<'a> {
     /// # Returns
     /// - `Ok(PingFormat)` - The updated ping format with new name
     /// - `Err(DbErr::RecordNotFound)` - No ping format exists with the specified ID
-    /// - `Err(DbErr)` - Other database error during update operation
-    pub async fn update(&self, param: UpdatePingFormatParam) -> Result<PingFormat, DbErr> {
+    /// - `Err(AppError::Database)` - Database error during update operation
+    /// - `Err(AppError::ParseStringId)` - Failed to parse guild_id from database
+    pub async fn update(&self, param: UpdatePingFormatParam) -> Result<PingFormat, AppError> {
         let ping_format = entity::prelude::PingFormat::find_by_id(param.id)
             .one(self.db)
             .await?
-            .ok_or(DbErr::RecordNotFound(format!(
+            .ok_or(AppError::NotFound(format!(
                 "Ping format with id {} not found",
                 param.id
             )))?;
@@ -118,7 +130,7 @@ impl<'a> PingFormatRepository<'a> {
 
         let entity = active_model.update(self.db).await?;
 
-        Ok(PingFormat::from_entity(entity))
+        Ok(PingFormat::from_entity(entity)?)
     }
 
     /// Deletes a ping format.

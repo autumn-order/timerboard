@@ -7,7 +7,7 @@ use super::*;
 ///
 /// Expected: Ok with new record created
 #[tokio::test]
-async fn creates_new_record() -> Result<(), DbErr> {
+async fn creates_new_record() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::ChannelFleetList)
         .build()
@@ -15,14 +15,14 @@ async fn creates_new_record() -> Result<(), DbErr> {
         .unwrap();
     let db = test.db.as_ref().unwrap();
 
-    let channel_id = "123456789";
-    let message_id = "987654321";
+    let channel_id = 123456789u64;
+    let message_id = 987654321u64;
 
     let repo = ChannelFleetListRepository::new(db);
     let result = repo
         .upsert(UpsertChannelFleetListParam {
-            channel_id: channel_id.to_string(),
-            message_id: message_id.to_string(),
+            channel_id,
+            message_id,
         })
         .await;
 
@@ -33,14 +33,14 @@ async fn creates_new_record() -> Result<(), DbErr> {
 
     // Verify record was created in database
     let stored = entity::prelude::ChannelFleetList::find()
-        .filter(entity::channel_fleet_list::Column::ChannelId.eq(channel_id))
+        .filter(entity::channel_fleet_list::Column::ChannelId.eq(channel_id.to_string()))
         .one(db)
         .await?;
 
     assert!(stored.is_some());
     let stored = stored.unwrap();
-    assert_eq!(stored.channel_id, channel_id);
-    assert_eq!(stored.message_id, message_id);
+    assert_eq!(stored.channel_id, channel_id.to_string());
+    assert_eq!(stored.message_id, message_id.to_string());
 
     Ok(())
 }
@@ -52,7 +52,7 @@ async fn creates_new_record() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with record updated
 #[tokio::test]
-async fn updates_existing_record() -> Result<(), DbErr> {
+async fn updates_existing_record() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::ChannelFleetList)
         .build()
@@ -60,25 +60,25 @@ async fn updates_existing_record() -> Result<(), DbErr> {
         .unwrap();
     let db = test.db.as_ref().unwrap();
 
-    let channel_id = "123456789";
-    let original_message_id = "111111111";
-    let new_message_id = "222222222";
+    let channel_id = 123456789u64;
+    let original_message_id = 111111111u64;
+    let new_message_id = 222222222u64;
 
     let repo = ChannelFleetListRepository::new(db);
 
     // Create initial record
     let original = repo
         .upsert(UpsertChannelFleetListParam {
-            channel_id: channel_id.to_string(),
-            message_id: original_message_id.to_string(),
+            channel_id,
+            message_id: original_message_id,
         })
         .await?;
 
     // Update with new message_id
     let result = repo
         .upsert(UpsertChannelFleetListParam {
-            channel_id: channel_id.to_string(),
-            message_id: new_message_id.to_string(),
+            channel_id,
+            message_id: new_message_id,
         })
         .await;
 
@@ -90,7 +90,7 @@ async fn updates_existing_record() -> Result<(), DbErr> {
 
     // Verify only one record exists for this channel
     let count = entity::prelude::ChannelFleetList::find()
-        .filter(entity::channel_fleet_list::Column::ChannelId.eq(channel_id))
+        .filter(entity::channel_fleet_list::Column::ChannelId.eq(channel_id.to_string()))
         .count(db)
         .await?;
 
@@ -106,7 +106,7 @@ async fn updates_existing_record() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with timestamps set
 #[tokio::test]
-async fn updates_last_message_at_timestamp() -> Result<(), DbErr> {
+async fn updates_last_message_at_timestamp() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::ChannelFleetList)
         .build()
@@ -114,14 +114,14 @@ async fn updates_last_message_at_timestamp() -> Result<(), DbErr> {
         .unwrap();
     let db = test.db.as_ref().unwrap();
 
-    let channel_id = "123456789";
+    let channel_id = 123456789u64;
     let repo = ChannelFleetListRepository::new(db);
 
     // Create initial record
     let first = repo
         .upsert(UpsertChannelFleetListParam {
-            channel_id: channel_id.to_string(),
-            message_id: "msg1".to_string(),
+            channel_id,
+            message_id: 111111111u64,
         })
         .await?;
 
@@ -133,8 +133,8 @@ async fn updates_last_message_at_timestamp() -> Result<(), DbErr> {
     // Update record
     let second = repo
         .upsert(UpsertChannelFleetListParam {
-            channel_id: channel_id.to_string(),
-            message_id: "msg2".to_string(),
+            channel_id,
+            message_id: 222222222u64,
         })
         .await?;
 
@@ -150,7 +150,7 @@ async fn updates_last_message_at_timestamp() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with created_at preserved
 #[tokio::test]
-async fn preserves_created_at_on_update() -> Result<(), DbErr> {
+async fn preserves_created_at_on_update() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::ChannelFleetList)
         .build()
@@ -158,14 +158,14 @@ async fn preserves_created_at_on_update() -> Result<(), DbErr> {
         .unwrap();
     let db = test.db.as_ref().unwrap();
 
-    let channel_id = "123456789";
+    let channel_id = 123456789u64;
     let repo = ChannelFleetListRepository::new(db);
 
     // Create initial record
     let original = repo
         .upsert(UpsertChannelFleetListParam {
-            channel_id: channel_id.to_string(),
-            message_id: "msg1".to_string(),
+            channel_id,
+            message_id: 111111111u64,
         })
         .await?;
 
@@ -175,8 +175,8 @@ async fn preserves_created_at_on_update() -> Result<(), DbErr> {
     // Update record
     let updated = repo
         .upsert(UpsertChannelFleetListParam {
-            channel_id: channel_id.to_string(),
-            message_id: "msg2".to_string(),
+            channel_id,
+            message_id: 222222222u64,
         })
         .await?;
 
@@ -192,7 +192,7 @@ async fn preserves_created_at_on_update() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with updated_at timestamps set
 #[tokio::test]
-async fn updates_updated_at_timestamp() -> Result<(), DbErr> {
+async fn updates_updated_at_timestamp() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::ChannelFleetList)
         .build()
@@ -200,14 +200,14 @@ async fn updates_updated_at_timestamp() -> Result<(), DbErr> {
         .unwrap();
     let db = test.db.as_ref().unwrap();
 
-    let channel_id = "123456789";
+    let channel_id = 123456789u64;
     let repo = ChannelFleetListRepository::new(db);
 
     // Create initial record
     let first = repo
         .upsert(UpsertChannelFleetListParam {
-            channel_id: channel_id.to_string(),
-            message_id: "msg1".to_string(),
+            channel_id,
+            message_id: 111111111u64,
         })
         .await?;
 
@@ -219,8 +219,8 @@ async fn updates_updated_at_timestamp() -> Result<(), DbErr> {
     // Update record
     let second = repo
         .upsert(UpsertChannelFleetListParam {
-            channel_id: channel_id.to_string(),
-            message_id: "msg2".to_string(),
+            channel_id,
+            message_id: 222222222u64,
         })
         .await?;
 
@@ -236,7 +236,7 @@ async fn updates_updated_at_timestamp() -> Result<(), DbErr> {
 ///
 /// Expected: Ok with separate records for each channel
 #[tokio::test]
-async fn creates_separate_records_for_different_channels() -> Result<(), DbErr> {
+async fn creates_separate_records_for_different_channels() -> Result<(), AppError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::ChannelFleetList)
         .build()
@@ -249,22 +249,22 @@ async fn creates_separate_records_for_different_channels() -> Result<(), DbErr> 
     // Create records for three different channels
     let channel1 = repo
         .upsert(UpsertChannelFleetListParam {
-            channel_id: "111111111".to_string(),
-            message_id: "msg1".to_string(),
+            channel_id: 111111111u64,
+            message_id: 111111111u64,
         })
         .await?;
 
     let channel2 = repo
         .upsert(UpsertChannelFleetListParam {
-            channel_id: "222222222".to_string(),
-            message_id: "msg2".to_string(),
+            channel_id: 222222222u64,
+            message_id: 222222222u64,
         })
         .await?;
 
     let channel3 = repo
         .upsert(UpsertChannelFleetListParam {
-            channel_id: "333333333".to_string(),
-            message_id: "msg3".to_string(),
+            channel_id: 333333333u64,
+            message_id: 333333333u64,
         })
         .await?;
 

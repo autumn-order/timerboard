@@ -184,7 +184,9 @@ async fn filters_formats_by_guild() -> Result<(), DbErr> {
     let (formats, total) = result.unwrap();
     assert_eq!(total, 2);
     assert_eq!(formats.len(), 2);
-    assert!(formats.iter().all(|f| f.guild_id == guild1.guild_id));
+    assert!(formats
+        .iter()
+        .all(|f| f.guild_id.to_string() == guild1.guild_id));
     assert_eq!(formats[0].name, "Guild 1 Format A");
     assert_eq!(formats[1].name, "Guild 1 Format B");
 

@@ -108,6 +108,13 @@ pub enum AppError {
     /// - Detailed error message for server-side logging
     #[error("{0}")]
     InternalError(String),
+
+    /// Failure to parse id from String
+    ///
+    /// Results a in 500 Internal Server Error with a generic message returned
+    /// to client.
+    #[error("Failed to parse ID from String: {0}")]
+    ParseStringId(String),
 }
 
 /// Manual conversion from serenity::Error to AppError.

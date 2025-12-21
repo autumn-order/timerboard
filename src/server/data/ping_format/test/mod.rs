@@ -7,6 +7,7 @@ mod get_fleet_category_count;
 mod update;
 
 use super::*;
+use crate::server::error::AppError;
 use entity::prelude::*;
 use sea_orm::DbErr;
 use test_utils::{builder::TestBuilder, factory};

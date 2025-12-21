@@ -177,17 +177,13 @@ impl<'a> FleetNotificationPosting<'a> {
     /// - `Ok(())` - Successfully posted/updated the upcoming fleets list
     /// - `Err(AppError::InternalError)` - Invalid channel or message ID format
     /// - `Err(AppError::Database)` - Database error retrieving fleets or categories
-    pub async fn post_upcoming_fleets_list(&self, channel_id_str: &str) -> Result<(), AppError> {
-        let channel_id_u64 = channel_id_str
-            .parse::<u64>()
-            .map_err(|e| AppError::InternalError(format!("Invalid channel ID: {}", e)))?;
-
-        let channel_id = ChannelId::new(channel_id_u64);
+    pub async fn post_upcoming_fleets_list(&self, channel_id: u64) -> Result<(), AppError> {
+        let channel_id = ChannelId::new(channel_id);
         let now = chrono::Utc::now();
 
         // Get all categories that post to this channel
         let categories = entity::prelude::FleetCategoryChannel::find()
-            .filter(entity::fleet_category_channel::Column::ChannelId.eq(channel_id_str))
+            .filter(entity::fleet_category_channel::Column::ChannelId.eq(channel_id.to_string()))
             .all(self.db)
             .await?;
 
@@ -244,7 +240,7 @@ impl<'a> FleetNotificationPosting<'a> {
             // Get the most recent message for this fleet (prefer reminder over creation)
             let messages = entity::prelude::FleetMessage::find()
                 .filter(entity::fleet_message::Column::FleetId.eq(fleet.id))
-                .filter(entity::fleet_message::Column::ChannelId.eq(channel_id_str))
+                .filter(entity::fleet_message::Column::ChannelId.eq(channel_id.to_string()))
                 .all(self.db)
                 .await?;
 
@@ -256,7 +252,9 @@ impl<'a> FleetNotificationPosting<'a> {
                 .map(|m| {
                     format!(
                         "https://discord.com/channels/{}/{}/{}",
-                        guild_id_str, channel_id_str, m.message_id
+                        guild_id_str,
+                        channel_id.to_string(),
+                        m.message_id
                     )
                 });
 
@@ -283,22 +281,17 @@ impl<'a> FleetNotificationPosting<'a> {
 
         // Get or create the list message
         let list_repo = ChannelFleetListRepository::new(self.db);
-        let existing_list = list_repo.get_by_channel_id(channel_id_str).await?;
+        let existing_list = list_repo.get_by_channel_id(channel_id.get()).await?;
 
         // Check if we should edit or post new message
         if let Some(existing) = existing_list {
-            let msg_id = existing
-                .message_id
-                .parse::<u64>()
-                .map_err(|e| AppError::InternalError(format!("Invalid message ID: {}", e)))?;
-
             // Compare updated_at (when we posted the list) with last_message_at (most recent message in channel)
             // If our list message is still the most recent, edit it. Otherwise, delete and repost.
             let should_edit = existing.updated_at >= existing.last_message_at;
 
             tracing::debug!(
                 "Channel {}: updated_at={}, last_message_at={}, should_edit={}",
-                channel_id_str,
+                channel_id,
                 existing.updated_at,
                 existing.last_message_at,
                 should_edit
@@ -310,26 +303,31 @@ impl<'a> FleetNotificationPosting<'a> {
 
                 match self
                     .http
-                    .edit_message(channel_id, MessageId::new(msg_id), &edit_message, vec![])
+                    .edit_message(
+                        channel_id,
+                        MessageId::new(existing.message_id),
+                        &edit_message,
+                        vec![],
+                    )
                     .await
                 {
                     Ok(_) => {
                         // Update the updated_at timestamp
                         list_repo
                             .upsert(UpsertChannelFleetListParam {
-                                channel_id: channel_id_str.to_string(),
-                                message_id: msg_id.to_string(),
+                                channel_id: channel_id.get(),
+                                message_id: existing.message_id,
                             })
                             .await?;
                         tracing::info!(
                             "Edited existing upcoming fleets list in channel {}",
-                            channel_id_str
+                            channel_id
                         );
                     }
                     Err(e) => {
                         tracing::error!(
                             "Failed to edit upcoming fleets list in channel {}: {}",
-                            channel_id_str,
+                            channel_id,
                             e
                         );
                     }
@@ -338,19 +336,19 @@ impl<'a> FleetNotificationPosting<'a> {
                 // Delete old message and post new one (to be most recent in channel)
                 match self
                     .http
-                    .delete_message(channel_id, MessageId::new(msg_id), None)
+                    .delete_message(channel_id, MessageId::new(existing.message_id), None)
                     .await
                 {
                     Ok(_) => {
-                        tracing::info!(
+                        tracing::debug!(
                             "Deleted old upcoming fleets list in channel {} (not most recent)",
-                            channel_id_str
+                            channel_id
                         );
                     }
                     Err(e) => {
                         tracing::warn!(
                             "Failed to delete old upcoming fleets list in channel {}: {}",
-                            channel_id_str,
+                            channel_id,
                             e
                         );
                         // Continue anyway to post new message
@@ -364,19 +362,16 @@ impl<'a> FleetNotificationPosting<'a> {
                     Ok(msg) => {
                         list_repo
                             .upsert(UpsertChannelFleetListParam {
-                                channel_id: channel_id_str.to_string(),
-                                message_id: msg.id.to_string(),
+                                channel_id: channel_id.get(),
+                                message_id: msg.id.get(),
                             })
                             .await?;
-                        tracing::info!(
-                            "Posted new upcoming fleets list in channel {}",
-                            channel_id_str
-                        );
+                        tracing::info!("Posted new upcoming fleets list in channel {}", channel_id);
                     }
                     Err(e) => {
                         tracing::error!(
                             "Failed to post upcoming fleets list in channel {}: {}",
-                            channel_id_str,
+                            channel_id,
                             e
                         );
                     }
@@ -390,19 +385,16 @@ impl<'a> FleetNotificationPosting<'a> {
                 Ok(msg) => {
                     list_repo
                         .upsert(UpsertChannelFleetListParam {
-                            channel_id: channel_id_str.to_string(),
-                            message_id: msg.id.to_string(),
+                            channel_id: channel_id.get(),
+                            message_id: msg.id.get(),
                         })
                         .await?;
-                    tracing::info!(
-                        "Posted new upcoming fleets list in channel {}",
-                        channel_id_str
-                    );
+                    tracing::debug!("Posted new upcoming fleets list in channel {}", channel_id);
                 }
                 Err(e) => {
                     tracing::error!(
                         "Failed to post upcoming fleets list in channel {}: {}",
-                        channel_id_str,
+                        channel_id,
                         e
                     );
                 }

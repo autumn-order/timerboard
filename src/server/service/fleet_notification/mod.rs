@@ -186,9 +186,9 @@ impl<'a> FleetNotificationService<'a> {
     /// - `Ok(())` - Successfully posted/updated the upcoming fleets list
     /// - `Err(AppError::InternalError)` - Invalid channel or message ID format
     /// - `Err(AppError::Database)` - Database error retrieving fleets or categories
-    pub async fn post_upcoming_fleets_list(&self, channel_id_str: &str) -> Result<(), AppError> {
+    pub async fn post_upcoming_fleets_list(&self, channel_id: u64) -> Result<(), AppError> {
         let posting =
             FleetNotificationPosting::new(self.db, self.http.clone(), self.app_url.clone());
-        posting.post_upcoming_fleets_list(channel_id_str).await
+        posting.post_upcoming_fleets_list(channel_id).await
     }
 }
