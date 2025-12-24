@@ -29,14 +29,13 @@ impl PingFormat {
     ///
     /// # Returns
     /// - `Ok(PingFormat)` - The converted ping format domain model
-    /// - `Err(AppError::ParseStringId)` - Failed to parse Discord channel or message ID
-    ///   stored as string to u64
+    /// - `Err(AppError::ParseStringId)` - Failed to parse guild ID to u64
     pub fn from_entity(entity: entity::ping_format::Model) -> Result<Self, AppError> {
         let guild_id = parse_u64_from_string(entity.guild_id)?;
 
         Ok(Self {
             id: entity.id,
-            guild_id: guild_id,
+            guild_id,
             name: entity.name,
         })
     }

@@ -613,14 +613,15 @@ impl<'a> FleetService<'a> {
         fleet_time: DateTime<Utc>,
         exclude_fleet_id: Option<i32>,
     ) -> Result<(), AppError> {
+        let fleet_category_repo = FleetCategoryRepository::new(self.db);
+
         // Get the category to check ping_cooldown setting
-        let category = entity::prelude::FleetCategory::find_by_id(category_id)
-            .one(self.db)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Category not found".to_string()))?;
+        let Some(category) = fleet_category_repo.find_by_id(category_id).await? else {
+            return Err(AppError::NotFound("Category not found".to_string()));
+        };
 
         // If no ping_cooldown is set, no validation needed
-        let Some(cooldown_seconds) = category.ping_cooldown else {
+        let Some(cooldown_seconds) = category.category.ping_cooldown else {
             return Ok(());
         };
 

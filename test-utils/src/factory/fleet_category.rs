@@ -117,6 +117,7 @@ impl<'a> FleetCategoryFactory<'a> {
             id: ActiveValue::NotSet,
             guild_id: ActiveValue::Set(self.entity.guild_id),
             ping_format_id: ActiveValue::Set(self.entity.ping_format_id),
+            ping_group_id: ActiveValue::Set(None),
             name: ActiveValue::Set(self.entity.name),
             ping_cooldown: ActiveValue::Set(self.entity.ping_cooldown),
             ping_reminder: ActiveValue::Set(self.entity.ping_reminder),
