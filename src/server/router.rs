@@ -230,7 +230,7 @@ pub fn router(config: &Config) -> Result<Router<AppState>, AppError> {
 
     let ping_group_routes = OpenApiRouter::new()
         .routes(routes!(controller::ping_group::create_ping_group))
-        .routes(routes!(controller::ping_group::get_paginated_ping_group))
+        .routes(routes!(controller::ping_group::get_paginated_ping_groups))
         .routes(routes!(controller::ping_group::update_ping_group))
         .routes(routes!(controller::ping_group::delete_ping_group));
 

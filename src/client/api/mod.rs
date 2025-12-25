@@ -1,20 +1,8 @@
-#[cfg(feature = "web")]
-pub mod helper;
-
-#[cfg(feature = "web")]
-pub mod discord;
-
-#[cfg(feature = "web")]
-pub mod discord_guild;
-
-#[cfg(feature = "web")]
 pub mod category;
-
-#[cfg(feature = "web")]
-pub mod ping_format;
-
-#[cfg(feature = "web")]
-pub mod user;
-
-#[cfg(feature = "web")]
+pub mod discord;
+pub mod discord_guild;
 pub mod fleet;
+pub mod helper;
+pub mod ping_format;
+pub mod ping_group;
+pub mod user;

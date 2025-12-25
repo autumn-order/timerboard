@@ -73,7 +73,7 @@ pub async fn create_ping_group(
         (status = 500, description = "Internal server error", body = ErrorDto)
     ),
 )]
-pub async fn get_paginated_ping_group(
+pub async fn get_paginated_ping_groups(
     State(state): State<AppState>,
     session: Session,
     Path(guild_id): Path<u64>,

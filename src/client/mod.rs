@@ -1,12 +1,12 @@
-pub mod app;
-pub mod component;
-pub mod constant;
-pub mod model;
-pub mod route;
-pub mod router;
-pub mod store;
+mod app;
+mod component;
+mod constant;
+mod model;
+mod route;
+mod router;
+mod store;
 
 #[cfg(feature = "web")]
-pub mod api;
+mod api;
 
 pub use app::App;
