@@ -9,7 +9,7 @@ use crate::{
     },
     model::{
         category::FleetCategoryDetailsDto, category::FleetCategoryListItemDto,
-        discord::DiscordGuildMemberDto,
+        discord::DiscordGuildMemberDto, ping_format::PingFormatFieldType,
     },
 };
 
@@ -358,6 +358,9 @@ pub fn FleetFormFields(
                                 {
                                     let field_id = field.id;
                                     let field_name = field.name.clone();
+                                    let field_type = field.field_type.clone();
+                                    let default_values = field.default_field_values.clone();
+
                                     rsx! {
                                         div {
                                             key: "{field_id}",
@@ -366,16 +369,68 @@ pub fn FleetFormFields(
                                                 class: "label",
                                                 span { class: "label-text", "{field_name}" }
                                             }
-                                            input {
-                                                r#type: "text",
-                                                class: "input input-bordered w-full",
-                                                placeholder: "Enter {field_name.to_lowercase()}...",
-                                                value: "{field_values().get(&field_id).cloned().unwrap_or_default()}",
-                                                disabled: is_submitting,
-                                                oninput: move |e| {
-                                                    let mut values = field_values();
-                                                    values.insert(field_id, e.value());
-                                                    field_values.set(values);
+
+                                            // Render checkbox for Bool type
+                                            if matches!(field_type, PingFormatFieldType::Bool) {
+                                                div {
+                                                    class: "form-control",
+                                                    label {
+                                                        class: "label cursor-pointer justify-start gap-3",
+                                                        input {
+                                                            r#type: "checkbox",
+                                                            class: "checkbox checkbox-primary",
+                                                            checked: field_values().get(&field_id).map(|v| v == "true").unwrap_or(false),
+                                                            disabled: is_submitting,
+                                                            onchange: move |e| {
+                                                                let mut values = field_values();
+                                                                values.insert(field_id, if e.checked() { "true".to_string() } else { "false".to_string() });
+                                                                field_values.set(values);
+                                                            }
+                                                        }
+                                                        span { class: "label-text", "Enable {field_name}" }
+                                                    }
+                                                }
+                                            }
+                                            // Render text input with autocomplete for Text type
+                                            else {
+                                                {
+                                                    let current_value = field_values().get(&field_id).cloned().unwrap_or_default();
+                                                    let has_defaults = !default_values.is_empty();
+
+                                                    rsx! {
+                                                        div {
+                                                            class: "relative",
+                                                            input {
+                                                                r#type: "text",
+                                                                class: "input input-bordered w-full",
+                                                                placeholder: if has_defaults {
+                                                                    format!("Enter or select {}", field_name.to_lowercase())
+                                                                } else {
+                                                                    format!("Enter {}", field_name.to_lowercase())
+                                                                },
+                                                                value: "{current_value}",
+                                                                disabled: is_submitting,
+                                                                list: if has_defaults { format!("datalist-{}", field_id) } else { String::new() },
+                                                                oninput: move |e| {
+                                                                    let mut values = field_values();
+                                                                    values.insert(field_id, e.value());
+                                                                    field_values.set(values);
+                                                                }
+                                                            }
+
+                                                            // HTML5 datalist for autocomplete
+                                                            if has_defaults {
+                                                                datalist {
+                                                                    id: "datalist-{field_id}",
+                                                                    for value in &default_values {
+                                                                        option {
+                                                                            value: "{value}"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }

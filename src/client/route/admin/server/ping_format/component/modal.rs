@@ -1,7 +1,10 @@
 use dioxus::prelude::*;
 use dioxus_logger::tracing;
 
-use crate::client::component::{Modal, SelectedItemsList};
+use crate::{
+    client::component::{Modal, SelectedItemsList},
+    model::ping_format::PingFormatFieldType,
+};
 
 #[cfg(feature = "web")]
 use crate::client::api::ping_format::{create_ping_format, update_ping_format};
@@ -13,11 +16,26 @@ struct FormFieldsData {
     fields: Vec<FieldData>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct FieldData {
     id: Option<i32>,
     name: String,
-    default_value: String,
+    field_type: PingFormatFieldType,
+    default_values: Vec<String>,
+    // UI state for managing default values
+    new_default_value: String,
+}
+
+impl Default for FieldData {
+    fn default() -> Self {
+        Self {
+            id: None,
+            name: String::new(),
+            field_type: PingFormatFieldType::Text,
+            default_values: Vec::new(),
+            new_default_value: String::new(),
+        }
+    }
 }
 
 #[component]
@@ -27,8 +45,12 @@ pub fn CreatePingFormatModal(
     mut refetch_trigger: Signal<u32>,
 ) -> Element {
     let mut form_fields = use_signal(FormFieldsData::default);
-    let mut submit_data =
-        use_signal(|| (String::new(), Vec::<(String, i32, Option<String>)>::new()));
+    let mut submit_data = use_signal(|| {
+        (
+            String::new(),
+            Vec::<(String, i32, PingFormatFieldType, Vec<String>)>::new(),
+        )
+    });
     let mut should_submit = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
 
@@ -81,18 +103,18 @@ pub fn CreatePingFormatModal(
         }
 
         error.set(None);
-        let field_data: Vec<(String, i32, Option<String>)> = fields
+        let field_data: Vec<(String, i32, PingFormatFieldType, Vec<String>)> = fields
             .fields
             .iter()
             .enumerate()
             .filter(|(_, f)| !f.name.trim().is_empty())
             .map(|(index, f)| {
-                let default_val = if f.default_value.trim().is_empty() {
-                    None
-                } else {
-                    Some(f.default_value.clone())
-                };
-                (f.name.clone(), index as i32, default_val)
+                (
+                    f.name.clone(),
+                    index as i32,
+                    f.field_type.clone(),
+                    f.default_values.clone(),
+                )
             })
             .collect();
 
@@ -163,7 +185,7 @@ pub fn EditPingFormatModal(
         (
             0i32,
             String::new(),
-            Vec::<(Option<i32>, String, i32, Option<String>)>::new(),
+            Vec::<(Option<i32>, String, i32, PingFormatFieldType, Vec<String>)>::new(),
         )
     });
     let mut should_submit = use_signal(|| false);
@@ -181,7 +203,9 @@ pub fn EditPingFormatModal(
                         .map(|f| FieldData {
                             id: Some(f.id),
                             name: f.name.clone(),
-                            default_value: f.default_value.clone().unwrap_or_default(),
+                            field_type: f.field_type.clone(),
+                            default_values: f.default_field_values.clone(),
+                            new_default_value: String::new(),
                         })
                         .collect(),
                 });
@@ -231,18 +255,19 @@ pub fn EditPingFormatModal(
         }
 
         error.set(None);
-        let field_data: Vec<(Option<i32>, String, i32, Option<String>)> = fields
+        let field_data: Vec<(Option<i32>, String, i32, PingFormatFieldType, Vec<String>)> = fields
             .fields
             .iter()
             .enumerate()
             .filter(|(_, f)| !f.name.trim().is_empty())
             .map(|(index, f)| {
-                let default_val = if f.default_value.trim().is_empty() {
-                    None
-                } else {
-                    Some(f.default_value.clone())
-                };
-                (f.id, f.name.clone(), index as i32, default_val)
+                (
+                    f.id,
+                    f.name.clone(),
+                    index as i32,
+                    f.field_type.clone(),
+                    f.default_values.clone(),
+                )
             })
             .collect();
 
@@ -383,8 +408,12 @@ fn PingFormatFormFields(mut form_fields: Signal<FormFieldsData>, is_submitting: 
                 for (index, field) in form_fields().fields.iter().enumerate() {
                     {
                         let field_name = field.name.clone();
-                        let field_default = field.default_value.clone();
+                        let field_type = field.field_type.clone();
+                        let default_values = field.default_values.clone();
+                        let new_default_value = field.new_default_value.clone();
                         let is_dragging = dragging_index() == Some(index);
+                        let is_text_type = matches!(field_type, PingFormatFieldType::Text);
+
                         rsx! {
                             div {
                                 key: "{index}",
@@ -395,6 +424,8 @@ fn PingFormatFormFields(mut form_fields: Signal<FormFieldsData>, is_submitting: 
                                 },
                                 ondragover: on_drag_over,
                                 ondrop: on_drop(index),
+
+                                // Field name and remove button
                                 div {
                                     class: "flex items-center gap-3",
                                     div {
@@ -425,14 +456,111 @@ fn PingFormatFormFields(mut form_fields: Signal<FormFieldsData>, is_submitting: 
                                         "✕"
                                     }
                                 }
-                                input {
-                                    r#type: "text",
-                                    class: "input input-bordered input-sm w-full",
-                                    placeholder: "Default value (optional)",
-                                    value: "{field_default}",
-                                    disabled: is_submitting,
-                                    oninput: move |evt| {
-                                        form_fields.write().fields[index].default_value = evt.value();
+
+                                // Field type selector
+                                div {
+                                    class: "flex items-center gap-2",
+                                    label {
+                                        class: "label cursor-pointer gap-2",
+                                        input {
+                                            r#type: "radio",
+                                            class: "radio radio-sm",
+                                            name: "field_type_{index}",
+                                            checked: is_text_type,
+                                            disabled: is_submitting,
+                                            onchange: move |_| {
+                                                form_fields.write().fields[index].field_type = PingFormatFieldType::Text;
+                                            }
+                                        }
+                                        span { class: "label-text", "Text" }
+                                    }
+                                    label {
+                                        class: "label cursor-pointer gap-2",
+                                        input {
+                                            r#type: "radio",
+                                            class: "radio radio-sm",
+                                            name: "field_type_{index}",
+                                            checked: !is_text_type,
+                                            disabled: is_submitting,
+                                            onchange: move |_| {
+                                                form_fields.write().fields[index].field_type = PingFormatFieldType::Bool;
+                                                // Clear default values when switching to bool
+                                                form_fields.write().fields[index].default_values.clear();
+                                            }
+                                        }
+                                        span { class: "label-text", "Checkbox" }
+                                    }
+                                }
+
+                                // Default values section (only for text type)
+                                if is_text_type {
+                                    div {
+                                        class: "flex flex-col gap-2 pl-8",
+                                        label {
+                                            class: "label-text text-sm opacity-70",
+                                            "Default Values"
+                                        }
+
+                                        // List of default values
+                                        if !default_values.is_empty() {
+                                            div {
+                                                class: "flex flex-wrap gap-2",
+                                                for (val_idx, val) in default_values.iter().enumerate() {
+                                                    div {
+                                                        key: "{val_idx}",
+                                                        class: "badge badge-primary gap-2",
+                                                        span { "{val}" }
+                                                        button {
+                                                            r#type: "button",
+                                                            class: "btn btn-ghost btn-xs btn-circle",
+                                                            disabled: is_submitting,
+                                                            onclick: move |_| {
+                                                                form_fields.write().fields[index].default_values.remove(val_idx);
+                                                            },
+                                                            "✕"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Input to add new default value
+                                        div {
+                                            class: "flex gap-2",
+                                            input {
+                                                r#type: "text",
+                                                class: "input input-bordered input-sm flex-1",
+                                                placeholder: "Add default value...",
+                                                value: "{new_default_value}",
+                                                disabled: is_submitting,
+                                                oninput: move |evt| {
+                                                    form_fields.write().fields[index].new_default_value = evt.value();
+                                                },
+                                                onkeypress: move |evt| {
+                                                    if evt.key() == Key::Enter {
+                                                        evt.prevent_default();
+                                                        let value = form_fields.read().fields[index].new_default_value.trim().to_string();
+                                                        if !value.is_empty() {
+                                                            form_fields.write().fields[index].default_values.push(value);
+                                                            form_fields.write().fields[index].new_default_value.clear();
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            button {
+                                                r#type: "button",
+                                                class: "btn btn-sm btn-primary",
+                                                disabled: is_submitting || new_default_value.trim().is_empty(),
+                                                onclick: move |_| {
+                                                    let value = form_fields.read().fields[index].new_default_value.trim().to_string();
+                                                    if !value.is_empty() {
+                                                        form_fields.write().fields[index].default_values.push(value);
+                                                        form_fields.write().fields[index].new_default_value.clear();
+                                                    }
+                                                },
+                                                "Add"
+                                            }
+                                        }
                                     }
                                 }
                             }

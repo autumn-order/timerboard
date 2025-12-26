@@ -2,7 +2,7 @@ use crate::{
     client::model::error::ApiError,
     model::ping_format::{
         CreatePingFormatDto, CreatePingFormatFieldDto, PaginatedPingFormatsDto,
-        UpdatePingFormatDto, UpdatePingFormatFieldDto,
+        PingFormatFieldType, UpdatePingFormatDto, UpdatePingFormatFieldDto,
     },
 };
 
@@ -29,18 +29,21 @@ pub async fn get_ping_formats(
 pub async fn create_ping_format(
     guild_id: u64,
     name: String,
-    fields: Vec<(String, i32, Option<String>)>, // (name, priority, default_value)
+    fields: Vec<(String, i32, PingFormatFieldType, Vec<String>)>, // (name, priority, field_type, default_field_values)
 ) -> Result<(), ApiError> {
     let url = format!("/api/admin/servers/{}/formats", guild_id);
     let payload = CreatePingFormatDto {
         name,
         fields: fields
             .into_iter()
-            .map(|(name, priority, default_value)| CreatePingFormatFieldDto {
-                name,
-                priority,
-                default_value,
-            })
+            .map(
+                |(name, priority, field_type, default_field_values)| CreatePingFormatFieldDto {
+                    name,
+                    priority,
+                    field_type,
+                    default_field_values,
+                },
+            )
             .collect(),
     };
     let body = serialize_json(&payload)?;
@@ -54,21 +57,22 @@ pub async fn update_ping_format(
     guild_id: u64,
     format_id: i32,
     name: String,
-    fields: Vec<(Option<i32>, String, i32, Option<String>)>, // (id, name, priority, default_value)
+    fields: Vec<(Option<i32>, String, i32, PingFormatFieldType, Vec<String>)>, // (id, name, priority, field_type, default_field_values)
 ) -> Result<(), ApiError> {
     let url = format!("/api/admin/servers/{}/formats/{}", guild_id, format_id);
     let payload = UpdatePingFormatDto {
         name,
         fields: fields
             .into_iter()
-            .map(
-                |(id, name, priority, default_value)| UpdatePingFormatFieldDto {
+            .map(|(id, name, priority, field_type, default_field_values)| {
+                UpdatePingFormatFieldDto {
                     id,
                     name,
                     priority,
-                    default_value,
-                },
-            )
+                    field_type,
+                    default_field_values,
+                }
+            })
             .collect(),
     };
     let body = serialize_json(&payload)?;
