@@ -10,7 +10,9 @@ use crate::{
         model::error::ApiError,
         store::user::UserState,
     },
-    model::{category::FleetCategoryDetailsDto, fleet::UpdateFleetDto},
+    model::{
+        category::FleetCategoryDetailsDto, fleet::UpdateFleetDto, ping_format::PingFormatFieldType,
+    },
 };
 
 use super::form_fields::FleetFormFields;
@@ -578,21 +580,43 @@ pub fn FleetViewEditModal(
                                     }
                                 }
 
-                                // Ping Format Fields
+                                // Ping Format Fields - sorted by priority with formatted boolean values
                                 if !fleet.field_values.is_empty() {
-                                    div {
-                                        class: "grid grid-cols-1 md:grid-cols-2 gap-4",
-                                        for (field_name, field_value) in &fleet.field_values {
-                                            div {
-                                                key: "{field_name}",
-                                                class: "flex flex-col gap-2",
-                                                label {
-                                                    class: "label",
-                                                    span { class: "label-text", "{field_name}" }
-                                                }
-                                                div {
-                                                    class: "input input-bordered w-full flex items-center bg-base-200",
-                                                    "{field_value}"
+                                    if let Some(Ok(details)) = category_details() {
+                                        div {
+                                            class: "grid grid-cols-1 md:grid-cols-2 gap-4",
+                                            // Sort fields by priority and display with proper formatting
+                                            for field in details.fields.iter() {
+                                                if let Some(field_value) = fleet.field_values.get(&field.name) {
+                                                    if !field_value.is_empty() {
+                                                        {
+                                                            let field_name = field.name.clone();
+                                                            // Format boolean values as "Yes"/"No" for better readability
+                                                            let display_value = match field.field_type {
+                                                                PingFormatFieldType::Bool => match field_value.as_str() {
+                                                                    "true" => "Yes",
+                                                                    "false" => "No",
+                                                                    _ => field_value.as_str(),
+                                                                },
+                                                                PingFormatFieldType::Text => field_value.as_str(),
+                                                            };
+
+                                                            rsx! {
+                                                                div {
+                                                                    key: "{field_name}",
+                                                                    class: "flex flex-col gap-2",
+                                                                    label {
+                                                                        class: "label",
+                                                                        span { class: "label-text", "{field_name}" }
+                                                                    }
+                                                                    div {
+                                                                        class: "input input-bordered w-full flex items-center bg-base-200",
+                                                                        "{display_value}"
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
