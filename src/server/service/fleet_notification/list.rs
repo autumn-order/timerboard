@@ -23,9 +23,9 @@ impl<'a> FleetNotificationService<'a> {
     ///
     /// Creates or updates a single message displaying all upcoming non-hidden fleets
     /// for categories configured to post in the channel. The list includes links to
-    /// fleet messages and relative timestamps. Intelligently edits the existing list
-    /// if it's still the most recent message, or deletes and reposts if other messages
-    /// have been sent since. Uses Discord blurple color (0x5865F2).
+    /// fleet messages and relative timestamps. Only posts a new message if there have
+    /// been no messages in the channel for the last 10 minutes. Otherwise, edits the
+    /// existing message. Uses Discord blurple color (0x5865F2).
     ///
     /// # Arguments
     /// - `channel_id` - Discord channel ID
@@ -37,6 +37,7 @@ impl<'a> FleetNotificationService<'a> {
     pub async fn post_upcoming_fleets_list(&self, channel_id: u64) -> Result<(), AppError> {
         let channel_id_obj = ChannelId::new(channel_id);
         let list_repo = ChannelFleetListRepository::new(self.db);
+        let now = chrono::Utc::now();
 
         // Build the fleet list embed (returns None if no fleets and allow_empty=false)
         let Some(embed) = self.build_fleet_list_embed(channel_id, false).await? else {
@@ -49,21 +50,31 @@ impl<'a> FleetNotificationService<'a> {
 
         // Check if we should edit or post new message
         if let Some(existing) = existing_list {
-            // Compare updated_at (when we posted the list) with last_message_at (most recent message in channel)
-            // If our list message is still the most recent, edit it. Otherwise, delete and repost.
-            let should_edit = existing.updated_at >= existing.last_message_at;
+            // Check if the fleet list is still the most recent message
+            let is_most_recent = existing.updated_at >= existing.last_message_at;
+
+            // Calculate time since last message in channel
+            let time_since_last_message = now - existing.last_message_at;
+            let ten_minutes = chrono::Duration::minutes(10);
+
+            // Only post new message if:
+            // 1. Fleet list is NOT the most recent message, AND
+            // 2. No messages in channel for last 10 minutes
+            // Otherwise, always edit the existing message
+            let should_post_new = !is_most_recent && time_since_last_message >= ten_minutes;
 
             tracing::debug!(
-                "Channel {}: updated_at={}, last_message_at={}, should_edit={}",
+                "Channel {}: is_most_recent={}, last_message_at={}, time_since={} mins, should_post_new={}",
                 channel_id,
-                existing.updated_at,
+                is_most_recent,
                 existing.last_message_at,
-                should_edit
+                time_since_last_message.num_minutes(),
+                should_post_new
             );
 
-            if should_edit {
-                // Edit the existing message since it's still the most recent
-                self.edit_fleet_list_message(
+            if should_post_new {
+                // Channel has been quiet for 10+ minutes AND list is buried, delete old and post new
+                self.delete_and_repost_fleet_list(
                     channel_id_obj,
                     existing.message_id,
                     embed,
@@ -72,8 +83,8 @@ impl<'a> FleetNotificationService<'a> {
                 )
                 .await?;
             } else {
-                // Delete old message and post new one (to be most recent in channel)
-                self.delete_and_repost_fleet_list(
+                // Fleet list is still most recent OR channel is active, just edit the existing message
+                self.edit_fleet_list_message(
                     channel_id_obj,
                     existing.message_id,
                     embed,

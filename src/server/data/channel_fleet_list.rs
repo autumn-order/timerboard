@@ -65,9 +65,10 @@ impl<'a> ChannelFleetListRepository<'a> {
     /// Creates or updates the fleet list message for a channel.
     ///
     /// Performs an upsert operation: if a fleet list record already exists for the channel,
-    /// updates the message ID and timestamps; otherwise, creates a new record. The
-    /// `last_message_at` timestamp is set to the current time to track when the list was
-    /// last posted, and `updated_at` is also updated.
+    /// updates the message ID and `updated_at` timestamp; otherwise, creates a new record.
+    /// The `last_message_at` field is preserved from the existing record (or set to now for
+    /// new records) since it should only be updated by the message handler when OTHER messages
+    /// arrive in the channel.
     ///
     /// # Arguments
     /// - `param` - Upsert parameters containing channel_id and message_id
@@ -91,7 +92,7 @@ impl<'a> ChannelFleetListRepository<'a> {
                     id: ActiveValue::Set(existing.id),
                     channel_id: ActiveValue::Set(existing.channel_id.to_string()),
                     message_id: ActiveValue::Set(param.message_id.to_string()),
-                    last_message_at: ActiveValue::Set(now),
+                    last_message_at: ActiveValue::Set(existing.last_message_at), // Preserve existing value
                     created_at: ActiveValue::Set(existing.created_at),
                     updated_at: ActiveValue::Set(now),
                 };

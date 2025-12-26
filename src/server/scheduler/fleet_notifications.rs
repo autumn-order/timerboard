@@ -78,8 +78,8 @@ pub async fn start_scheduler(
     let list_http = discord_http.clone();
     let list_app_url = app_url.clone();
 
-    // Schedule job to run every 30 minutes for upcoming fleets lists
-    let list_job = Job::new_async("0 30 * * * *", move |_uuid, _lock| {
+    // Schedule job to run every 10 minutes for upcoming fleets list
+    let list_job = Job::new_async("0 10 * * * *", move |_uuid, _lock| {
         let db = list_db.clone();
         let http = list_http.clone();
         let app_url = list_app_url.clone();
