@@ -16,7 +16,7 @@ use crate::{
         error::AppError,
         middleware::auth::{AuthGuard, Permission},
         model::ping_format::{
-            CreatePingFormatWithFieldsParam, DeletePingFormatParam, GetPaginatedPingFormatsParam,
+            CreatePingFormatWithFieldsParam, GetPaginatedPingFormatsParam,
             UpdatePingFormatWithFieldsParam,
         },
         service::ping_format::PingFormatService,
@@ -72,24 +72,10 @@ pub async fn create_ping_format(
         .require(&[Permission::Admin])
         .await?;
 
-    let service = PingFormatService::new(&state.db);
+    let param = CreatePingFormatWithFieldsParam::from_dto(guild_id, payload);
+    let ping_format = PingFormatService::new(&state.db).create(param).await?;
 
-    let fields: Vec<(String, i32, Option<String>)> = payload
-        .fields
-        .into_iter()
-        .map(|f| (f.name, f.priority, f.default_value))
-        .collect();
-
-    let param = CreatePingFormatWithFieldsParam {
-        guild_id,
-        name: payload.name,
-        fields,
-    };
-
-    let ping_format = service.create(param).await?;
-    let dto = ping_format.into_dto();
-
-    Ok((StatusCode::CREATED, Json(dto)))
+    Ok((StatusCode::CREATED, Json(ping_format.into_dto())))
 }
 
 /// Get paginated ping formats for a guild.
@@ -135,18 +121,12 @@ pub async fn get_ping_formats(
         .require(&[Permission::Admin])
         .await?;
 
-    let service = PingFormatService::new(&state.db);
+    let param = GetPaginatedPingFormatsParam::new(guild_id, params.page, params.entries);
+    let ping_formats = PingFormatService::new(&state.db)
+        .get_paginated(param)
+        .await?;
 
-    let param = GetPaginatedPingFormatsParam {
-        guild_id,
-        page: params.page,
-        per_page: params.entries,
-    };
-
-    let ping_formats = service.get_paginated(param).await?;
-    let dto = ping_formats.into_dto();
-
-    Ok((StatusCode::OK, Json(dto)))
+    Ok((StatusCode::OK, Json(ping_formats.into_dto())))
 }
 
 /// Update a ping format's name and fields.
@@ -198,40 +178,10 @@ pub async fn update_ping_format(
         .require(&[Permission::Admin])
         .await?;
 
-    let service = PingFormatService::new(&state.db);
+    let param = UpdatePingFormatWithFieldsParam::from_dto(format_id, guild_id, payload);
+    let ping_format = PingFormatService::new(&state.db).update(param).await?;
 
-    let fields: Vec<(Option<i32>, String, i32, Option<String>)> = payload
-        .fields
-        .into_iter()
-        .map(|f| (f.id, f.name, f.priority, f.default_value))
-        .collect();
-
-    let param = UpdatePingFormatWithFieldsParam {
-        id: format_id,
-        guild_id,
-        name: payload.name,
-        fields,
-    };
-
-    let ping_format = service.update(param).await?;
-
-    match ping_format {
-        Some(pf) => {
-            let dto = pf.into_dto();
-            Ok((StatusCode::OK, Json(dto)))
-        }
-        None => Ok((
-            StatusCode::NOT_FOUND,
-            Json(PingFormatDto {
-                id: 0,
-                guild_id: 0,
-                name: String::new(),
-                fields: Vec::new(),
-                fleet_category_count: 0,
-                fleet_category_names: Vec::new(),
-            }),
-        )),
-    }
+    Ok((StatusCode::OK, Json(ping_format.into_dto())))
 }
 
 /// Delete a ping format.
@@ -277,18 +227,9 @@ pub async fn delete_ping_format(
         .require(&[Permission::Admin])
         .await?;
 
-    let service = PingFormatService::new(&state.db);
+    PingFormatService::new(&state.db)
+        .delete(guild_id, format_id)
+        .await?;
 
-    let param = DeletePingFormatParam {
-        id: format_id,
-        guild_id,
-    };
-
-    let deleted = service.delete(param).await?;
-
-    if deleted {
-        Ok(StatusCode::NO_CONTENT)
-    } else {
-        Ok(StatusCode::NOT_FOUND)
-    }
+    Ok(StatusCode::NO_CONTENT)
 }

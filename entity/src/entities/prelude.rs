@@ -14,6 +14,7 @@ pub use super::fleet_field_value::Entity as FleetFieldValue;
 pub use super::fleet_message::Entity as FleetMessage;
 pub use super::ping_format::Entity as PingFormat;
 pub use super::ping_format_field::Entity as PingFormatField;
+pub use super::ping_format_field_value::Entity as PingFormatFieldValue;
 pub use super::ping_group::Entity as PingGroup;
 pub use super::user::Entity as User;
 pub use super::user_discord_guild_role::Entity as UserDiscordGuildRole;

@@ -3,8 +3,13 @@
 //! Defines ping format and field models that structure fleet notification messages.
 
 use crate::{
-    model::ping_format::{PaginatedPingFormatsDto, PingFormatDto, PingFormatFieldDto},
-    server::{error::AppError, util::parse::parse_u64_from_string},
+    model::ping_format::{
+        PaginatedPingFormatsDto, PingFormatDto, PingFormatFieldDto, PingFormatFieldType,
+    },
+    server::{
+        error::{internal::InternalError, AppError},
+        util::parse::parse_u64_from_string,
+    },
 };
 
 /// Ping format template for structuring fleet notification messages.
@@ -77,8 +82,8 @@ pub struct PingFormatField {
     pub name: String,
     /// Priority for field ordering (lower values appear first).
     pub priority: i32,
-    /// Optional default value for the field.
-    pub default_value: Option<String>,
+    pub field_type: PingFormatFieldType,
+    pub default_field_values: Vec<String>,
 }
 
 impl PingFormatField {
@@ -92,7 +97,8 @@ impl PingFormatField {
             ping_format_id: self.ping_format_id,
             name: self.name,
             priority: self.priority,
-            default_value: self.default_value,
+            field_type: self.field_type,
+            default_field_values: self.default_field_values,
         }
     }
 
@@ -100,44 +106,86 @@ impl PingFormatField {
     ///
     /// # Arguments
     /// - `entity` - The entity model from the database
+    /// - `default_field_values` - The default field values from the database
     ///
     /// # Returns
     /// - `PingFormatField` - The converted field domain model
-    pub fn from_entity(entity: entity::ping_format_field::Model) -> Self {
-        Self {
+    pub fn from_entity(
+        entity: entity::ping_format_field::Model,
+        default_field_values: Vec<String>,
+    ) -> Result<Self, AppError> {
+        let field_type = match entity.field_type.as_str() {
+            "text" => PingFormatFieldType::Text,
+            "bool" => PingFormatFieldType::Bool,
+            _ => {
+                return Err(AppError::InternalError(
+                    InternalError::InvalidDatabaseValue {
+                        table: "ping_format_field",
+                        field: "field_type",
+                        expected: "text, bool",
+                        actual: entity.field_type,
+                    },
+                ))
+            }
+        };
+
+        Ok(Self {
             id: entity.id,
             ping_format_id: entity.ping_format_id,
             name: entity.name,
             priority: entity.priority,
-            default_value: entity.default_value,
-        }
+            field_type,
+            default_field_values,
+        })
     }
 }
 
-/// Parameters for creating a new field in a ping format template.
+/// Field data for creating or updating a ping format field.
+///
+/// Used when creating or updating ping formats with their fields.
+/// Contains optional ID to distinguish between new fields (None) and existing fields (Some).
 #[derive(Debug, Clone)]
-pub struct CreatePingFormatFieldParam {
-    /// ID of the ping format this field belongs to.
-    pub ping_format_id: i32,
+pub struct CreateOrUpdateFieldData {
+    /// Optional ID - None for new fields, Some(id) for existing fields to update.
+    pub id: Option<i32>,
     /// Name of the field.
     pub name: String,
     /// Priority for field ordering.
     pub priority: i32,
-    /// Optional default value for the field.
-    pub default_value: Option<String>,
+    /// Type of the field (text or bool).
+    pub field_type: PingFormatFieldType,
+    /// Default values for the field (only applicable for text type).
+    pub default_field_values: Vec<String>,
 }
 
-/// Parameters for updating an existing ping format field's properties.
+/// Field data for creating a ping format field.
+///
+/// Used in repository methods for creating new fields.
 #[derive(Debug, Clone)]
-pub struct UpdatePingFormatFieldParam {
-    /// ID of the field to update.
-    pub id: i32,
-    /// New name for the field.
+pub struct CreateFieldData {
+    /// Name of the field.
     pub name: String,
-    /// New priority for the field.
+    /// Priority for field ordering.
     pub priority: i32,
-    /// New default value for the field.
-    pub default_value: Option<String>,
+    /// Type of the field (text or bool).
+    pub field_type: PingFormatFieldType,
+    /// Default values for the field (only applicable for text type).
+    pub default_field_values: Vec<String>,
+}
+
+/// Field data for updating a ping format field.
+///
+/// Used in repository methods for updating existing fields.
+#[derive(Debug, Clone)]
+pub struct UpdateFieldData {
+    /// Name of the field.
+    pub name: String,
+    /// Priority for field ordering.
+    pub priority: i32,
+    /// Type of the field (text or bool).
+    pub field_type: PingFormatFieldType,
+    /// Default values for the field (only applicable for text type).
+    pub default_field_values: Vec<String>,
 }
 
 /// Complete ping format with fields and usage metadata.
@@ -233,8 +281,38 @@ pub struct CreatePingFormatWithFieldsParam {
     pub guild_id: u64,
     /// Name of the ping format.
     pub name: String,
-    /// Fields to create (name, priority, default_value).
-    pub fields: Vec<(String, i32, Option<String>)>,
+    /// Fields to create.
+    pub fields: Vec<CreateOrUpdateFieldData>,
+}
+
+impl CreatePingFormatWithFieldsParam {
+    /// Creates parameters from a DTO and guild ID.
+    ///
+    /// # Arguments
+    /// - `guild_id` - Discord guild ID
+    /// - `dto` - Create ping format DTO from the API
+    ///
+    /// # Returns
+    /// - `CreatePingFormatWithFieldsParam` - Parameters ready for service layer
+    pub fn from_dto(guild_id: u64, dto: crate::model::ping_format::CreatePingFormatDto) -> Self {
+        let fields = dto
+            .fields
+            .into_iter()
+            .map(|f| CreateOrUpdateFieldData {
+                id: None,
+                name: f.name,
+                priority: f.priority,
+                field_type: f.field_type,
+                default_field_values: f.default_field_values,
+            })
+            .collect();
+
+        Self {
+            guild_id,
+            name: dto.name,
+            fields,
+        }
+    }
 }
 
 /// Parameters for updating a ping format with fields.
@@ -250,8 +328,44 @@ pub struct UpdatePingFormatWithFieldsParam {
     pub guild_id: u64,
     /// New name for the ping format.
     pub name: String,
-    /// Fields to update/create (id, name, priority, default_value) - id is None for new fields.
-    pub fields: Vec<(Option<i32>, String, i32, Option<String>)>,
+    /// Fields to update/create - id is None for new fields, Some(id) for existing fields.
+    pub fields: Vec<CreateOrUpdateFieldData>,
+}
+
+impl UpdatePingFormatWithFieldsParam {
+    /// Creates parameters from a DTO, guild ID, and format ID.
+    ///
+    /// # Arguments
+    /// - `id` - Ping format ID to update
+    /// - `guild_id` - Discord guild ID for verification
+    /// - `dto` - Update ping format DTO from the API
+    ///
+    /// # Returns
+    /// - `UpdatePingFormatWithFieldsParam` - Parameters ready for service layer
+    pub fn from_dto(
+        id: i32,
+        guild_id: u64,
+        dto: crate::model::ping_format::UpdatePingFormatDto,
+    ) -> Self {
+        let fields = dto
+            .fields
+            .into_iter()
+            .map(|f| CreateOrUpdateFieldData {
+                id: f.id,
+                name: f.name,
+                priority: f.priority,
+                field_type: f.field_type,
+                default_field_values: f.default_field_values,
+            })
+            .collect();
+
+        Self {
+            id,
+            guild_id,
+            name: dto.name,
+            fields,
+        }
+    }
 }
 
 /// Parameters for getting paginated ping formats.
@@ -265,11 +379,21 @@ pub struct GetPaginatedPingFormatsParam {
     pub per_page: u64,
 }
 
-/// Parameters for deleting a ping format.
-#[derive(Debug, Clone)]
-pub struct DeletePingFormatParam {
-    /// ID of the ping format to delete.
-    pub id: i32,
-    /// Discord guild ID for verification.
-    pub guild_id: u64,
+impl GetPaginatedPingFormatsParam {
+    /// Creates parameters from guild ID and pagination parameters.
+    ///
+    /// # Arguments
+    /// - `guild_id` - Discord guild ID
+    /// - `page` - Zero-indexed page number
+    /// - `per_page` - Number of ping formats per page
+    ///
+    /// # Returns
+    /// - `GetPaginatedPingFormatsParam` - Parameters ready for service layer
+    pub fn new(guild_id: u64, page: u64, per_page: u64) -> Self {
+        Self {
+            guild_id,
+            page,
+            per_page,
+        }
+    }
 }

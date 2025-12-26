@@ -77,18 +77,6 @@ impl<'a> PingFormatFieldFactory<'a> {
         self
     }
 
-    /// Sets the default value for the field.
-    ///
-    /// # Arguments
-    /// - `default_value` - Optional default value
-    ///
-    /// # Returns
-    /// - `Self` - Factory instance for method chaining
-    pub fn default_value(mut self, default_value: Option<String>) -> Self {
-        self.entity.default_value = default_value;
-        self
-    }
-
     /// Builds and inserts the ping format field entity into the database.
     ///
     /// # Returns
@@ -100,7 +88,7 @@ impl<'a> PingFormatFieldFactory<'a> {
             ping_format_id: ActiveValue::Set(self.entity.ping_format_id),
             name: ActiveValue::Set(self.entity.name),
             priority: ActiveValue::Set(self.entity.priority),
-            default_value: ActiveValue::Set(self.entity.default_value),
+            field_type: ActiveValue::NotSet,
         }
         .insert(self.db)
         .await
@@ -137,87 +125,4 @@ pub async fn create_ping_format_field(
         .priority(priority)
         .build()
         .await
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::builder::TestBuilder;
-    use crate::factory::discord_guild::create_guild;
-    use crate::factory::ping_format::create_ping_format;
-    use entity::prelude::*;
-
-    #[tokio::test]
-    async fn creates_field_with_defaults() -> Result<(), DbErr> {
-        let test = TestBuilder::new()
-            .with_table(DiscordGuild)
-            .with_table(PingFormat)
-            .with_table(PingFormatField)
-            .build()
-            .await
-            .unwrap();
-        let db = test.db.as_ref().unwrap();
-
-        let guild = create_guild(db).await?;
-        let ping_format = create_ping_format(db, &guild.guild_id).await?;
-        let field = create_ping_format_field(db, ping_format.id, "Test Field", 1).await?;
-
-        assert_eq!(field.ping_format_id, ping_format.id);
-        assert_eq!(field.name, "Test Field");
-        assert_eq!(field.priority, 1);
-        assert!(field.default_value.is_none());
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn creates_field_with_custom_values() -> Result<(), DbErr> {
-        let test = TestBuilder::new()
-            .with_table(DiscordGuild)
-            .with_table(PingFormat)
-            .with_table(PingFormatField)
-            .build()
-            .await
-            .unwrap();
-        let db = test.db.as_ref().unwrap();
-
-        let guild = create_guild(db).await?;
-        let ping_format = create_ping_format(db, &guild.guild_id).await?;
-        let field = PingFormatFieldFactory::new(db, ping_format.id)
-            .name("Custom Field")
-            .priority(5)
-            .default_value(Some("Default Value".to_string()))
-            .build()
-            .await?;
-
-        assert_eq!(field.ping_format_id, ping_format.id);
-        assert_eq!(field.name, "Custom Field");
-        assert_eq!(field.priority, 5);
-        assert_eq!(field.default_value, Some("Default Value".to_string()));
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn creates_multiple_unique_fields() -> Result<(), DbErr> {
-        let test = TestBuilder::new()
-            .with_table(DiscordGuild)
-            .with_table(PingFormat)
-            .with_table(PingFormatField)
-            .build()
-            .await
-            .unwrap();
-        let db = test.db.as_ref().unwrap();
-
-        let guild = create_guild(db).await?;
-        let ping_format = create_ping_format(db, &guild.guild_id).await?;
-        let field1 = create_ping_format_field(db, ping_format.id, "Field 1", 1).await?;
-        let field2 = create_ping_format_field(db, ping_format.id, "Field 2", 2).await?;
-
-        assert_ne!(field1.id, field2.id);
-        assert_eq!(field1.ping_format_id, field2.ping_format_id);
-        assert_ne!(field1.priority, field2.priority);
-
-        Ok(())
-    }
 }

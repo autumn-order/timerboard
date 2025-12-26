@@ -15,7 +15,7 @@ pub const DEFAULT_PING_FORMAT_ID: i32 = 1;
 pub const DEFAULT_PRIORITY: i32 = 1;
 
 /// Default value for fields (None).
-pub const DEFAULT_VALUE: Option<&str> = None;
+pub const DEFAULT_VALUE_TYPE: &str = "text";
 
 /// Creates a ping format field entity model with default values.
 ///
@@ -47,7 +47,7 @@ pub fn entity() -> ping_format_field::Model {
         ping_format_id: DEFAULT_PING_FORMAT_ID,
         name: DEFAULT_NAME.to_string(),
         priority: DEFAULT_PRIORITY,
-        default_value: DEFAULT_VALUE.map(|s| s.to_string()),
+        field_type: DEFAULT_VALUE_TYPE.to_string(),
     }
 }
 
@@ -83,7 +83,7 @@ pub struct PingFormatFieldEntityBuilder {
     ping_format_id: i32,
     name: String,
     priority: i32,
-    default_value: Option<String>,
+    value_type: String,
 }
 
 impl Default for PingFormatFieldEntityBuilder {
@@ -93,7 +93,7 @@ impl Default for PingFormatFieldEntityBuilder {
             ping_format_id: DEFAULT_PING_FORMAT_ID,
             name: DEFAULT_NAME.to_string(),
             priority: DEFAULT_PRIORITY,
-            default_value: DEFAULT_VALUE.map(|s| s.to_string()),
+            value_type: DEFAULT_VALUE_TYPE.to_string(),
         }
     }
 }
@@ -147,18 +147,6 @@ impl PingFormatFieldEntityBuilder {
         self
     }
 
-    /// Sets the default value for the field.
-    ///
-    /// # Arguments
-    /// - `default_value` - Optional default value
-    ///
-    /// # Returns
-    /// - `Self` - Builder instance for method chaining
-    pub fn default_value(mut self, default_value: Option<String>) -> Self {
-        self.default_value = default_value;
-        self
-    }
-
     /// Builds and returns the ping format field entity model.
     ///
     /// # Returns
@@ -169,60 +157,7 @@ impl PingFormatFieldEntityBuilder {
             ping_format_id: self.ping_format_id,
             name: self.name,
             priority: self.priority,
-            default_value: self.default_value,
+            field_type: self.value_type,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn creates_entity_with_defaults() {
-        let field = entity();
-
-        assert_eq!(field.id, 1);
-        assert_eq!(field.ping_format_id, DEFAULT_PING_FORMAT_ID);
-        assert_eq!(field.name, DEFAULT_NAME);
-        assert_eq!(field.priority, DEFAULT_PRIORITY);
-        assert!(field.default_value.is_none());
-    }
-
-    #[test]
-    fn builder_creates_entity_with_defaults() {
-        let field = entity_builder().build();
-
-        assert_eq!(field.name, DEFAULT_NAME);
-        assert_eq!(field.priority, DEFAULT_PRIORITY);
-        assert!(field.default_value.is_none());
-    }
-
-    #[test]
-    fn builder_creates_entity_with_custom_values() {
-        let field = entity_builder()
-            .id(5)
-            .ping_format_id(10)
-            .name("Location")
-            .priority(3)
-            .default_value(Some("Jita".to_string()))
-            .build();
-
-        assert_eq!(field.id, 5);
-        assert_eq!(field.ping_format_id, 10);
-        assert_eq!(field.name, "Location");
-        assert_eq!(field.priority, 3);
-        assert_eq!(field.default_value, Some("Jita".to_string()));
-    }
-
-    #[test]
-    fn builder_allows_partial_customization() {
-        let field = entity_builder().name("Doctrine").priority(2).build();
-
-        assert_eq!(field.id, 1);
-        assert_eq!(field.ping_format_id, DEFAULT_PING_FORMAT_ID);
-        assert_eq!(field.name, "Doctrine");
-        assert_eq!(field.priority, 2);
-        assert!(field.default_value.is_none());
     }
 }

@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "server")]
 use utoipa::ToSchema;
 
+use crate::model::ping_format::PingFormatFieldType;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct FleetCategoryAccessRoleDto {
@@ -131,7 +133,8 @@ pub struct PingFormatFieldDto {
     pub id: i32,
     pub name: String,
     pub priority: i32,
-    pub default_value: Option<String>,
+    pub field_type: PingFormatFieldType,
+    pub default_field_values: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

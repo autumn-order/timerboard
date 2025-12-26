@@ -16,6 +16,7 @@ pub mod fleet_field_value;
 pub mod fleet_message;
 pub mod ping_format;
 pub mod ping_format_field;
+pub mod ping_format_field_value;
 pub mod ping_group;
 pub mod user;
 pub mod user_discord_guild_role;
