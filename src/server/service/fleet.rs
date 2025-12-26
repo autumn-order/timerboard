@@ -130,7 +130,11 @@ impl<'a> FleetService<'a> {
         let result = fleet_repo.get_by_id(id).await?;
 
         if let Some((fleet, field_values_by_id)) = result {
-            let Some(category) = category_repo.find_by_id(id).await?.map(|c| c.category) else {
+            let Some(category) = category_repo
+                .find_by_id(fleet.category_id)
+                .await?
+                .map(|c| c.category)
+            else {
                 return Err(AppError::NotFound("Category not found".to_string()));
             };
 
