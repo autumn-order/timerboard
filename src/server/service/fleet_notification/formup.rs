@@ -4,19 +4,20 @@
 //! Formup messages are posted as replies to the most recent existing messages (reminder or creation).
 
 use dioxus_logger::tracing;
-use serenity::all::{ChannelId, CreateMessage, MessageId, MessageReference};
+use serenity::all::{ChannelId, CreateEmbed, CreateMessage, MessageId, MessageReference};
 
 use crate::server::{
-    data::{
-        category::FleetCategoryRepository, fleet_message::FleetMessageRepository,
-        ping_format::field::PingFormatFieldRepository,
-    },
+    data::fleet_message::FleetMessageRepository,
     error::AppError,
-    model::{fleet::Fleet, fleet_message::CreateFleetMessageParam},
+    model::{
+        category::FleetCategoryWithRelations,
+        fleet::Fleet,
+        fleet_message::{CreateFleetMessageParam, FleetMessage},
+    },
     util::parse::parse_u64_from_string,
 };
 
-use super::{builder, FleetNotificationService};
+use super::FleetNotificationService;
 
 impl<'a> FleetNotificationService<'a> {
     /// Posts fleet formup message as a reply to existing fleet messages.
@@ -39,8 +40,6 @@ impl<'a> FleetNotificationService<'a> {
         fleet: &Fleet,
         field_values: &std::collections::HashMap<i32, String>,
     ) -> Result<(), AppError> {
-        let ping_format_field_repo = PingFormatFieldRepository::new(self.db);
-        let category_repo = FleetCategoryRepository::new(self.db);
         let message_repo = FleetMessageRepository::new(self.db);
 
         // Get existing messages to reply to
@@ -55,54 +54,66 @@ impl<'a> FleetNotificationService<'a> {
         }
 
         // Get category with channels and ping roles
-        let Some(category_data) = category_repo.find_by_id(fleet.category_id).await? else {
-            return Err(AppError::NotFound("Fleet category not found".to_string()));
-        };
-
-        // Get guild_id for fetching commander name
-        let guild_id = parse_u64_from_string(category_data.category.guild_id)?;
-
-        // Get ping format fields for the category
-        let Some(ping_format) = category_data.ping_format else {
-            return Err(AppError::NotFound("Ping format not found".to_string()));
-        };
-
-        let fields = ping_format_field_repo
-            .get_by_ping_format_id(guild_id, ping_format.id)
+        let (category_data, guild_id) = self
+            .get_category_data_with_guild_id(fleet.category_id)
             .await?;
 
-        // Fetch commander name from Discord
-        let commander_name =
-            builder::get_commander_name(self.http.clone(), fleet, guild_id).await?;
+        // Get ping format fields for the category
+        let fields = self
+            .get_ping_format_fields(&category_data, guild_id)
+            .await?;
 
-        // Build embed with red color for formup (urgency)
-        let embed = builder::build_fleet_embed(
-            fleet,
-            &fields,
-            field_values,
-            0xe74c3c, // Red color for formup
-            &commander_name,
-            &self.app_url,
-        )
-        .await?;
+        // Build embed with commander name
+        let embed = self
+            .build_fleet_embed_with_commander(
+                fleet,
+                &fields[..],
+                field_values,
+                0xe74c3c, // Red color for formup
+                guild_id,
+            )
+            .await?;
 
         // Build title for formup
         let title = format!("**.:{} Forming Now:.**", category_data.category.name);
 
         // Build ping content with title
-        let mut content = format!("{}\n\n", title);
-        for (ping_role, _) in &category_data.ping_roles {
-            let role_id = parse_u64_from_string(ping_role.role_id.clone())?;
-
-            // @everyone role has the same ID as the guild - use @everyone instead of <@&guild_id>
-            if role_id == guild_id {
-                content.push_str("@everyone ");
-            } else {
-                content.push_str(&format!("<@&{}> ", role_id));
-            }
-        }
+        let content = self.build_ping_content(&title, &category_data, guild_id)?;
 
         // Post to all configured channels
+        self.post_formup_messages(
+            fleet,
+            &message_repo,
+            &existing_messages,
+            &category_data,
+            &content,
+            &embed,
+        )
+        .await
+    }
+
+    /// Posts fleet formup messages to all configured channels.
+    ///
+    /// # Arguments
+    /// - `fleet` - Fleet data
+    /// - `message_repo` - Fleet message repository
+    /// - `existing_messages` - Existing messages for reference replies
+    /// - `category_data` - Category data with channels
+    /// - `content` - Message content with role pings
+    /// - `embed` - Fleet embed to post
+    ///
+    /// # Returns
+    /// - `Ok(())` - Successfully posted to all channels (or failed gracefully)
+    /// - `Err(AppError)` - Critical error (database or parsing)
+    async fn post_formup_messages(
+        &self,
+        fleet: &Fleet,
+        message_repo: &FleetMessageRepository<'_>,
+        existing_messages: &[FleetMessage],
+        category_data: &FleetCategoryWithRelations,
+        content: &str,
+        embed: &CreateEmbed,
+    ) -> Result<(), AppError> {
         for (channel, _) in &category_data.channels {
             let channel_id_u64 = parse_u64_from_string(channel.channel_id.clone())?;
             let channel_id = ChannelId::new(channel_id_u64);
@@ -113,7 +124,7 @@ impl<'a> FleetNotificationService<'a> {
                 .filter(|m| m.channel_id == channel_id_u64)
                 .max_by_key(|m| &m.created_at);
 
-            let mut message = CreateMessage::new().content(&content).embed(embed.clone());
+            let mut message = CreateMessage::new().content(content).embed(embed.clone());
 
             // Reply to the most recent message if it exists
             if let Some(ref_msg) = reference_msg {

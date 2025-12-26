@@ -525,7 +525,9 @@ impl<'a> FleetService<'a> {
                         self.discord_http.clone(),
                         self.app_url.clone(),
                     );
-                    notification_service.cancel_fleet_messages(&fleet).await?;
+                    notification_service
+                        .cancel_fleet_messages(&fleet, self.app_url.as_str())
+                        .await?;
 
                     fleet_repo.delete(id).await?;
                     return Ok(true);

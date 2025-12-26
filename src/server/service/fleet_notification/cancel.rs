@@ -7,10 +7,9 @@ use dioxus_logger::tracing;
 use serenity::all::{ChannelId, CreateEmbed, EditMessage, MessageId, Timestamp};
 
 use crate::server::{
-    data::{category::FleetCategoryRepository, fleet_message::FleetMessageRepository},
+    data::fleet_message::FleetMessageRepository,
     error::{internal::InternalError, AppError},
-    model::fleet::Fleet,
-    util::parse::parse_u64_from_string,
+    model::{fleet::Fleet, fleet_message::FleetMessage},
 };
 
 use super::{builder, FleetNotificationService};
@@ -31,9 +30,12 @@ impl<'a> FleetNotificationService<'a> {
     /// - `Err(AppError::NotFound)` - Fleet category not found
     /// - `Err(AppError::InternalError)` - Invalid ID format or timestamp
     /// - `Err(AppError::Database)` - Database error retrieving messages
-    pub async fn cancel_fleet_messages(&self, fleet: &Fleet) -> Result<(), AppError> {
+    pub async fn cancel_fleet_messages(
+        &self,
+        fleet: &Fleet,
+        app_url: &str,
+    ) -> Result<(), AppError> {
         let message_repo = FleetMessageRepository::new(self.db);
-        let category_repo = FleetCategoryRepository::new(self.db);
 
         // Get all existing messages for this fleet
         let messages = message_repo.get_by_fleet_id(fleet.id).await?;
@@ -43,13 +45,10 @@ impl<'a> FleetNotificationService<'a> {
             return Ok(());
         }
 
-        // Get category data for guild_id and name
-        let category_data = category_repo
-            .find_by_id(fleet.category_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Fleet category not found".to_string()))?;
-
-        let guild_id = parse_u64_from_string(category_data.category.guild_id)?;
+        // Get category data and guild_id
+        let (category_data, guild_id) = self
+            .get_category_data_with_guild_id(fleet.category_id)
+            .await?;
 
         // Fetch commander name from Discord
         let commander_name =
@@ -65,7 +64,8 @@ impl<'a> FleetNotificationService<'a> {
         })?;
 
         let embed = CreateEmbed::new()
-            .title(format!(".:{}  Cancelled:.", category_data.category.name))
+            .title(format!(".:{} Cancelled:.", category_data.category.name))
+            .url(app_url)
             .color(0x95a5a6) // Gray color for cancellation
             .description(format!(
                 "{} posted by <@{}>, **{}**, scheduled for **{} UTC** (<t:{}:F>) was cancelled.",
@@ -82,6 +82,22 @@ impl<'a> FleetNotificationService<'a> {
             .timestamp(timestamp);
 
         // Update each message with cancellation notice
+        self.cancel_existing_messages(&messages, &embed).await
+    }
+
+    /// Cancels existing fleet messages by editing them with cancellation embed.
+    ///
+    /// # Arguments
+    /// - `messages` - Existing fleet messages to cancel
+    /// - `embed` - Cancellation embed to set
+    ///
+    /// # Returns
+    /// - `Ok(())` - Successfully cancelled all messages (or failed gracefully)
+    async fn cancel_existing_messages(
+        &self,
+        messages: &[FleetMessage],
+        embed: &CreateEmbed,
+    ) -> Result<(), AppError> {
         for message in messages {
             let channel_id = ChannelId::new(message.channel_id);
             let msg_id = MessageId::new(message.message_id);

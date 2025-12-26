@@ -148,108 +148,180 @@ impl<'a> FleetNotificationService<'a> {
 
             if should_edit {
                 // Edit the existing message since it's still the most recent
-                let edit_message = EditMessage::new().embed(embed);
-
-                match self
-                    .http
-                    .edit_message(
-                        channel_id_obj,
-                        MessageId::new(existing.message_id),
-                        &edit_message,
-                        vec![],
-                    )
-                    .await
-                {
-                    Ok(_) => {
-                        // Update the updated_at timestamp
-                        list_repo
-                            .upsert(UpsertChannelFleetListParam {
-                                channel_id,
-                                message_id: existing.message_id,
-                            })
-                            .await?;
-                        tracing::info!(
-                            "Edited existing upcoming fleets list in channel {}",
-                            channel_id
-                        );
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "Failed to edit upcoming fleets list in channel {}: {}",
-                            channel_id,
-                            e
-                        );
-                    }
-                }
+                self.edit_fleet_list_message(
+                    channel_id_obj,
+                    existing.message_id,
+                    embed,
+                    &list_repo,
+                    channel_id,
+                )
+                .await?;
             } else {
                 // Delete old message and post new one (to be most recent in channel)
-                match self
-                    .http
-                    .delete_message(channel_id_obj, MessageId::new(existing.message_id), None)
-                    .await
-                {
-                    Ok(_) => {
-                        tracing::debug!(
-                            "Deleted old upcoming fleets list in channel {} (not most recent)",
-                            channel_id
-                        );
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            "Failed to delete old upcoming fleets list in channel {}: {}",
-                            channel_id,
-                            e
-                        );
-                        // Continue anyway to post new message
-                    }
-                }
-
-                // Post new message
-                let new_message = CreateMessage::new().embed(embed);
-
-                match channel_id_obj.send_message(&self.http, new_message).await {
-                    Ok(msg) => {
-                        list_repo
-                            .upsert(UpsertChannelFleetListParam {
-                                channel_id,
-                                message_id: msg.id.get(),
-                            })
-                            .await?;
-                        tracing::info!("Posted new upcoming fleets list in channel {}", channel_id);
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "Failed to post upcoming fleets list in channel {}: {}",
-                            channel_id,
-                            e
-                        );
-                    }
-                }
+                self.delete_and_repost_fleet_list(
+                    channel_id_obj,
+                    existing.message_id,
+                    embed,
+                    &list_repo,
+                    channel_id,
+                )
+                .await?;
             }
         } else {
             // No existing list, post new message
-            let new_message = CreateMessage::new().embed(embed);
+            self.post_new_fleet_list_message(channel_id_obj, embed, &list_repo, channel_id)
+                .await?;
+        }
 
-            match channel_id_obj.send_message(&self.http, new_message).await {
-                Ok(msg) => {
-                    list_repo
-                        .upsert(UpsertChannelFleetListParam {
-                            channel_id,
-                            message_id: msg.id.get(),
-                        })
-                        .await?;
-                    tracing::info!("Posted new upcoming fleets list in channel {}", channel_id);
-                }
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to post upcoming fleets list in channel {}: {}",
-                        channel_id,
-                        e
-                    );
-                }
+        Ok(())
+    }
+
+    /// Edits an existing fleet list message.
+    ///
+    /// # Arguments
+    /// - `channel_id` - Discord channel ID object
+    /// - `message_id` - Existing message ID to edit
+    /// - `embed` - New embed to set
+    /// - `list_repo` - Channel fleet list repository
+    /// - `channel_id_u64` - Channel ID as u64 for repository operations
+    ///
+    /// # Returns
+    /// - `Ok(())` - Successfully edited message
+    /// - `Err(AppError)` - Database error
+    async fn edit_fleet_list_message(
+        &self,
+        channel_id: ChannelId,
+        message_id: u64,
+        embed: CreateEmbed,
+        list_repo: &ChannelFleetListRepository<'_>,
+        channel_id_u64: u64,
+    ) -> Result<(), AppError> {
+        let edit_message = EditMessage::new().embed(embed);
+
+        match self
+            .http
+            .edit_message(
+                channel_id,
+                MessageId::new(message_id),
+                &edit_message,
+                vec![],
+            )
+            .await
+        {
+            Ok(_) => {
+                // Update the updated_at timestamp
+                list_repo
+                    .upsert(UpsertChannelFleetListParam {
+                        channel_id: channel_id_u64,
+                        message_id,
+                    })
+                    .await?;
+                tracing::info!(
+                    "Edited existing upcoming fleets list in channel {}",
+                    channel_id_u64
+                );
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to edit upcoming fleets list in channel {}: {}",
+                    channel_id_u64,
+                    e
+                );
             }
         }
 
         Ok(())
+    }
+
+    /// Posts a new fleet list message.
+    ///
+    /// # Arguments
+    /// - `channel_id` - Discord channel ID object
+    /// - `embed` - Embed to post
+    /// - `list_repo` - Channel fleet list repository
+    /// - `channel_id_u64` - Channel ID as u64 for repository operations
+    ///
+    /// # Returns
+    /// - `Ok(())` - Successfully posted message
+    /// - `Err(AppError)` - Database error
+    async fn post_new_fleet_list_message(
+        &self,
+        channel_id: ChannelId,
+        embed: CreateEmbed,
+        list_repo: &ChannelFleetListRepository<'_>,
+        channel_id_u64: u64,
+    ) -> Result<(), AppError> {
+        let new_message = CreateMessage::new().embed(embed);
+
+        match channel_id.send_message(&self.http, new_message).await {
+            Ok(msg) => {
+                list_repo
+                    .upsert(UpsertChannelFleetListParam {
+                        channel_id: channel_id_u64,
+                        message_id: msg.id.get(),
+                    })
+                    .await?;
+                tracing::info!(
+                    "Posted new upcoming fleets list in channel {}",
+                    channel_id_u64
+                );
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to post upcoming fleets list in channel {}: {}",
+                    channel_id_u64,
+                    e
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Deletes an old fleet list message and posts a new one.
+    ///
+    /// # Arguments
+    /// - `channel_id` - Discord channel ID object
+    /// - `old_message_id` - Old message ID to delete
+    /// - `embed` - New embed to post
+    /// - `list_repo` - Channel fleet list repository
+    /// - `channel_id_u64` - Channel ID as u64 for repository operations
+    ///
+    /// # Returns
+    /// - `Ok(())` - Successfully deleted and posted
+    /// - `Err(AppError)` - Database error
+    async fn delete_and_repost_fleet_list(
+        &self,
+        channel_id: ChannelId,
+        old_message_id: u64,
+        embed: CreateEmbed,
+        list_repo: &ChannelFleetListRepository<'_>,
+        channel_id_u64: u64,
+    ) -> Result<(), AppError> {
+        // Delete old message
+        match self
+            .http
+            .delete_message(channel_id, MessageId::new(old_message_id), None)
+            .await
+        {
+            Ok(_) => {
+                tracing::debug!(
+                    "Deleted old upcoming fleets list in channel {} (not most recent)",
+                    channel_id_u64
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to delete old upcoming fleets list in channel {}: {}",
+                    channel_id_u64,
+                    e
+                );
+                // Continue anyway to post new message
+            }
+        }
+
+        // Post new message
+        self.post_new_fleet_list_message(channel_id, embed, list_repo, channel_id_u64)
+            .await
     }
 }
