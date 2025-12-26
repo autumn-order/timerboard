@@ -281,10 +281,9 @@ pub fn router(config: &Config) -> Result<Router<AppState>, AppError> {
         ])
         .allow_credentials(true); // Required for session cookies
 
-    // Configure rate limiting: 10 requests per second per IP with burst of 20
     let governor_conf = GovernorConfigBuilder::default()
-        .per_second(20)
-        .burst_size(50)
+        .per_second(40)
+        .burst_size(100)
         .key_extractor(SmartIpKeyExtractor)
         .use_headers()
         .finish()
