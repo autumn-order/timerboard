@@ -130,7 +130,11 @@ impl<'a> FleetService<'a> {
         let result = fleet_repo.get_by_id(id).await?;
 
         if let Some((fleet, field_values_by_id)) = result {
-            let Some(category) = category_repo.find_by_id(id).await?.map(|c| c.category) else {
+            let Some(category) = category_repo
+                .find_by_id(fleet.category_id)
+                .await?
+                .map(|c| c.category)
+            else {
                 return Err(AppError::NotFound("Category not found".to_string()));
             };
 
@@ -186,8 +190,9 @@ impl<'a> FleetService<'a> {
             };
 
             // Fetch field names for the ping format
+            let guild_id = parse_u64_from_string(category.guild_id.clone())?;
             let fields = ping_format_field_repo
-                .get_by_ping_format_id(category.ping_format_id)
+                .get_by_ping_format_id(guild_id, category.ping_format_id)
                 .await?;
 
             let field_name_map: HashMap<i32, String> =

@@ -5,6 +5,13 @@ use utoipa::ToSchema;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "server", derive(ToSchema))]
+pub enum PingFormatFieldType {
+    Text,
+    Bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(ToSchema))]
 pub struct PingFormatDto {
     pub id: i32,
     #[serde(
@@ -25,7 +32,8 @@ pub struct PingFormatFieldDto {
     pub ping_format_id: i32,
     pub name: String,
     pub priority: i32,
-    pub default_value: Option<String>,
+    pub field_type: PingFormatFieldType,
+    pub default_field_values: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,7 +48,8 @@ pub struct CreatePingFormatDto {
 pub struct CreatePingFormatFieldDto {
     pub name: String,
     pub priority: i32,
-    pub default_value: Option<String>,
+    pub field_type: PingFormatFieldType,
+    pub default_field_values: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,7 +65,8 @@ pub struct UpdatePingFormatFieldDto {
     pub id: Option<i32>,
     pub name: String,
     pub priority: i32,
-    pub default_value: Option<String>,
+    pub field_type: PingFormatFieldType,
+    pub default_field_values: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

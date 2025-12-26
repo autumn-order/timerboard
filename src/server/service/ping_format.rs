@@ -13,10 +13,9 @@ use crate::server::{
     },
     error::AppError,
     model::ping_format::{
-        CreatePingFormatFieldParam, CreatePingFormatParam, CreatePingFormatWithFieldsParam,
-        DeletePingFormatParam, GetPaginatedPingFormatsParam, PaginatedPingFormats,
-        PingFormatWithFields, UpdatePingFormatFieldParam, UpdatePingFormatParam,
-        UpdatePingFormatWithFieldsParam,
+        CreateFieldData, CreatePingFormatParam, CreatePingFormatWithFieldsParam,
+        GetPaginatedPingFormatsParam, PaginatedPingFormats, PingFormatWithFields, UpdateFieldData,
+        UpdatePingFormatParam, UpdatePingFormatWithFieldsParam,
     },
 };
 
@@ -69,14 +68,18 @@ impl<'a> PingFormatService<'a> {
 
         // Create all the fields
         let mut result_fields = Vec::new();
-        for (field_name, priority, default_value) in param.fields {
+        for field_data in param.fields {
             let field = field_repo
-                .create(CreatePingFormatFieldParam {
-                    ping_format_id: ping_format.id,
-                    name: field_name,
-                    priority,
-                    default_value,
-                })
+                .create(
+                    param.guild_id,
+                    ping_format.id,
+                    CreateFieldData {
+                        name: field_data.name,
+                        priority: field_data.priority,
+                        field_type: field_data.field_type,
+                        default_field_values: field_data.default_field_values,
+                    },
+                )
                 .await?;
             result_fields.push(field);
         }
@@ -129,7 +132,9 @@ impl<'a> PingFormatService<'a> {
 
         let mut ping_format_with_fields = Vec::new();
         for ping_format in ping_formats {
-            let fields = field_repo.get_by_ping_format_id(ping_format.id).await?;
+            let fields = field_repo
+                .get_by_ping_format_id(param.guild_id, ping_format.id)
+                .await?;
 
             let fleet_category_count = format_repo.get_fleet_category_count(ping_format.id).await?;
 
@@ -166,13 +171,13 @@ impl<'a> PingFormatService<'a> {
     /// - `param` - Parameters containing format ID, guild ID, new name, and field updates
     ///
     /// # Returns
-    /// - `Ok(Some(PingFormatWithFields))` - Updated ping format with all fields
-    /// - `Ok(None)` - Ping format not found or doesn't belong to the guild
+    /// - `Ok(PingFormatWithFields)` - Updated ping format with all fields
+    /// - `Err(AppError::NotFound)` - Ping format not found or doesn't belong to the guild
     /// - `Err(AppError::Database)` - Database error during update operations
     pub async fn update(
         &self,
         param: UpdatePingFormatWithFieldsParam,
-    ) -> Result<Option<PingFormatWithFields>, AppError> {
+    ) -> Result<PingFormatWithFields, AppError> {
         let format_repo = PingFormatRepository::new(self.db);
         let field_repo = PingFormatFieldRepository::new(self.db);
 
@@ -181,7 +186,10 @@ impl<'a> PingFormatService<'a> {
             .exists_in_guild(param.id, param.guild_id)
             .await?
         {
-            return Ok(None);
+            return Err(AppError::NotFound(format!(
+                "Ping format ID {} not found for guild ID {}",
+                param.id, param.guild_id
+            )));
         }
 
         // Update the ping format
@@ -193,34 +201,44 @@ impl<'a> PingFormatService<'a> {
             .await?;
 
         // Get existing fields
-        let existing_fields = field_repo.get_by_ping_format_id(ping_format.id).await?;
+        let existing_fields = field_repo
+            .get_by_ping_format_id(param.guild_id, ping_format.id)
+            .await?;
 
         // Determine which fields to keep, update, or create
         let mut updated_fields = Vec::new();
         let mut existing_field_ids: Vec<i32> = Vec::new();
 
-        for (field_id, field_name, priority, default_value) in param.fields {
-            if let Some(id) = field_id {
+        for field_data in param.fields {
+            if let Some(id) = field_data.id {
                 // Update existing field
                 let field = field_repo
-                    .update(UpdatePingFormatFieldParam {
+                    .update(
+                        param.guild_id,
                         id,
-                        name: field_name,
-                        priority,
-                        default_value,
-                    })
+                        UpdateFieldData {
+                            name: field_data.name,
+                            priority: field_data.priority,
+                            field_type: field_data.field_type,
+                            default_field_values: field_data.default_field_values,
+                        },
+                    )
                     .await?;
                 existing_field_ids.push(id);
                 updated_fields.push(field);
             } else {
                 // Create new field
                 let field = field_repo
-                    .create(CreatePingFormatFieldParam {
-                        ping_format_id: ping_format.id,
-                        name: field_name,
-                        priority,
-                        default_value,
-                    })
+                    .create(
+                        param.guild_id,
+                        ping_format.id,
+                        CreateFieldData {
+                            name: field_data.name,
+                            priority: field_data.priority,
+                            field_type: field_data.field_type,
+                            default_field_values: field_data.default_field_values,
+                        },
+                    )
                     .await?;
                 updated_fields.push(field);
             }
@@ -229,7 +247,7 @@ impl<'a> PingFormatService<'a> {
         // Delete fields that are no longer present
         for existing_field in existing_fields {
             if !existing_field_ids.contains(&existing_field.id) {
-                field_repo.delete(existing_field.id).await?;
+                field_repo.delete(param.guild_id, existing_field.id).await?;
             }
         }
 
@@ -241,12 +259,12 @@ impl<'a> PingFormatService<'a> {
         let categories = category_repo.get_by_ping_format_id(ping_format.id).await?;
         let fleet_category_names: Vec<String> = categories.into_iter().map(|c| c.name).collect();
 
-        Ok(Some(PingFormatWithFields {
+        Ok(PingFormatWithFields {
             ping_format,
             fields: updated_fields,
             fleet_category_count,
             fleet_category_names,
-        }))
+        })
     }
 
     /// Deletes a ping format and all its fields.
@@ -257,26 +275,27 @@ impl<'a> PingFormatService<'a> {
     /// cascade rules.
     ///
     /// # Arguments
-    /// - `param` - Parameters containing the format ID and guild ID for verification
+    /// - `guild_id` - Discord guild ID for verification
+    /// - `id` - ID of the ping format to delete
     ///
     /// # Returns
-    /// - `Ok(true)` - Ping format was successfully deleted
-    /// - `Ok(false)` - Ping format not found or doesn't belong to the guild
+    /// - `Ok(())` - Ping format was successfully deleted
+    /// - `Err(AppError::NotFound)` - Ping format not found or doesn't belong to the guild
     /// - `Err(AppError::BadRequest)` - Fleet categories are still using this format
     /// - `Err(AppError::Database)` - Database error during deletion
-    pub async fn delete(&self, param: DeletePingFormatParam) -> Result<bool, AppError> {
+    pub async fn delete(&self, guild_id: u64, id: i32) -> Result<(), AppError> {
         let format_repo = PingFormatRepository::new(self.db);
 
         // Check if ping format exists and belongs to the guild
-        if !format_repo
-            .exists_in_guild(param.id, param.guild_id)
-            .await?
-        {
-            return Ok(false);
+        if !format_repo.exists_in_guild(id, guild_id).await? {
+            return Err(AppError::NotFound(format!(
+                "Ping format ID {} not found for guild ID {}",
+                id, guild_id
+            )));
         }
 
         // Check if there are any fleet categories using this ping format
-        let fleet_category_count = format_repo.get_fleet_category_count(param.id).await?;
+        let fleet_category_count = format_repo.get_fleet_category_count(id).await?;
         if fleet_category_count > 0 {
             return Err(AppError::BadRequest(format!(
                 "Cannot delete ping format: {} fleet {} still using this format. Please delete or reassign the {} first.",
@@ -287,8 +306,8 @@ impl<'a> PingFormatService<'a> {
         }
 
         // Delete the ping format (fields will be deleted by cascade)
-        format_repo.delete(param.id).await?;
+        format_repo.delete(id).await?;
 
-        Ok(true)
+        Ok(())
     }
 }

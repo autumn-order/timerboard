@@ -4,20 +4,21 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+
 use serde::Deserialize;
 use tower_sessions::Session;
 
 use crate::{
     model::{
         api::ErrorDto,
-        category::{FleetCategoryDetailsDto, PingFormatFieldDto},
+        category::FleetCategoryDetailsDto,
         discord::DiscordGuildMemberDto,
         fleet::{CreateFleetDto, FleetDto, PaginatedFleetsDto, UpdateFleetDto},
     },
     server::{
         data::{
-            category::FleetCategoryRepository, ping_group::PingGroupRepository,
+            category::FleetCategoryRepository, ping_format::field::PingFormatFieldRepository,
+            ping_group::PingGroupRepository,
             user_category_permission::UserCategoryPermissionRepository,
         },
         error::{auth::AuthError, AppError},
@@ -93,20 +94,20 @@ pub async fn get_category_details(
         .ok_or_else(|| AppError::NotFound("Category not found".to_string()))?;
 
     // Get ping format fields
-    let fields = entity::prelude::PingFormatField::find()
-        .filter(
-            entity::ping_format_field::Column::PingFormatId
-                .eq(category_with_relations.category.ping_format_id),
-        )
-        .order_by_asc(entity::ping_format_field::Column::Priority)
-        .all(&state.db)
+    let field_repo = PingFormatFieldRepository::new(&state.db);
+    let fields = field_repo
+        .get_by_ping_format_id(guild_id, category_with_relations.category.ping_format_id)
         .await?
         .into_iter()
-        .map(|f| PingFormatFieldDto {
-            id: f.id,
-            name: f.name,
-            priority: f.priority,
-            default_value: f.default_value,
+        .map(|f| {
+            let dto = f.into_dto();
+            crate::model::category::PingFormatFieldDto {
+                id: dto.id,
+                name: dto.name,
+                priority: dto.priority,
+                field_type: dto.field_type,
+                default_field_values: dto.default_field_values,
+            }
         })
         .collect();
 

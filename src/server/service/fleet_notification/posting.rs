@@ -459,7 +459,7 @@ impl<'a> FleetNotificationPosting<'a> {
         };
 
         let fields = ping_format_field_repo
-            .get_by_ping_format_id(ping_format.id)
+            .get_by_ping_format_id(guild_id, ping_format.id)
             .await?;
 
         // Fetch commander name from Discord

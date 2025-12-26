@@ -9,7 +9,7 @@ pub struct Model {
     pub ping_format_id: i32,
     pub name: String,
     pub priority: i32,
-    pub default_value: Option<String>,
+    pub field_type: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -24,6 +24,8 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     PingFormat,
+    #[sea_orm(has_many = "super::ping_format_field_value::Entity")]
+    PingFormatFieldValue,
 }
 
 impl Related<super::fleet_field_value::Entity> for Entity {
@@ -35,6 +37,12 @@ impl Related<super::fleet_field_value::Entity> for Entity {
 impl Related<super::ping_format::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::PingFormat.def()
+    }
+}
+
+impl Related<super::ping_format_field_value::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::PingFormatFieldValue.def()
     }
 }
 

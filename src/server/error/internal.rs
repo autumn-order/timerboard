@@ -30,4 +30,25 @@ pub enum InternalError {
         /// The reason for conversion failure
         reason: String,
     },
+
+    /// Invalid value in database that doesn't match expected constraints
+    ///
+    /// Occurs when database contains data that violates application invariants,
+    /// such as invalid enum values or malformed data. This indicates either a
+    /// database integrity issue or a bug in write operations.
+    /// Results in a 500 Internal Server Error with a generic message returned
+    /// to client.
+    #[error(
+        "Invalid database value in {table}.{field}: expected one of [{expected}], got '{actual}'"
+    )]
+    InvalidDatabaseValue {
+        /// The database table name
+        table: &'static str,
+        /// The field/column name
+        field: &'static str,
+        /// Expected valid values (comma-separated)
+        expected: &'static str,
+        /// The actual invalid value found
+        actual: String,
+    },
 }

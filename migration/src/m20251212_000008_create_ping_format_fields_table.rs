@@ -46,4 +46,5 @@ pub enum PingFormatField {
     Name,
     Priority,
     DefaultValue,
+    FieldType,
 }

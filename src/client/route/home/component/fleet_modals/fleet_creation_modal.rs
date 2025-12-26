@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use crate::{
     client::{component::modal::FullScreenModal, model::error::ApiError, store::user::UserState},
-    model::fleet::CreateFleetDto,
+    model::{fleet::CreateFleetDto, ping_format::PingFormatFieldType},
 };
 
 use super::FleetFormFields;
@@ -283,9 +283,16 @@ pub fn FleetCreationModal(
         if let Some(Ok(details)) = category_details() {
             let mut defaults = HashMap::new();
             for field in &details.fields {
-                if let Some(default_val) = &field.default_value {
-                    if !default_val.is_empty() {
-                        defaults.insert(field.id, default_val.clone());
+                match field.field_type {
+                    PingFormatFieldType::Bool => {
+                        // Initialize bool fields to "false"
+                        defaults.insert(field.id, "false".to_string());
+                    }
+                    PingFormatFieldType::Text => {
+                        // Initialize text fields with first default value if available
+                        if !field.default_field_values.is_empty() {
+                            defaults.insert(field.id, field.default_field_values[0].clone());
+                        }
                     }
                 }
             }

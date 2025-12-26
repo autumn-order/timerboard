@@ -11,9 +11,12 @@ use serenity::{
 };
 use std::sync::Arc;
 
-use crate::server::{
-    error::{internal::InternalError, AppError},
-    model::{fleet::Fleet, ping_format::PingFormatField},
+use crate::{
+    model::ping_format::PingFormatFieldType,
+    server::{
+        error::{internal::InternalError, AppError},
+        model::{fleet::Fleet, ping_format::PingFormatField},
+    },
 };
 
 /// Service struct for accessing builder methods.
@@ -144,7 +147,16 @@ impl FleetNotificationBuilder {
         for field in fields {
             if let Some(value) = field_values.get(&field.id) {
                 if !value.is_empty() {
-                    embed = embed.field(&field.name, value, false);
+                    // Format boolean values as "Yes"/"No" for better readability
+                    let display_value = match field.field_type {
+                        PingFormatFieldType::Bool => match value.as_str() {
+                            "true" => "Yes",
+                            "false" => "No",
+                            _ => value.as_str(),
+                        },
+                        PingFormatFieldType::Text => value.as_str(),
+                    };
+                    embed = embed.field(&field.name, display_value, false);
                 }
             }
         }
