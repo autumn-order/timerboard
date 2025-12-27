@@ -25,13 +25,7 @@ pub fn App() -> Element {
     // Fetch user on first load
     #[cfg(feature = "web")]
     {
-        let future = use_resource(|| async move { get_user().await });
-
-        if let Some(result) = &*future.read_unchecked() {
-            let _ = user_cache
-                .write()
-                .update_from_optional_result(result.clone());
-        }
+        user_cache.fetch_option(get_user);
     }
 
     rsx! {

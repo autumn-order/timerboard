@@ -1,4 +1,8 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    fmt::Display,
+    future::Future,
+    ops::{Deref, DerefMut},
+};
 
 use dioxus::prelude::*;
 
@@ -21,6 +25,34 @@ impl<T: 'static> Cache<T> {
 
     pub fn write(&mut self) -> impl DerefMut<Target = CacheData<T>> + '_ {
         self.inner.write()
+    }
+
+    pub fn fetch<F, Fut, E>(&mut self, fetcher: F)
+    where
+        F: Fn() -> Fut + 'static,
+        Fut: Future<Output = Result<T, E>> + 'static,
+        T: Clone,
+        E: Clone + Display + 'static,
+    {
+        let future = use_resource(fetcher);
+
+        if let Some(result) = &*future.read_unchecked() {
+            let _ = self.write().update_from_result(result.clone());
+        }
+    }
+
+    pub fn fetch_option<F, Fut, E>(&mut self, fetcher: F)
+    where
+        F: Fn() -> Fut + 'static,
+        Fut: Future<Output = Result<Option<T>, E>> + 'static,
+        T: Clone,
+        E: Clone + Display + 'static,
+    {
+        let future = use_resource(fetcher);
+
+        if let Some(result) = &*future.read_unchecked() {
+            let _ = self.write().update_from_optional_result(result.clone());
+        }
     }
 }
 
