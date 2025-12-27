@@ -1,13 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::client::{
-    constant::SITE_NAME,
-    model::{auth::AuthState, cache::Cache},
-    router::Route,
-};
-
-#[cfg(feature = "web")]
-use crate::client::api::user::get_user;
+use crate::client::{constant::SITE_NAME, model::auth::AuthContext, router::Route};
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
@@ -21,12 +14,12 @@ const LOGO: Asset = asset!(
 
 #[component]
 pub fn App() -> Element {
-    let mut auth_cache = use_context_provider(Cache::<AuthState>::new);
+    let mut auth_context = use_context_provider(AuthContext::new);
 
     // Fetch user on first load
     #[cfg(feature = "web")]
     {
-        auth_cache.fetch(|| async { get_user().await.map(AuthState::from) });
+        auth_context.fetch_user();
     }
 
     rsx! {

@@ -3,10 +3,7 @@ use dioxus_free_icons::{icons::fa_brands_icons::FaDiscord, Icon};
 
 use crate::client::{
     constant::SITE_NAME,
-    model::{
-        auth::AuthState,
-        cache::{Cache, CacheState},
-    },
+    model::auth::{AuthContext, AuthState},
     router::Route,
 };
 
@@ -20,8 +17,8 @@ const LOGO: Asset = asset!(
 
 #[component]
 pub fn Header() -> Element {
-    let auth_cache = use_context::<Cache<AuthState>>();
-    let cache = auth_cache.read();
+    let auth_context = use_context::<AuthContext>();
+    let auth = auth_context.read();
 
     rsx!(div {
         class: "fixed flex justify-between gap-4 w-full h-20 py-2 px-4 bg-base-200 z-20",
@@ -46,14 +43,14 @@ pub fn Header() -> Element {
         }
         div {
             class: "flex items-center gap-2",
-            {render_auth_buttons(&cache)}
+            {render_auth_buttons(&auth)}
         }
     })
 }
 
-fn render_auth_buttons(cache: &CacheState<AuthState>) -> Element {
-    match cache {
-        CacheState::Fetched(AuthState::Authenticated(user)) => rsx! {
+fn render_auth_buttons(state: &AuthState) -> Element {
+    match state {
+        AuthState::Authenticated(user) => rsx! {
             if user.admin {
                 Link {
                     to: Route::AdminServers {},
@@ -69,7 +66,7 @@ fn render_auth_buttons(cache: &CacheState<AuthState>) -> Element {
                 }
             }
         },
-        CacheState::Fetched(AuthState::NotLoggedIn) | CacheState::Error(_) => rsx! {
+        AuthState::NotLoggedIn | AuthState::Error(_) => rsx! {
             a {
                 href: "/api/auth/login",
                 div {
@@ -83,6 +80,6 @@ fn render_auth_buttons(cache: &CacheState<AuthState>) -> Element {
                 }
             }
         },
-        CacheState::NotFetched => rsx! {},
+        AuthState::Initializing => rsx! {},
     }
 }

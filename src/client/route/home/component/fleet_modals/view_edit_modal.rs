@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use crate::{
     client::{
         component::modal::{ConfirmationModal, FullScreenModal},
-        model::{auth::AuthState, cache::Cache, error::ApiError},
+        model::{auth::AuthContext, error::ApiError},
     },
     model::{
         category::FleetCategoryDetailsDto, fleet::UpdateFleetDto, ping_format::PingFormatFieldType,
@@ -39,11 +39,11 @@ pub fn FleetViewEditModal(
     mut show: Signal<bool>,
     mut refetch_trigger: Signal<u32>,
 ) -> Element {
-    let auth_cache = use_context::<Cache<AuthState>>();
-    let cache = auth_cache.read();
+    let auth_context = use_context::<AuthContext>();
+    let state = auth_context.read();
 
-    let current_user = cache.and_then(|auth| auth.user().cloned());
-    let current_user_id = cache.and_then(|auth| auth.user_id());
+    let current_user = state.user().cloned();
+    let current_user_id = state.user_id();
 
     let mut mode = use_signal(|| ViewEditMode::View);
     let mut fleet_data = use_signal(|| None::<Result<crate::model::fleet::FleetDto, ApiError>>);

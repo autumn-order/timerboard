@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::{
     client::{
         component::modal::FullScreenModal,
-        model::{auth::AuthState, cache::Cache, error::ApiError},
+        model::{auth::AuthContext, error::ApiError},
     },
     model::{fleet::CreateFleetDto, ping_format::PingFormatFieldType},
 };
@@ -30,10 +30,10 @@ pub fn FleetCreationModal(
     mut show: Signal<bool>,
     on_success: EventHandler<()>,
 ) -> Element {
-    let auth_cache = use_context::<Cache<AuthState>>();
-    let cache = auth_cache.read();
+    let auth_context = use_context::<AuthContext>();
+    let state = auth_context.read();
 
-    let current_user_id = cache.and_then(|auth| auth.user_id());
+    let current_user_id = state.user_id();
 
     // Track selected category (can be changed via dropdown)
     let mut selected_category_id = use_signal(move || category_id);
