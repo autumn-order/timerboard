@@ -3,8 +3,8 @@ use dioxus::prelude::*;
 use crate::{
     client::{
         component::page::{ErrorPage, LoadingPage},
+        model::Cache,
         router::Route,
-        store::user::UserState,
     },
     model::user::UserDto,
 };
@@ -43,11 +43,11 @@ fn check_permissions(user: &Option<UserDto>, required_permissions: &[Permission]
 
 #[component]
 pub fn ProtectedLayout(permissions: Vec<Permission>) -> Element {
-    let user_store = use_context::<Store<UserState>>();
+    let user_cache = use_context::<Cache<UserDto>>();
     let nav = navigator();
 
-    let user = user_store.read().user.clone();
-    let fetch_completed = user_store.read().fetched;
+    let user = user_cache.read().data.clone();
+    let fetch_completed = user_cache.read().fetched;
 
     let user_logged_in = user.is_some();
     let has_required_permissions = check_permissions(&user, &permissions);

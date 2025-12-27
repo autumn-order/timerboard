@@ -1,7 +1,9 @@
 use dioxus::prelude::*;
-use dioxus_logger::tracing;
 
-use crate::client::{constant::SITE_NAME, router::Route, store::user::UserState};
+use crate::{
+    client::{constant::SITE_NAME, model::Cache, router::Route},
+    model::user::UserDto,
+};
 
 #[cfg(feature = "web")]
 use crate::client::api::user::get_user;
@@ -18,33 +20,19 @@ const LOGO: Asset = asset!(
 
 #[component]
 pub fn App() -> Element {
-    // Initialize the user store
-    let mut user_store = use_store(|| UserState {
-        user: None,
-        fetched: false,
-    });
+    let mut user_cache = use_context_provider(Cache::<UserDto>::new);
 
     // Fetch user on first load
     #[cfg(feature = "web")]
     {
         let future = use_resource(|| async move { get_user().await });
 
-        match &*future.read_unchecked() {
-            Some(Ok(user)) => {
-                user_store.write().user = (*user).clone();
-                user_store.write().fetched = true;
-            }
-            Some(Err(err)) => {
-                tracing::error!("{}", err);
-
-                user_store.write().fetched = true;
-            }
-            None => (),
+        if let Some(result) = &*future.read_unchecked() {
+            let _ = user_cache
+                .write()
+                .update_from_optional_result(result.clone());
         }
     }
-
-    // Make user store available globally via context
-    use_context_provider(|| user_store);
 
     rsx! {
         Title { "{SITE_NAME}" }

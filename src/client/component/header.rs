@@ -1,7 +1,10 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::{icons::fa_brands_icons::FaDiscord, Icon};
 
-use crate::client::{constant::SITE_NAME, router::Route, store::user::UserState};
+use crate::{
+    client::{constant::SITE_NAME, model::Cache, router::Route},
+    model::user::UserDto,
+};
 
 const LOGO: Asset = asset!(
     "/assets/logo.webp",
@@ -13,11 +16,11 @@ const LOGO: Asset = asset!(
 
 #[component]
 pub fn Header() -> Element {
-    let user_store = use_context::<Store<UserState>>();
+    let user_cache = use_context::<Cache<UserDto>>();
 
-    let user_logged_in = user_store.read().user.is_some();
-    let user_is_admin = user_store.read().user.as_ref().is_some_and(|u| u.admin);
-    let fetch_completed = user_store.read().fetched;
+    let user_logged_in = user_cache.read().data.is_some();
+    let user_is_admin = user_cache.read().data.as_ref().is_some_and(|u| u.admin);
+    let fetch_completed = user_cache.read().fetched;
 
     rsx!(div {
         class: "fixed flex justify-between gap-4 w-full h-20 py-2 px-4 bg-base-200 z-20",

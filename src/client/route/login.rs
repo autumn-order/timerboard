@@ -1,7 +1,10 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::{icons::fa_brands_icons::FaDiscord, Icon};
 
-use crate::client::{component::Page, constant::SITE_NAME, router::Route, store::user::UserState};
+use crate::{
+    client::{component::Page, constant::SITE_NAME, model::Cache, router::Route},
+    model::user::UserDto,
+};
 
 const LOGO: Asset = asset!(
     "/assets/logo.webp",
@@ -13,10 +16,10 @@ const LOGO: Asset = asset!(
 
 #[component]
 pub fn Login() -> Element {
-    let user_store = use_context::<Store<UserState>>();
+    let user_store = use_context::<Cache<UserDto>>();
     let nav = navigator();
 
-    let user_logged_in = user_store.read().user.is_some();
+    let user_logged_in = user_store.read().data.is_some();
     let fetch_completed = user_store.read().fetched;
 
     // Redirect authenticed user to home after fetch completes

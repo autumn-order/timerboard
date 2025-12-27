@@ -4,8 +4,11 @@ use dioxus_logger::tracing;
 use std::collections::HashMap;
 
 use crate::{
-    client::{component::modal::FullScreenModal, model::error::ApiError, store::user::UserState},
-    model::{fleet::CreateFleetDto, ping_format::PingFormatFieldType},
+    client::{
+        component::modal::FullScreenModal,
+        model::{error::ApiError, Cache},
+    },
+    model::{fleet::CreateFleetDto, ping_format::PingFormatFieldType, user::UserDto},
 };
 
 use super::FleetFormFields;
@@ -27,9 +30,9 @@ pub fn FleetCreationModal(
     mut show: Signal<bool>,
     on_success: EventHandler<()>,
 ) -> Element {
-    let user_store = use_context::<Store<UserState>>();
-    let current_user = user_store.read().user.clone();
-    let current_user_id = current_user.as_ref().map(|user| user.discord_id);
+    let user_cache = use_context::<Cache<UserDto>>();
+
+    let current_user_id = user_cache.read().data.as_ref().map(|user| user.discord_id);
 
     // Track selected category (can be changed via dropdown)
     let mut selected_category_id = use_signal(move || category_id);

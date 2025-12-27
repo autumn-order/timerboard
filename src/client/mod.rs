@@ -4,7 +4,6 @@ mod constant;
 mod model;
 mod route;
 mod router;
-mod store;
 
 #[cfg(feature = "web")]
 mod api;

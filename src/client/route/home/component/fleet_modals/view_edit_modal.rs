@@ -7,11 +7,11 @@ use std::collections::HashMap;
 use crate::{
     client::{
         component::modal::{ConfirmationModal, FullScreenModal},
-        model::error::ApiError,
-        store::user::UserState,
+        model::{error::ApiError, Cache},
     },
     model::{
         category::FleetCategoryDetailsDto, fleet::UpdateFleetDto, ping_format::PingFormatFieldType,
+        user::UserDto,
     },
 };
 
@@ -40,8 +40,9 @@ pub fn FleetViewEditModal(
     mut show: Signal<bool>,
     mut refetch_trigger: Signal<u32>,
 ) -> Element {
-    let user_store = use_context::<Store<UserState>>();
-    let current_user = user_store.read().user.clone();
+    let user_cache = use_context::<Cache<UserDto>>();
+
+    let current_user = user_cache.read().data.clone();
     let current_user_id = current_user.as_ref().map(|user| user.discord_id);
 
     let mut mode = use_signal(|| ViewEditMode::View);
