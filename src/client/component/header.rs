@@ -1,9 +1,13 @@
 use dioxus::prelude::*;
 use dioxus_free_icons::{icons::fa_brands_icons::FaDiscord, Icon};
 
-use crate::{
-    client::{constant::SITE_NAME, model::Cache, router::Route},
-    model::user::UserDto,
+use crate::client::{
+    constant::SITE_NAME,
+    model::{
+        auth::AuthState,
+        cache::{Cache, CacheState},
+    },
+    router::Route,
 };
 
 const LOGO: Asset = asset!(
@@ -16,11 +20,8 @@ const LOGO: Asset = asset!(
 
 #[component]
 pub fn Header() -> Element {
-    let user_cache = use_context::<Cache<UserDto>>();
-
-    let user_logged_in = user_cache.read().data.is_some();
-    let user_is_admin = user_cache.read().data.as_ref().is_some_and(|u| u.admin);
-    let fetch_completed = user_cache.read().fetched;
+    let auth_cache = use_context::<Cache<AuthState>>();
+    let cache = auth_cache.read();
 
     rsx!(div {
         class: "fixed flex justify-between gap-4 w-full h-20 py-2 px-4 bg-base-200 z-20",
@@ -45,41 +46,43 @@ pub fn Header() -> Element {
         }
         div {
             class: "flex items-center gap-2",
-            if fetch_completed && user_logged_in {
-                if user_is_admin {
-                    Link {
-                        to: Route::AdminServers {},
-                        class: "btn btn-outline",
-                        p {
-                            "Admin"
-                        }
-                    }
-                }
-                a {
-                    href: "/api/auth/logout",
-                    div {
-                        class: "btn btn-outline",
-                        p {
-                            "Logout"
-                        }
-                    }
-                }
-            } else if fetch_completed {
-                a {
-                    href: "/api/auth/login",
-                    div {
-                        class: "btn btn-outline flex gap-2 items-center",
-                        Icon {
-                            width: 22,
-                            height: 22,
-                            icon: FaDiscord
-                        }
-                        p {
-                            "Login"
-                        }
-                    }
-                }
-            }
+            {render_auth_buttons(&cache)}
         }
     })
+}
+
+fn render_auth_buttons(cache: &CacheState<AuthState>) -> Element {
+    match cache {
+        CacheState::Fetched(AuthState::Authenticated(user)) => rsx! {
+            if user.admin {
+                Link {
+                    to: Route::AdminServers {},
+                    class: "btn btn-outline",
+                    "Admin"
+                }
+            }
+            a {
+                href: "/api/auth/logout",
+                div {
+                    class: "btn btn-outline",
+                    "Logout"
+                }
+            }
+        },
+        CacheState::Fetched(AuthState::NotLoggedIn) | CacheState::Error(_) => rsx! {
+            a {
+                href: "/api/auth/login",
+                div {
+                    class: "btn btn-outline flex gap-2 items-center",
+                    Icon {
+                        width: 22,
+                        height: 22,
+                        icon: FaDiscord
+                    }
+                    "Login"
+                }
+            }
+        },
+        CacheState::NotFetched => rsx! {},
+    }
 }

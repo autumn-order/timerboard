@@ -1,8 +1,9 @@
 use dioxus::prelude::*;
 
-use crate::{
-    client::{constant::SITE_NAME, model::Cache, router::Route},
-    model::user::UserDto,
+use crate::client::{
+    constant::SITE_NAME,
+    model::{auth::AuthState, cache::Cache},
+    router::Route,
 };
 
 #[cfg(feature = "web")]
@@ -20,12 +21,12 @@ const LOGO: Asset = asset!(
 
 #[component]
 pub fn App() -> Element {
-    let mut user_cache = use_context_provider(Cache::<UserDto>::new);
+    let mut auth_cache = use_context_provider(Cache::<AuthState>::new);
 
     // Fetch user on first load
     #[cfg(feature = "web")]
     {
-        user_cache.fetch_option(get_user);
+        auth_cache.fetch(|| async { get_user().await.map(AuthState::from) });
     }
 
     rsx! {

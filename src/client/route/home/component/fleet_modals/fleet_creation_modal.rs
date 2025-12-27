@@ -6,9 +6,9 @@ use std::collections::HashMap;
 use crate::{
     client::{
         component::modal::FullScreenModal,
-        model::{error::ApiError, Cache},
+        model::{auth::AuthState, cache::Cache, error::ApiError},
     },
-    model::{fleet::CreateFleetDto, ping_format::PingFormatFieldType, user::UserDto},
+    model::{fleet::CreateFleetDto, ping_format::PingFormatFieldType},
 };
 
 use super::FleetFormFields;
@@ -30,9 +30,10 @@ pub fn FleetCreationModal(
     mut show: Signal<bool>,
     on_success: EventHandler<()>,
 ) -> Element {
-    let user_cache = use_context::<Cache<UserDto>>();
+    let auth_cache = use_context::<Cache<AuthState>>();
+    let cache = auth_cache.read();
 
-    let current_user_id = user_cache.read().data.as_ref().map(|user| user.discord_id);
+    let current_user_id = cache.and_then(|auth| auth.user_id());
 
     // Track selected category (can be changed via dropdown)
     let mut selected_category_id = use_signal(move || category_id);

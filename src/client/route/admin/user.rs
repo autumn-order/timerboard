@@ -9,7 +9,7 @@ use crate::{
             DropdownItem, Modal, Page, SearchableDropdown,
         },
         constant::SITE_NAME,
-        model::{error::ApiError, Cache},
+        model::{auth::AuthState, cache::Cache, error::ApiError},
         route::admin::{AdminTab, AdminTabs, AdminUsersCache},
     },
     model::user::UserDto,
@@ -107,9 +107,10 @@ pub fn AdminUsers() -> Element {
 
 #[component]
 fn AdminsList(admins: Vec<UserDto>, mut refetch_trigger: Signal<u32>) -> Element {
-    let user_store = use_context::<Cache<UserDto>>();
+    let auth_cache = use_context::<Cache<AuthState>>();
+    let cache = auth_cache.read();
 
-    let current_user_id = user_store.read().data.as_ref().map(|u| u.discord_id);
+    let current_user_id = cache.and_then(|auth| auth.user_id());
 
     let mut show_delete_modal = use_signal(|| false);
     let mut admin_to_delete = use_signal(|| None::<(u64, String)>);
