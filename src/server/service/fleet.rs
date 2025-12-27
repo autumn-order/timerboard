@@ -91,6 +91,10 @@ impl<'a> FleetService<'a> {
             .post_fleet_creation(&fleet, &field_values)
             .await?;
 
+        // Update upcoming fleets lists for all channels in this category
+        self.update_upcoming_fleets_lists_for_category(fleet.category_id)
+            .await?;
+
         // Fetch the full fleet data with enriched information
         // Get guild_id from the category
 
@@ -479,6 +483,16 @@ impl<'a> FleetService<'a> {
                     .update_fleet_messages(&updated_fleet, &dto.field_values)
                     .await?;
 
+                // Update upcoming fleets lists for all channels in this category
+                self.update_upcoming_fleets_lists_for_category(dto.category_id)
+                    .await?;
+
+                // If category was changed, also update the old category's channels
+                if dto.category_id != fleet.category_id {
+                    self.update_upcoming_fleets_lists_for_category(fleet.category_id)
+                        .await?;
+                }
+
                 // Fetch the updated fleet data with enriched information
                 return self
                     .get_by_id(id, user_id, is_admin)
@@ -525,15 +539,76 @@ impl<'a> FleetService<'a> {
                         self.discord_http.clone(),
                         self.app_url.clone(),
                     );
-                    notification_service.cancel_fleet_messages(&fleet).await?;
+                    notification_service
+                        .cancel_fleet_messages(&fleet, self.app_url.as_str())
+                        .await?;
 
                     fleet_repo.delete(id).await?;
+
+                    // Update upcoming fleets lists for all channels in this category
+                    self.update_upcoming_fleets_lists_for_category(fleet.category_id)
+                        .await?;
+
                     return Ok(true);
                 }
             }
         }
 
         Ok(false)
+    }
+
+    /// Updates upcoming fleets lists for all channels configured for a category.
+    ///
+    /// Called after fleet updates or deletions to reflect changes in the upcoming
+    /// fleets lists without bumping them to the most recent message.
+    ///
+    /// # Arguments
+    /// - `category_id` - Category ID whose channels should be updated
+    ///
+    /// # Returns
+    /// - `Ok(())` - Successfully updated all channel lists
+    /// - `Err(AppError)` - Database or Discord error
+    async fn update_upcoming_fleets_lists_for_category(
+        &self,
+        category_id: i32,
+    ) -> Result<(), AppError> {
+        let category_repo = FleetCategoryRepository::new(self.db);
+
+        // Get the category to extract its channels
+        let Some(category_data) = category_repo.find_by_id(category_id).await? else {
+            return Ok(()); // Category not found, nothing to update
+        };
+
+        // Extract channel IDs from the category's channels
+        let channel_ids: Vec<u64> = category_data
+            .channels
+            .iter()
+            .filter_map(|(channel_model, _)| channel_model.channel_id.parse::<u64>().ok())
+            .collect();
+
+        if channel_ids.is_empty() {
+            return Ok(()); // No channels configured
+        }
+
+        // Update the upcoming fleets list for each channel
+        let notification_service =
+            FleetNotificationService::new(self.db, self.discord_http.clone(), self.app_url.clone());
+
+        for channel_id in channel_ids {
+            if let Err(e) = notification_service
+                .update_upcoming_fleets_list(channel_id)
+                .await
+            {
+                dioxus_logger::tracing::warn!(
+                    "Failed to update upcoming fleets list for channel {}: {}",
+                    channel_id,
+                    e
+                );
+                // Continue updating other channels even if one fails
+            }
+        }
+
+        Ok(())
     }
 
     /// Parses fleet time with optional minimum time constraint for updates.

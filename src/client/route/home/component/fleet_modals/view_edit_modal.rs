@@ -80,7 +80,7 @@ pub fn FleetViewEditModal(
     let mut is_deleting = use_signal(|| false);
 
     // Datetime validation error
-    let datetime_error = use_signal(|| None::<String>);
+    let mut datetime_error = use_signal(|| None::<String>);
 
     // Permission check: user can manage if they are admin, have manage permission, or are the fleet commander
     let can_manage = use_memo(move || {
@@ -769,6 +769,7 @@ pub fn FleetViewEditModal(
                                 onclick: move |_| {
                                     mode.set(ViewEditMode::View);
                                     submission_error.set(None);
+                                    datetime_error.set(None);
                                     // Reset form to original values
                                     if let Some(Ok(fleet)) = fleet_data() {
                                         fleet_name.set(fleet.name.clone());

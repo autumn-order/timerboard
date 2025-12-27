@@ -117,6 +117,42 @@ impl<'a> FleetRepository<'a> {
         }
     }
 
+    /// Gets upcoming non-hidden fleets for specific categories.
+    ///
+    /// Retrieves all fleets for the specified category IDs that:
+    /// - Have a fleet_time greater than the provided time
+    /// - Are not hidden
+    /// - Are ordered by fleet_time in ascending order
+    ///
+    /// This is used for building the upcoming fleets list in Discord channels.
+    ///
+    /// # Arguments
+    /// - `category_ids` - List of category IDs to filter by
+    /// - `after_time` - Only include fleets with fleet_time after this time
+    ///
+    /// # Returns
+    /// - `Ok(Vec<Fleet>)` - Vector of upcoming fleets ordered by time
+    /// - `Err(AppError::Database)` - Database error during query
+    /// - `Err(AppError::InternalError(ParseStringId))` - Failed to parse ID from String
+    pub async fn get_upcoming_by_categories(
+        &self,
+        category_ids: Vec<i32>,
+        after_time: chrono::DateTime<Utc>,
+    ) -> Result<Vec<Fleet>, AppError> {
+        let entities = entity::prelude::Fleet::find()
+            .filter(entity::fleet::Column::CategoryId.is_in(category_ids))
+            .filter(entity::fleet::Column::FleetTime.gt(after_time))
+            .filter(entity::fleet::Column::Hidden.eq(false))
+            .order_by_asc(entity::fleet::Column::FleetTime)
+            .all(self.db)
+            .await?;
+
+        entities
+            .into_iter()
+            .map(Fleet::from_entity)
+            .collect::<Result<Vec<_>, _>>()
+    }
+
     /// Gets paginated fleets for a guild, ordered by fleet_time (upcoming first).
     ///
     /// Filters fleets to only include:

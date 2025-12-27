@@ -169,11 +169,16 @@ pub fn CreateCategoryModal(
         if let Some(Some(result)) = future.read_unchecked().as_ref() {
             match result {
                 Ok(_) => {
+                    // Reset form data
+                    form_fields.set(FormFieldData::default());
+                    submit_data.set((String::new(), DurationFields::default()));
+                    validation_errors.set(ValidationErrorData::default());
+                    error.set(None);
+                    should_submit.set(false);
                     // Trigger refetch
                     refetch_trigger.set(refetch_trigger() + 1);
-                    // Close modal (data persists for smooth animation)
+
                     show.set(false);
-                    should_submit.set(false);
                 }
                 Err(err) => {
                     tracing::error!("Failed to create category: {}", err);
@@ -492,11 +497,16 @@ pub fn EditCategoryModal(
         if let Some(Some(result)) = future.read_unchecked().as_ref() {
             match result {
                 Ok(_) => {
+                    // Reset form data
+                    form_fields.set(FormFieldData::default());
+                    submit_data.set((0i32, String::new(), DurationFields::default()));
+                    validation_errors.set(ValidationErrorData::default());
+                    error.set(None);
+                    should_submit.set(false);
                     // Trigger refetch
                     refetch_trigger.set(refetch_trigger() + 1);
-                    // Close modal (data persists for smooth animation)
+
                     show.set(false);
-                    should_submit.set(false);
                 }
                 Err(err) => {
                     tracing::error!("Failed to update category: {}", err);

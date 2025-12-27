@@ -65,9 +65,17 @@ pub fn CreatePingGroupModal(
         if let Some(Some(result)) = future.read_unchecked().as_ref() {
             match result {
                 Ok(_) => {
+                    // Reset form data
+                    form_fields.set(FormFieldsData::default());
+                    submit_data.set(CreatePingGroupDto {
+                        name: String::new(),
+                        cooldown: None,
+                    });
+                    error.set(None);
+                    cooldown_error.set(None);
+                    should_submit.set(false);
                     refetch_trigger.set(refetch_trigger() + 1);
                     show.set(false);
-                    should_submit.set(false);
                 }
                 Err(err) => {
                     tracing::error!("Failed to create ping group: {}", err);
@@ -217,9 +225,20 @@ pub fn EditPingGroupModal(
         if let Some(Some(result)) = future.read_unchecked().as_ref() {
             match result {
                 Ok(_) => {
+                    // Reset form data
+                    form_fields.set(FormFieldsData::default());
+                    submit_data.set((
+                        0i32,
+                        UpdatePingGroupDto {
+                            name: String::new(),
+                            cooldown: None,
+                        },
+                    ));
+                    error.set(None);
+                    cooldown_error.set(None);
+                    should_submit.set(false);
                     refetch_trigger.set(refetch_trigger() + 1);
                     show.set(false);
-                    should_submit.set(false);
                 }
                 Err(err) => {
                     tracing::error!("Failed to update ping group: {}", err);

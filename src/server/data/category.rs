@@ -459,4 +459,51 @@ impl<'a> FleetCategoryRepository<'a> {
             .map(FleetCategoryListItem::from_entity)
             .collect()
     }
+
+    /// Gets category IDs that post to a specific channel.
+    ///
+    /// Retrieves all category IDs that are configured to post fleet notifications
+    /// to the specified Discord channel. Used for building the upcoming fleets list
+    /// which aggregates fleets from all categories posting to a channel.
+    ///
+    /// # Arguments
+    /// - `channel_id` - Discord channel ID to search for
+    ///
+    /// # Returns
+    /// - `Ok(Vec<i32>)` - Category IDs that post to this channel
+    /// - `Err(DbErr)` - Database error during query
+    pub async fn get_category_ids_by_channel(&self, channel_id: u64) -> Result<Vec<i32>, DbErr> {
+        let category_channels = entity::prelude::FleetCategoryChannel::find()
+            .filter(entity::fleet_category_channel::Column::ChannelId.eq(channel_id.to_string()))
+            .all(self.db)
+            .await?;
+
+        Ok(category_channels
+            .into_iter()
+            .map(|cc| cc.fleet_category_id)
+            .collect())
+    }
+
+    /// Gets category data by ID as a simple map for lookups.
+    ///
+    /// Retrieves multiple categories and returns them as a HashMap keyed by ID,
+    /// useful for looking up category names when building fleet lists.
+    ///
+    /// # Arguments
+    /// - `category_ids` - List of category IDs to retrieve
+    ///
+    /// # Returns
+    /// - `Ok(HashMap<i32, String>)` - Map of category ID to category name
+    /// - `Err(DbErr)` - Database error during query
+    pub async fn get_names_by_ids(
+        &self,
+        category_ids: Vec<i32>,
+    ) -> Result<HashMap<i32, String>, DbErr> {
+        let categories = entity::prelude::FleetCategory::find()
+            .filter(entity::fleet_category::Column::Id.is_in(category_ids))
+            .all(self.db)
+            .await?;
+
+        Ok(categories.into_iter().map(|c| (c.id, c.name)).collect())
+    }
 }

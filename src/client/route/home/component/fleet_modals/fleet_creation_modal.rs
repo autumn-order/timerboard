@@ -66,10 +66,10 @@ pub fn FleetCreationModal(
             rounded_time.minute()
         )
     };
-    let fleet_datetime = use_signal(move || current_datetime.clone());
+    let mut fleet_datetime = use_signal(move || current_datetime.clone());
 
     // Pre-fill fleet commander with current user's discord_id
-    let fleet_commander_id = use_signal(move || current_user_id);
+    let mut fleet_commander_id = use_signal(move || current_user_id);
 
     let mut fleet_description = use_signal(String::new);
     let mut field_values = use_signal(std::collections::HashMap::<i32, String>::new);
@@ -117,10 +117,31 @@ pub fn FleetCreationModal(
                     tracing::info!("Fleet created successfully");
                     // Reset form and close modal
                     fleet_name.set(String::new());
+
+                    // Reset datetime to next 5-minute interval
+                    let now = Utc::now();
+                    let current_minute = now.minute();
+                    let rounded_minute = current_minute.div_ceil(5) * 5;
+                    let rounded_time = if rounded_minute >= 60 {
+                        now + chrono::Duration::minutes((60 - current_minute) as i64)
+                    } else {
+                        now + chrono::Duration::minutes((rounded_minute - current_minute) as i64)
+                    };
+                    fleet_datetime.set(format!(
+                        "{:04}-{:02}-{:02} {:02}:{:02}",
+                        rounded_time.year(),
+                        rounded_time.month(),
+                        rounded_time.day(),
+                        rounded_time.hour(),
+                        rounded_time.minute()
+                    ));
+
+                    fleet_commander_id.set(current_user_id);
                     fleet_description.set(String::new());
                     field_values.set(HashMap::new());
                     hidden.set(false);
                     disable_reminder.set(false);
+                    submission_error.set(None);
                     is_submitting.set(false);
                     show.set(false);
                     // Notify parent to refetch fleets

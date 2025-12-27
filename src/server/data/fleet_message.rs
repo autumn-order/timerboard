@@ -97,4 +97,42 @@ impl<'a> FleetMessageRepository<'a> {
             })
             .collect())
     }
+
+    /// Gets all messages for a fleet in a specific channel.
+    ///
+    /// Returns all fleet message records for the specified fleet ID and channel ID.
+    /// Used to find existing messages in a channel when posting replies (reminder/formup).
+    ///
+    /// # Arguments
+    /// - `fleet_id` - ID of the fleet to get messages for
+    /// - `channel_id` - Discord channel ID to filter by
+    ///
+    /// # Returns
+    /// - `Ok(Vec<FleetMessage>)` - Vector of fleet messages (empty if no messages)
+    /// - `Err(DbErr)` - Database error during query
+    pub async fn get_by_fleet_id_and_channel(
+        &self,
+        fleet_id: i32,
+        channel_id: u64,
+    ) -> Result<Vec<FleetMessage>, DbErr> {
+        let entities = entity::prelude::FleetMessage::find()
+            .filter(entity::fleet_message::Column::FleetId.eq(fleet_id))
+            .filter(entity::fleet_message::Column::ChannelId.eq(channel_id.to_string()))
+            .all(self.db)
+            .await?;
+
+        Ok(entities
+            .into_iter()
+            .filter_map(|entity| match FleetMessage::from_entity(entity) {
+                Ok(message) => Some(message),
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to convert fleet message entity to domain model: {}",
+                        e
+                    );
+                    None
+                }
+            })
+            .collect())
+    }
 }
