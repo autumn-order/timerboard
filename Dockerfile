@@ -45,6 +45,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY .cargo ./.cargo
 COPY entity ./entity
 COPY migration ./migration
+COPY test-utils ./test-utils
 
 # Build Rust application
 COPY assets ./assets
