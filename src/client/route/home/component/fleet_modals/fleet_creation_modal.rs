@@ -6,21 +6,18 @@ use std::collections::HashMap;
 use crate::{
     client::{
         component::modal::FullScreenModal,
-        model::{auth::AuthContext, error::ApiError},
+        model::{auth::AuthContext, cache::Cache, error::ApiError},
+        route::home::{CategoryDetailsCache, GuildMembersCache},
     },
-    model::{fleet::CreateFleetDto, ping_format::PingFormatFieldType},
-};
-
-use super::FleetFormFields;
-use crate::client::route::home::{
-    CategoryDetailsCache, GuildMembersCache, ManageableCategoriesCache,
+    model::{
+        category::FleetCategoryListItemDto, fleet::CreateFleetDto, ping_format::PingFormatFieldType,
+    },
 };
 
 #[cfg(feature = "web")]
-use crate::client::api::{
-    fleet::{create_fleet, get_category_details, get_guild_members},
-    user::get_user_manageable_categories,
-};
+use crate::client::api::fleet::{create_fleet, get_category_details, get_guild_members};
+
+use super::FleetFormFields;
 
 /// Modal for creating a new fleet with all required details
 #[component]
@@ -31,6 +28,8 @@ pub fn FleetCreationModal(
     on_success: EventHandler<()>,
 ) -> Element {
     let auth_context = use_context::<AuthContext>();
+    let manageable_categories_cache = use_context::<Cache<Vec<FleetCategoryListItemDto>>>();
+
     let state = auth_context.read();
 
     let current_user_id = state.user_id();
@@ -160,54 +159,11 @@ pub fn FleetCreationModal(
         }
     });
 
-    // Use manageable categories cache from context
-    let mut manageable_categories_cache = use_context::<Signal<ManageableCategoriesCache>>();
-    let mut should_fetch_categories = use_signal(|| false);
-
-    // Fetch manageable categories only if not cached or guild changed
-    #[cfg(feature = "web")]
-    {
-        // Check cache and initiate fetch if needed
-        use_effect(use_reactive!(|guild_id| {
-            // Skip if already fetching
-            if should_fetch_categories() {
-                return;
-            }
-
-            let mut cache_state = manageable_categories_cache.write();
-
-            // Check if we need to fetch
-            let needs_fetch = (cache_state.guild_id != Some(guild_id)
-                || cache_state.data.is_none())
-                && !cache_state.is_fetching;
-
-            if needs_fetch {
-                // Set fetching flag while we still hold the lock
-                cache_state.is_fetching = true;
-                drop(cache_state);
-                should_fetch_categories.set(true);
-            }
-        }));
-
-        let manageable_categories_resource = use_resource(move || async move {
-            if should_fetch_categories() {
-                Some(get_user_manageable_categories(guild_id).await)
-            } else {
-                None
-            }
-        });
-
-        use_effect(move || {
-            if let Some(Some(result)) = manageable_categories_resource.read().as_ref() {
-                manageable_categories_cache.write().guild_id = Some(guild_id);
-                manageable_categories_cache.write().data = Some(result.clone());
-                manageable_categories_cache.write().is_fetching = false;
-                should_fetch_categories.set(false);
-            }
-        });
-    }
-
-    let manageable_categories = manageable_categories_cache.read().data.clone();
+    let manageable_categories = manageable_categories_cache
+        .read()
+        .data()
+        .cloned()
+        .unwrap_or(Vec::new());
 
     // Use category details cache from context
     let mut category_details_cache = use_context::<Signal<CategoryDetailsCache>>();
@@ -398,7 +354,7 @@ pub fn FleetCreationModal(
                     hidden,
                     disable_reminder,
                     selected_category_id: Some(selected_category_id),
-                    manageable_categories: Some(use_signal(move || manageable_categories.clone())),
+                    manageable_categories: use_signal(move || manageable_categories),
                     datetime_error_signal: Some(datetime_error),
                 }
                 // Submission error

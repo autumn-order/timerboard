@@ -34,6 +34,34 @@ impl<T: 'static> Cache<T> {
         Fut: Future<Output = Result<T, ApiError>> + 'static,
         T: Clone,
     {
+        self.fetch_internal(fetcher, true);
+    }
+
+    /// Refetches data even if already fetched, but skips if currently loading
+    pub fn refetch<F, Fut>(&mut self, fetcher: F)
+    where
+        F: Fn() -> Fut + 'static,
+        Fut: Future<Output = Result<T, ApiError>> + 'static,
+        T: Clone,
+    {
+        self.fetch_internal(fetcher, false);
+    }
+
+    fn fetch_internal<F, Fut>(&mut self, fetcher: F, skip_if_fetched: bool)
+    where
+        F: Fn() -> Fut + 'static,
+        Fut: Future<Output = Result<T, ApiError>> + 'static,
+        T: Clone,
+    {
+        // Atomic check-and-set under a single write lock
+        {
+            let mut state = self.inner.write();
+            if state.is_loading() || (skip_if_fetched && state.is_fetched()) {
+                return;
+            }
+            *state = CacheState::Loading;
+        }
+
         let future = use_resource(fetcher);
 
         if let Some(result) = &*future.read_unchecked() {
@@ -50,6 +78,7 @@ impl<T: 'static> Cache<T> {
 pub enum CacheState<T> {
     #[default]
     NotFetched,
+    Loading,
     Fetched(T),
     Error(ApiError),
 }
@@ -57,6 +86,10 @@ pub enum CacheState<T> {
 impl<T> CacheState<T> {
     pub fn is_fetched(&self) -> bool {
         !matches!(self, CacheState::NotFetched)
+    }
+
+    pub fn is_loading(&self) -> bool {
+        matches!(self, CacheState::Loading)
     }
 
     pub fn data(&self) -> Option<&T> {

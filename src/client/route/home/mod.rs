@@ -22,14 +22,6 @@ use crate::{
     },
 };
 
-// Cache for manageable categories per guild
-#[derive(Clone, Default)]
-pub struct ManageableCategoriesCache {
-    pub guild_id: Option<u64>,
-    pub data: Option<Result<Vec<FleetCategoryListItemDto>, ApiError>>,
-    pub is_fetching: bool,
-}
-
 // Cache for guild members per guild
 #[derive(Clone, Default)]
 pub struct GuildMembersCache {
@@ -46,13 +38,13 @@ pub struct CategoryDetailsCache {
 }
 
 #[cfg(feature = "web")]
-use crate::client::api::user::get_user_guilds;
+use crate::client::api::user::{get_user_guilds, get_user_manageable_categories};
 
 #[component]
 pub fn Home() -> Element {
     // Provide caches for child components
-    let _manageable_categories_cache =
-        use_context_provider(|| Signal::new(ManageableCategoriesCache::default()));
+    let mut manageable_categories_cache =
+        use_context_provider(Cache::<Vec<FleetCategoryListItemDto>>::new);
     let _guild_members_cache = use_context_provider(|| Signal::new(GuildMembersCache::default()));
     let _category_details_cache =
         use_context_provider(|| Signal::new(CategoryDetailsCache::default()));
@@ -61,10 +53,19 @@ pub fn Home() -> Element {
     let mut selected_guild = use_signal(|| None::<DiscordGuildDto>);
     let refetch_trigger = use_signal(|| 0u32);
 
-    // Fetch user's guilds on first load
     #[cfg(feature = "web")]
     {
-        guilds_cache.fetch(get_user_guilds)
+        // Fetch user's guilds on first load
+        guilds_cache.fetch(get_user_guilds);
+
+        // Fetch user's manageable categories for guild when selected guild changes
+        use_effect(move || {
+            if let Some(guild) = selected_guild() {
+                let guild_id = guild.guild_id;
+                manageable_categories_cache
+                    .refetch(move || get_user_manageable_categories(guild_id))
+            }
+        });
     }
 
     let guilds = guilds_cache.read();
@@ -81,7 +82,7 @@ pub fn Home() -> Element {
     rsx! {
         Title { "{SITE_NAME}" }
         match &*guilds {
-            CacheState::NotFetched => rsx! {
+            CacheState::NotFetched | CacheState::Loading => rsx! {
                 LoadingPage { }
             },
             CacheState::Fetched(guilds_list) if guilds_list.is_empty() => rsx! {

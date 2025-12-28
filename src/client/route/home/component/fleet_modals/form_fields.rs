@@ -13,9 +13,6 @@ use crate::{
     },
 };
 
-/// Type alias for manageable categories signal
-type ManageableCategoriesSignal = Signal<Option<Result<Vec<FleetCategoryListItemDto>, ApiError>>>;
-
 /// Helper function to format a duration for display
 fn format_duration(duration: &chrono::Duration) -> String {
     let total_seconds = duration.num_seconds();
@@ -55,7 +52,7 @@ pub fn FleetFormFields(
     mut disable_reminder: Signal<bool>,
     // Optional props for category selection (only used in create mode)
     #[props(default = None)] selected_category_id: Option<Signal<i32>>,
-    #[props(default = None)] manageable_categories: Option<ManageableCategoriesSignal>,
+    manageable_categories: Signal<Vec<FleetCategoryListItemDto>>,
     // Optional props for datetime validation (only used in edit mode)
     #[props(default = false)] allow_past_time: bool,
     #[props(default = None)] min_datetime: Option<chrono::DateTime<chrono::Utc>>,
@@ -78,44 +75,29 @@ pub fn FleetFormFields(
                     class: "grid grid-cols-1 md:grid-cols-2 gap-4",
 
                     // Category (dropdown to switch categories if in create mode)
-                    if let (Some(mut cat_id), Some(cats)) = (selected_category_id, manageable_categories) {
+                    if let (Some(mut cat_id), cats) = (selected_category_id, manageable_categories) {
                         div {
                             class: "flex flex-col gap-2",
                             label {
                                 class: "label",
                                 span { class: "label-text", "Category" }
-                            }
-                            {
-                                if let Some(Ok(categories)) = cats() {
-                                    rsx! {
-                                        select {
-                                            class: "select select-bordered w-full",
-                                            value: "{cat_id()}",
-                                            disabled: is_submitting,
-                                            onchange: move |e| {
-                                                if let Ok(new_id) = e.value().parse::<i32>() {
-                                                    cat_id.set(new_id);
-                                                    // Clear field values when category changes
-                                                    field_values.set(HashMap::new());
-                                                }
-                                            },
-                                            for category in categories {
-                                                option {
-                                                    key: "{category.id}",
-                                                    value: "{category.id}",
-                                                    selected: category.id == cat_id(),
-                                                    "{category.name}"
-                                                }
-                                            }
+                                select {
+                                    class: "select select-bordered w-full",
+                                    value: "{cat_id()}",
+                                    disabled: is_submitting,
+                                    onchange: move |e| {
+                                        if let Ok(new_id) = e.value().parse::<i32>() {
+                                            cat_id.set(new_id);
+                                            // Clear field values when category changes
+                                            field_values.set(HashMap::new());
                                         }
-                                    }
-                                } else {
-                                    rsx! {
-                                        input {
-                                            r#type: "text",
-                                            class: "input input-bordered w-full",
-                                            value: "{details.name}",
-                                            disabled: true
+                                    },
+                                    for category in cats() {
+                                        option {
+                                            key: "{category.id}",
+                                            value: "{category.id}",
+                                            selected: category.id == cat_id(),
+                                            "{category.name}"
                                         }
                                     }
                                 }

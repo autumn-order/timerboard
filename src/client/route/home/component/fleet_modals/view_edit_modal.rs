@@ -7,23 +7,22 @@ use std::collections::HashMap;
 use crate::{
     client::{
         component::modal::{ConfirmationModal, FullScreenModal},
-        model::{auth::AuthContext, error::ApiError},
+        model::{auth::AuthContext, cache::Cache, error::ApiError},
+        route::home::{CategoryDetailsCache, GuildMembersCache},
     },
     model::{
-        category::FleetCategoryDetailsDto, fleet::UpdateFleetDto, ping_format::PingFormatFieldType,
+        category::{FleetCategoryDetailsDto, FleetCategoryListItemDto},
+        fleet::UpdateFleetDto,
+        ping_format::PingFormatFieldType,
     },
-};
-
-use super::form_fields::FleetFormFields;
-use crate::client::route::home::{
-    CategoryDetailsCache, GuildMembersCache, ManageableCategoriesCache,
 };
 
 #[cfg(feature = "web")]
-use crate::client::api::{
-    fleet::{delete_fleet, get_category_details, get_fleet, get_guild_members, update_fleet},
-    user::get_user_manageable_categories,
+use crate::client::api::fleet::{
+    delete_fleet, get_category_details, get_fleet, get_guild_members, update_fleet,
 };
+
+use super::form_fields::FleetFormFields;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum ViewEditMode {
@@ -40,6 +39,8 @@ pub fn FleetViewEditModal(
     mut refetch_trigger: Signal<u32>,
 ) -> Element {
     let auth_context = use_context::<AuthContext>();
+    let manageable_categories_cache = use_context::<Cache<Vec<FleetCategoryListItemDto>>>();
+
     let state = auth_context.read();
 
     let current_user = state.user().cloned();
@@ -50,7 +51,6 @@ pub fn FleetViewEditModal(
     let mut category_details = use_signal(|| None::<Result<FleetCategoryDetailsDto, ApiError>>);
 
     // Use caches from context
-    let mut manageable_categories_cache = use_context::<Signal<ManageableCategoriesCache>>();
     let mut guild_members_cache = use_context::<Signal<GuildMembersCache>>();
     let mut category_details_cache = use_context::<Signal<CategoryDetailsCache>>();
 
@@ -83,6 +83,8 @@ pub fn FleetViewEditModal(
     // Datetime validation error
     let mut datetime_error = use_signal(|| None::<String>);
 
+    let cache_clone = manageable_categories_cache.clone();
+
     // Permission check: user can manage if they are admin, have manage permission, or are the fleet commander
     let can_manage = use_memo(move || {
         if let Some(user) = &current_user {
@@ -95,7 +97,7 @@ pub fn FleetViewEditModal(
                     return true;
                 }
                 // Check if user has manage permission for this category
-                if let Some(Ok(categories)) = manageable_categories_cache.read().data.as_ref() {
+                if let Some(categories) = cache_clone.read().data() {
                     return categories.iter().any(|cat| cat.id == fleet.category_id);
                 }
             }
@@ -121,62 +123,6 @@ pub fn FleetViewEditModal(
             submission_error.set(None);
         }
     });
-
-    // Fetch manageable categories only if not cached
-    let mut should_fetch_categories = use_signal(|| false);
-
-    #[cfg(feature = "web")]
-    {
-        // Check cache and initiate fetch if needed
-        use_effect(use_reactive!(|guild_id| {
-            // Skip if already fetching
-            if should_fetch_categories() {
-                return;
-            }
-
-            let mut cache_state = manageable_categories_cache.write();
-
-            // Check if we need to fetch
-            let needs_fetch = (cache_state.guild_id != Some(guild_id)
-                || cache_state.data.is_none())
-                && !cache_state.is_fetching;
-
-            if needs_fetch {
-                // Set fetching flag while we still hold the lock
-                cache_state.is_fetching = true;
-                drop(cache_state);
-                should_fetch_categories.set(true);
-            }
-        }));
-
-        let future = use_resource(move || async move {
-            if should_fetch_categories() {
-                Some(get_user_manageable_categories(guild_id).await)
-            } else {
-                None
-            }
-        });
-
-        use_effect(move || {
-            if let Some(Some(result)) = future.read_unchecked().as_ref() {
-                match result {
-                    Ok(categories) => {
-                        manageable_categories_cache.write().guild_id = Some(guild_id);
-                        manageable_categories_cache.write().data = Some(Ok(categories.clone()));
-                        manageable_categories_cache.write().is_fetching = false;
-                        should_fetch_categories.set(false);
-                    }
-                    Err(err) => {
-                        tracing::error!("Failed to fetch categories: {}", err);
-                        manageable_categories_cache.write().guild_id = Some(guild_id);
-                        manageable_categories_cache.write().data = Some(Err(err.clone()));
-                        manageable_categories_cache.write().is_fetching = false;
-                        should_fetch_categories.set(false);
-                    }
-                }
-            }
-        });
-    }
 
     // Fetch fleet data
     #[cfg(feature = "web")]
@@ -414,7 +360,11 @@ pub fn FleetViewEditModal(
     }
 
     let guild_members = guild_members_cache.read().data.clone();
-    let manageable_categories = manageable_categories_cache.read().data.clone();
+    let manageable_categories = manageable_categories_cache
+        .read()
+        .data()
+        .cloned()
+        .unwrap_or(Vec::new());
 
     // Handle fleet update submission
     #[cfg(feature = "web")]
@@ -733,7 +683,7 @@ pub fn FleetViewEditModal(
                                     hidden,
                                     disable_reminder,
                                     selected_category_id: Some(selected_category_id),
-                                    manageable_categories: Some(use_signal(move || manageable_categories.clone())),
+                                    manageable_categories: use_signal(move || manageable_categories),
                                     allow_past_time: allow_past,
                                     min_datetime: min_dt,
                                     datetime_error_signal: Some(datetime_error),
