@@ -7,11 +7,14 @@ use std::collections::HashMap;
 use crate::{
     client::{
         component::modal::{ConfirmationModal, FullScreenModal},
-        model::{auth::AuthState, cache::Cache, error::ApiError},
+        model::{auth::AuthState, cache::GuildCache, error::ApiError},
         route::home::CategoryDetailsCache,
     },
     model::{
-        category::FleetCategoryDetailsDto, fleet::UpdateFleetDto, ping_format::PingFormatFieldType,
+        category::{FleetCategoryDetailsDto, FleetCategoryListItemDto},
+        discord::DiscordGuildMemberDto,
+        fleet::UpdateFleetDto,
+        ping_format::PingFormatFieldType,
     },
 };
 
@@ -20,10 +23,7 @@ use crate::client::api::fleet::{
     delete_fleet, get_category_details, get_fleet, get_guild_members, update_fleet,
 };
 
-use super::{
-    super::super::{GuildMembersCache, ManageableCategoriesCache},
-    FleetFormFields,
-};
+use super::FleetFormFields;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum ViewEditMode {
@@ -40,7 +40,8 @@ pub fn FleetViewEditModal(
     mut refetch_trigger: Signal<u32>,
 ) -> Element {
     let auth_state = use_context::<Signal<AuthState>>();
-    let manageable_categories_cache = use_context::<Signal<ManageableCategoriesCache>>();
+    let manageable_categories_cache =
+        use_context::<Signal<GuildCache<Vec<FleetCategoryListItemDto>>>>();
 
     let state = auth_state.read();
 
@@ -52,7 +53,7 @@ pub fn FleetViewEditModal(
     let mut category_details = use_signal(|| None::<Result<FleetCategoryDetailsDto, ApiError>>);
 
     // Use caches from context
-    let mut guild_members_cache = use_context::<Signal<GuildMembersCache>>();
+    let mut guild_members_cache = use_context::<Signal<GuildCache<Vec<DiscordGuildMemberDto>>>>();
     let mut category_details_cache = use_context::<Signal<CategoryDetailsCache>>();
 
     // Track selected category (can be changed via dropdown in edit mode)
@@ -96,7 +97,7 @@ pub fn FleetViewEditModal(
                     return true;
                 }
                 // Check if user has manage permission for this category
-                if let Some(categories) = manageable_categories_cache().cache.data() {
+                if let Some(categories) = manageable_categories_cache().data() {
                     return categories.iter().any(|cat| cat.id == fleet.category_id);
                 }
             }
@@ -306,15 +307,12 @@ pub fn FleetViewEditModal(
     {
         // Fetch list of members for guild the fleet is being created for
         let guilds_future = use_resource(move || async move {
-            let should_fetch = !guild_members_cache.peek().cache.is_fetched();
-            let is_loading = guild_members_cache.peek().cache.is_loading();
-            let guild_changed = guild_members_cache.peek().guild_id != Some(guild_id);
+            let should_fetch = !guild_members_cache.peek().is_fetched();
+            let is_loading = guild_members_cache.peek().is_loading();
+            let guild_changed = guild_members_cache.peek().guild_id() != Some(guild_id);
 
             if guild_changed || (should_fetch && !is_loading) {
-                guild_members_cache.set(GuildMembersCache {
-                    guild_id: Some(guild_id),
-                    cache: Cache::Loading,
-                });
+                guild_members_cache.set(GuildCache::Loading { guild_id: guild_id });
 
                 Some(get_guild_members(guild_id).await)
             } else {
@@ -323,26 +321,21 @@ pub fn FleetViewEditModal(
         });
 
         if let Some(Some(result)) = &*guilds_future.read_unchecked() {
-            let cache = &mut *guild_members_cache.write();
-
-            match result {
-                Ok(data) => {
-                    cache.cache = Cache::Fetched(data.clone());
-                }
-                Err(e) => {
-                    cache.cache = Cache::Error(e.clone());
-                }
-            };
+            guild_members_cache.set(match result {
+                Ok(data) => GuildCache::Fetched {
+                    guild_id,
+                    data: data.clone(),
+                },
+                Err(e) => GuildCache::Error {
+                    guild_id,
+                    error: e.clone(),
+                },
+            });
         }
     }
 
-    let guild_members = guild_members_cache()
-        .cache
-        .data()
-        .cloned()
-        .unwrap_or(Vec::new());
+    let guild_members = guild_members_cache().data().cloned().unwrap_or(Vec::new());
     let manageable_categories = manageable_categories_cache()
-        .cache
         .data()
         .cloned()
         .unwrap_or(Vec::new());
