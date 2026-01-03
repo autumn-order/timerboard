@@ -9,15 +9,16 @@ use crate::{
         model::{auth::AuthState, cache::Cache, error::ApiError},
         route::home::CategoryDetailsCache,
     },
-    model::{
-        category::FleetCategoryListItemDto, fleet::CreateFleetDto, ping_format::PingFormatFieldType,
-    },
+    model::{fleet::CreateFleetDto, ping_format::PingFormatFieldType},
 };
 
 #[cfg(feature = "web")]
 use crate::client::api::fleet::{create_fleet, get_category_details, get_guild_members};
 
-use super::{super::super::GuildMembersCache, FleetFormFields};
+use super::{
+    super::super::{GuildMembersCache, ManageableCategoriesCache},
+    FleetFormFields,
+};
 
 /// Modal for creating a new fleet with all required details
 #[component]
@@ -28,7 +29,7 @@ pub fn FleetCreationModal(
     on_success: EventHandler<()>,
 ) -> Element {
     let auth_state = use_context::<Signal<AuthState>>();
-    let manageable_categories_cache = use_context::<Signal<Cache<Vec<FleetCategoryListItemDto>>>>();
+    let manageable_categories_cache = use_context::<Signal<ManageableCategoriesCache>>();
 
     let state = auth_state.read();
 
@@ -159,8 +160,8 @@ pub fn FleetCreationModal(
         }
     });
 
-    let manageable_categories = manageable_categories_cache
-        .read()
+    let manageable_categories = manageable_categories_cache()
+        .cache
         .data()
         .cloned()
         .unwrap_or(Vec::new());

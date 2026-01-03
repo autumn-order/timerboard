@@ -19,6 +19,13 @@ use crate::{
     },
 };
 
+// Cache for manageable categories per guild
+#[derive(Clone, Default)]
+struct ManageableCategoriesCache {
+    pub guild_id: Option<u64>,
+    pub cache: Cache<Vec<FleetCategoryListItemDto>>,
+}
+
 // Cache for guild members per guild
 #[derive(Clone, Default)]
 struct GuildMembersCache {
@@ -43,7 +50,7 @@ pub fn Home() -> Element {
     let _category_details_cache =
         use_context_provider(|| Signal::new(CategoryDetailsCache::default()));
     let mut manageable_categories_cache =
-        use_context_provider(|| Signal::new(Cache::<Vec<FleetCategoryListItemDto>>::default()));
+        use_context_provider(|| Signal::new(ManageableCategoriesCache::default()));
 
     let mut guilds_cache = use_signal(Cache::<Vec<DiscordGuildDto>>::default);
     let mut selected_guild = use_signal(|| None::<DiscordGuildDto>);
@@ -52,13 +59,12 @@ pub fn Home() -> Element {
 
     #[cfg(feature = "web")]
     {
-        let mut current_guild_id = use_signal(|| None::<u64>);
-
         // Fetch guilds user has access to
         let guilds_future = use_resource(move || async move {
             let should_fetch = !guilds_cache.peek().is_fetched();
+            let is_loading = guilds_cache.peek().is_loading();
 
-            if should_fetch {
+            if should_fetch && !is_loading {
                 guilds_cache.set(Cache::Loading);
 
                 Some(get_user_guilds().await)
@@ -77,12 +83,16 @@ pub fn Home() -> Element {
         // Fetch user's manageable categories for guild when selected guild changes
         let categories_future = use_resource(move || async move {
             if let Some(guild) = selected_guild() {
-                let guild_changed = *current_guild_id.peek() != Some(guild.guild_id);
-                let cache_not_fetched = !manageable_categories_cache.peek().is_fetched();
+                let should_fetch = !manageable_categories_cache.peek().cache.is_fetched();
+                let is_loading = manageable_categories_cache.peek().cache.is_loading();
+                let guild_changed =
+                    manageable_categories_cache.peek().guild_id != Some(guild.guild_id);
 
-                if guild_changed || cache_not_fetched {
-                    current_guild_id.set(Some(guild.guild_id));
-                    manageable_categories_cache.set(Cache::Loading);
+                if guild_changed || (should_fetch && !is_loading) {
+                    manageable_categories_cache.set(ManageableCategoriesCache {
+                        guild_id: Some(guild.guild_id),
+                        cache: Cache::Loading,
+                    });
 
                     Some(get_user_manageable_categories(guild.guild_id).await)
                 } else {
@@ -94,10 +104,16 @@ pub fn Home() -> Element {
         });
 
         if let Some(Some(result)) = &*categories_future.read_unchecked() {
-            manageable_categories_cache.set(match result {
-                Ok(data) => Cache::Fetched(data.clone()),
-                Err(e) => Cache::Error(e.clone()),
-            });
+            let cache = &mut *manageable_categories_cache.write();
+
+            match result {
+                Ok(data) => {
+                    cache.cache = Cache::Fetched(data.clone());
+                }
+                Err(e) => {
+                    cache.cache = Cache::Error(e.clone());
+                }
+            };
         }
     }
 
@@ -112,7 +128,7 @@ pub fn Home() -> Element {
             }
         }
 
-        if let Some(manageable_categories) = manageable_categories_cache().data() {
+        if let Some(manageable_categories) = manageable_categories_cache().cache.data() {
             can_create.set(!manageable_categories.is_empty())
         }
     });

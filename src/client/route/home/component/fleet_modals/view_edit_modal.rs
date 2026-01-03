@@ -11,9 +11,7 @@ use crate::{
         route::home::CategoryDetailsCache,
     },
     model::{
-        category::{FleetCategoryDetailsDto, FleetCategoryListItemDto},
-        fleet::UpdateFleetDto,
-        ping_format::PingFormatFieldType,
+        category::FleetCategoryDetailsDto, fleet::UpdateFleetDto, ping_format::PingFormatFieldType,
     },
 };
 
@@ -22,7 +20,10 @@ use crate::client::api::fleet::{
     delete_fleet, get_category_details, get_fleet, get_guild_members, update_fleet,
 };
 
-use super::{super::super::GuildMembersCache, FleetFormFields};
+use super::{
+    super::super::{GuildMembersCache, ManageableCategoriesCache},
+    FleetFormFields,
+};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum ViewEditMode {
@@ -39,7 +40,7 @@ pub fn FleetViewEditModal(
     mut refetch_trigger: Signal<u32>,
 ) -> Element {
     let auth_state = use_context::<Signal<AuthState>>();
-    let manageable_categories_cache = use_context::<Signal<Cache<Vec<FleetCategoryListItemDto>>>>();
+    let manageable_categories_cache = use_context::<Signal<ManageableCategoriesCache>>();
 
     let state = auth_state.read();
 
@@ -95,7 +96,7 @@ pub fn FleetViewEditModal(
                     return true;
                 }
                 // Check if user has manage permission for this category
-                if let Some(categories) = manageable_categories_cache().data() {
+                if let Some(categories) = manageable_categories_cache().cache.data() {
                     return categories.iter().any(|cat| cat.id == fleet.category_id);
                 }
             }
@@ -341,6 +342,7 @@ pub fn FleetViewEditModal(
         .cloned()
         .unwrap_or(Vec::new());
     let manageable_categories = manageable_categories_cache()
+        .cache
         .data()
         .cloned()
         .unwrap_or(Vec::new());

@@ -1,9 +1,8 @@
 use dioxus::prelude::*;
 
-use crate::{
-    client::{component::Modal, model::cache::Cache},
-    model::category::FleetCategoryListItemDto,
-};
+use crate::client::component::Modal;
+
+use super::super::ManageableCategoriesCache;
 
 /// Modal for selecting which fleet category to create a fleet in
 #[component]
@@ -12,13 +11,13 @@ pub fn CategorySelectionModal(
     mut show: Signal<bool>,
     on_category_selected: EventHandler<i32>,
 ) -> Element {
-    let cache = use_context::<Signal<Cache<Vec<FleetCategoryListItemDto>>>>();
-    let manageable_categories = cache();
+    let manageable_categories_cache = use_context::<Signal<ManageableCategoriesCache>>();
 
-    let categories = manageable_categories
+    let categories = manageable_categories_cache()
+        .cache
         .data()
-        .map(|v| v.as_slice())
-        .unwrap_or(&[]);
+        .cloned()
+        .unwrap_or(Vec::new());
 
     rsx! {
         Modal {
